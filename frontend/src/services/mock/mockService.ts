@@ -6,7 +6,7 @@ import type { DataService, DemoAlertSpec } from '../types'
 import { fetchBytes, sha256Hex } from '@/lib/evidence'
 import {
   SUSPICIOUS, VEHICLE_CLASSES, VEHICLE_COLORS, faceSvg, isNightHour, pick, plateSvg, rand, randInt,
-  randomPlate, seedAudit, seedBlacklist, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
+  randomPlate, seedAudit, seedBlacklist, seedEdgeNodes, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
 } from './data'
 
 // In-memory fake backend + simulator. Emits a new random alert every 5-10 s,
@@ -60,6 +60,23 @@ export function createMockService(): DataService {
   const faceMatches: FaceMatch[] = []
   const zoneAudit: ZoneAuditEntry[] = []
   const auditLog = seedAudit()
+  const edgeNodes = seedEdgeNodes()
+  const connSubs = new Set<(s: ConnectionState) => void>()
+  /** Simulated loss of the backend link (Settings > Demo, or the browser going offline). */
+  let linkDown = typeof navigator !== 'undefined' && navigator.onLine === false
+  const setLink = (down: boolean) => {
+    if (down === linkDown) return
+    linkDown = down
+    connSubs.forEach((cb) => cb(down ? 'offline' : 'online'))
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('offline', () => setLink(true))
+    window.addEventListener('online', () => setLink(false))
+  }
+  /** Writes fail like a real network error while the link is down. */
+  const requireLink = () => {
+    if (linkDown) throw new TypeError('Network unreachable (simulated link loss)')
+  }
 
   const alertSubs = new Set<(a: Alert) => void>()
   const plateSubs = new Set<(r: PlateRead) => void>()
@@ -396,11 +413,11 @@ export function createMockService(): DataService {
     if (simStarted) return
     simStarted = true
     const alertLoop = () => {
-      if (autoSim) simulateOnce()
+      if (autoSim && !linkDown) simulateOnce()
       setTimeout(alertLoop, rand(5000, 10000))
     }
     const plateLoop = () => {
-      if (autoSim) {
+      if (autoSim && !linkDown) {
         const anprCams = liveCams().filter((c) => c.modules.anpr)
         if (anprCams.length) emitPlateRead(pick(anprCams).id, randomPlate(), Math.random() < 0.12)
       }
@@ -466,15 +483,17 @@ export function createMockService(): DataService {
       return later(list, 450)
     },
     getAlert: async (id) => later(findAlert(id)),
-    async updateAlertStatus(id, status, by, note) {
+    async updateAlertStatus(id, status, by, note, at) {
+      requireLink()
       const a = findAlert(id)
       a.status = status
-      a.history.push({ status, at: new Date().toISOString(), by, note })
+      a.history.push({ status, at: at ?? new Date().toISOString(), by, note })
       if (!a.assignedTo || status === 'ESCALATED') a.assignedTo = status === 'ESCALATED' ? 'Insp. A. Rathore' : by
       emit(a)
       return later(a, 60)
     },
     async updateAlertNotes(id, notes) {
+      requireLink()
       const a = findAlert(id)
       a.notes = notes
       emit(a)
@@ -482,6 +501,7 @@ export function createMockService(): DataService {
     },
 
     async setPlaybookStep(id, stepId, label, done, by) {
+      requireLink()
       const a = findAlert(id)
       const set = new Set(a.playbookDone ?? [])
       if (done) set.add(stepId)
@@ -492,6 +512,7 @@ export function createMockService(): DataService {
       return later(a, 60)
     },
     async notifyQrt(id, channel, message, by) {
+      requireLink()
       const a = findAlert(id)
       a.qrtNotifiedAt = new Date().toISOString()
       a.history.push({ kind: 'notify', status: a.status, at: a.qrtNotifiedAt, by, note: `QRT notified via ${channel === 'SMS' ? 'SMS' : 'WhatsApp'}: ${message}` })
@@ -593,6 +614,23 @@ export function createMockService(): DataService {
       return later(m, 80)
     },
 
+    getEdgeNodes() {
+      // Small random drift so the page looks live.
+      for (const n of edgeNodes) {
+        if (n.status === 'offline') continue
+        const drift = (v: number, by: number, min: number, max: number) => Math.min(max, Math.max(min, v + rand(-by, by)))
+        n.cpuPct = drift(n.cpuPct, 3, 5, 99)
+        n.gpuPct = drift(n.gpuPct, 3, 5, 99)
+        n.ramPct = drift(n.ramPct, 1, 10, 97)
+        n.tempC = drift(n.tempC, 0.8, 40, 92)
+        n.processingFps = drift(n.processingFps, 0.5, 5, 25)
+        n.latencyMs = drift(n.latencyMs, 8, 20, 600)
+        n.bandwidthMbps = drift(n.bandwidthMbps, 0.2, 0.2, 8)
+        n.uptimeSec += 5
+        n.lastHeartbeat = new Date().toISOString()
+      }
+      return later(edgeNodes, 200)
+    },
     getUsers: () => later(users),
     getAuditLog: () => later(auditLog),
     logAudit(entry) {
@@ -640,8 +678,9 @@ export function createMockService(): DataService {
       }
     },
     subscribeConnection(cb: (s: ConnectionState) => void) {
-      cb('online')
-      return () => {}
+      connSubs.add(cb)
+      cb(linkDown ? 'offline' : 'online')
+      return () => connSubs.delete(cb)
     },
 
     demo: {
@@ -649,6 +688,7 @@ export function createMockService(): DataService {
       setAutoSimulation(on) {
         autoSim = on
       },
+      setLinkDown: setLink,
       async emit(spec: DemoAlertSpec) {
         if (spec.type === 'ANPR_MATCH') {
           emitPlateRead(spec.cameraId, spec.plate ?? blacklist[0].plate)

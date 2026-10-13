@@ -285,4 +285,40 @@ export interface EvidenceRecord {
   recordedAt: string
 }
 
+/** Backend link: online = Connected, connecting = Reconnecting, offline = Offline. */
 export type ConnectionState = 'connecting' | 'online' | 'offline'
+
+/** AI processing box at an outpost (one per BOP / check post). */
+export interface EdgeNode {
+  id: string
+  name: string
+  locationName: string
+  status: 'online' | 'degraded' | 'offline'
+  cpuPct: number
+  gpuPct: number
+  ramPct: number
+  diskPct: number
+  tempC: number
+  /** Frames per second the AI engine is actually processing (all cameras averaged). */
+  processingFps: number
+  /** Round-trip latency from the node to the command centre. */
+  latencyMs: number
+  uptimeSec: number
+  bandwidthMbps: number
+  modelVersion: string
+  cameraIds: string[]
+  lastHeartbeat: string
+}
+
+/** Operator action made while the backend was unreachable, waiting to be synced. */
+export interface PendingAction {
+  key: string
+  kind: 'status' | 'notes'
+  alertId: string
+  status?: AlertStatus
+  note?: string
+  notes?: string
+  by: string
+  /** When the operator actually did it (sent to the backend so response times stay correct). */
+  at: string
+}

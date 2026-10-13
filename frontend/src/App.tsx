@@ -13,6 +13,7 @@ import Analytics from '@/pages/Analytics'
 import Reports from '@/pages/Reports'
 import SettingsPage from '@/pages/Settings'
 import AuditLog from '@/pages/AuditLog'
+import SystemHealth from '@/pages/SystemHealth'
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="audit" element={<AuditLog />} />
+        <Route path="health" element={<SystemHealth />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

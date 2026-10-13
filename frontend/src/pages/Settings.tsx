@@ -444,6 +444,8 @@ function UsersTab() {
 // ---------------- Demo ----------------
 function DemoTab() {
   const demo = useUi((s) => s.demo)
+  const linkDown = useData((s) => s.connection !== 'online')
+  const pending = useData((s) => s.pending.length)
   return (
     <div className="panel max-w-xl space-y-3 p-3">
       <div className="panel-title">Demo Mode (for presentations)</div>
@@ -459,6 +461,19 @@ function DemoTab() {
         <span className="text-[11px] text-ink-mute">
           Hidden shortcut: <kbd className="rounded border border-base-600 bg-base-800 px-1 font-mono">Ctrl+Shift+D</kbd>
         </span>
+      </div>
+      <div className="border-t border-base-700 pt-3">
+        <div className="panel-title mb-1">Connectivity test</div>
+        <p className="mb-2 text-xs text-ink-dim">
+          Simulates losing the backend link, as happens at remote outposts. Acknowledge an alert or add a note while it is down: the action is queued
+          ("pending sync" in the top bar) and sent when the link is restored.
+        </p>
+        <div className="flex items-center gap-3">
+          <button className={`btn ${linkDown ? 'btn-primary' : 'btn-danger'}`} disabled={!service.demo.available} onClick={() => service.demo.setLinkDown(!linkDown)}>
+            {linkDown ? 'Restore backend link' : 'Simulate link loss'}
+          </button>
+          <span className="font-mono text-[11px] text-ink-mute">{pending} action(s) pending sync</span>
+        </div>
       </div>
     </div>
   )

@@ -45,6 +45,8 @@ export function Playbook({ alert }: { alert: Alert }) {
     setBusy(id)
     try {
       useData.getState().ingest(await service.setPlaybookStep(alert.id, id, label, !done.includes(id), user?.name ?? 'Operator'))
+    } catch {
+      /* backend unreachable: the tick is not saved and the box stays unchanged */
     } finally {
       setBusy('')
     }

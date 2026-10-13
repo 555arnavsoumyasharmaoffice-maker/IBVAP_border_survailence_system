@@ -103,7 +103,7 @@ export default function AlertDetail() {
   const incident = groupIncidents(alerts).find((i) => i.alerts.some((a) => a.id === alert.id))
 
   const saveNotes = async () => {
-    useData.getState().ingest(await service.updateAlertNotes(alert.id, notes))
+    await useData.getState().saveNotes(alert.id, notes)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }

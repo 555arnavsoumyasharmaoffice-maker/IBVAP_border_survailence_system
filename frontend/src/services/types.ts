@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EvidenceRecord,
+  Alert, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -31,6 +31,8 @@ export interface DemoControls {
   available: boolean
   /** Pause / resume the random alert simulator. */
   setAutoSimulation(on: boolean): void
+  /** Simulate losing the backend link (mock only), to demonstrate offline queueing. */
+  setLinkDown(down: boolean): void
   emit(spec: DemoAlertSpec): Promise<Alert | null>
 }
 
@@ -51,7 +53,8 @@ export interface DataService {
 
   getAlerts(query?: AlertQuery): Promise<Alert[]>
   getAlert(id: string): Promise<Alert>
-  updateAlertStatus(id: string, status: AlertStatus, by: string, note?: string): Promise<Alert>
+  /** `at` is only passed for actions queued while offline: the time the operator really acted. */
+  updateAlertStatus(id: string, status: AlertStatus, by: string, note?: string, at?: string): Promise<Alert>
   updateAlertNotes(id: string, notes: string): Promise<Alert>
   /** Tick / untick one response-playbook step. Logged in the alert history. */
   setPlaybookStep(id: string, stepId: string, label: string, done: boolean, by: string): Promise<Alert>
@@ -81,6 +84,9 @@ export interface DataService {
   removeWatchlistPerson(id: string): Promise<void>
   getFaceMatches(): Promise<FaceMatch[]>
   reviewFaceMatch(id: string, review: ReviewState, by: string): Promise<FaceMatch>
+
+  /** Health of the edge AI nodes at each outpost. */
+  getEdgeNodes(): Promise<EdgeNode[]>
 
   getUsers(): Promise<User[]>
   /** System-wide audit log, newest first. */

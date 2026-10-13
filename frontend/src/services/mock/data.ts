@@ -1,5 +1,5 @@
 import type {
-  AuditCategory, AuditEntry, BBox, BlacklistVehicle, Camera, DetectionModules, Role, User, WatchlistPerson, Zone,
+  AuditCategory, AuditEntry, BBox, BlacklistVehicle, Camera, DetectionModules, EdgeNode, Role, User, WatchlistPerson, Zone,
 } from '@/types'
 
 // ---------- random helpers ----------
@@ -225,3 +225,17 @@ export function seedAudit(): AuditEntry[] {
     id: `au-seed-${i}`, at: new Date(Date.now() - minAgo * 60_000).toISOString(), user, role, category, action, target, details,
   }))
 }
+
+const node = (n: Pick<EdgeNode, 'id' | 'name' | 'locationName' | 'cameraIds'> & Partial<EdgeNode>): EdgeNode => ({
+  status: 'online', cpuPct: 48, gpuPct: 62, ramPct: 55, diskPct: 41, tempC: 58, processingFps: 24, latencyMs: 70,
+  uptimeSec: 9 * 86_400, bandwidthMbps: 3.2, modelVersion: 'yolo11s-ibvap-1.4.2', lastHeartbeat: new Date().toISOString(),
+  ...n,
+})
+
+export const seedEdgeNodes = (): EdgeNode[] => [
+  node({ id: 'edge-01', name: 'BOP Sundar Edge Node', locationName: 'BOP Sundar, Jaisalmer Sector (RJ)', cameraIds: ['cam-01', 'cam-02'], uptimeSec: 21 * 86_400 + 5 * 3600 }),
+  node({ id: 'edge-02', name: 'Munabao Check Post Node', locationName: 'Munabao, Barmer (RJ)', cameraIds: ['cam-03'], cpuPct: 36, gpuPct: 44, ramPct: 47, diskPct: 63, tempC: 54, latencyMs: 110, bandwidthMbps: 1.8, uptimeSec: 6 * 86_400 }),
+  node({ id: 'edge-03', name: 'Kishangarh Tower Node', locationName: 'Kishangarh, Jaisalmer (RJ)', cameraIds: ['cam-04', 'cam-05'], status: 'degraded', cpuPct: 93, gpuPct: 97, ramPct: 81, diskPct: 58, tempC: 84, processingFps: 9.4, latencyMs: 310, bandwidthMbps: 0.9, uptimeSec: 37 * 3600, modelVersion: 'yolo11s-ibvap-1.4.1' }),
+  node({ id: 'edge-04', name: 'Ferozepur Sector Node', locationName: 'Hussainiwala / Attari (PB)', cameraIds: ['cam-06', 'cam-07'], cpuPct: 57, gpuPct: 71, ramPct: 66, diskPct: 92, tempC: 63, latencyMs: 55, bandwidthMbps: 4.6, uptimeSec: 48 * 86_400 }),
+  node({ id: 'edge-05', name: 'Hindumalkot Node', locationName: 'Hindumalkot, Sri Ganganagar (RJ)', cameraIds: ['cam-08'], status: 'offline', cpuPct: 0, gpuPct: 0, ramPct: 0, tempC: 0, processingFps: 0, latencyMs: 0, bandwidthMbps: 0, uptimeSec: 0, lastHeartbeat: new Date(Date.now() - 47 * 60_000).toISOString() }),
+]

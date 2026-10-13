@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Bell, ChartColumn, CircleHelp, Fence, FileText, Languages, LayoutDashboard, LogOut, Map, Play,
+  Bell, ChartColumn, CircleHelp, CloudUpload, Fence, FileText, HeartPulse, Languages, LayoutDashboard, LogOut, Map, Play,
   ScanFace, ScanLine, ScrollText, Settings, Shield, Square, User, Video, Volume2, VolumeX, WifiOff, type LucideIcon,
 } from 'lucide-react'
 import { service } from '@/services'
@@ -25,6 +25,7 @@ const NAV: { to: string; key: DictKey; icon: LucideIcon; manageOnly?: boolean }[
   { to: '/analytics', key: 'nav.analytics', icon: ChartColumn },
   { to: '/reports', key: 'nav.reports', icon: FileText },
   { to: '/audit', key: 'nav.audit', icon: ScrollText, manageOnly: true },
+  { to: '/health', key: 'nav.health', icon: HeartPulse },
   { to: '/settings', key: 'nav.settings', icon: Settings },
 ]
 
@@ -79,6 +80,7 @@ function TopBar() {
   const cameras = useData((s) => s.cameras)
   const connection = useData((s) => s.connection)
   const bellPulse = useData((s) => s.bellPulse)
+  const pending = useData((s) => s.pending.length)
   const active = useData((s) => s.alerts.reduce((n, a) => n + (isActive(a) ? 1 : 0), 0))
   const { lang, muted, toggleLang, toggleMute } = useUi()
   const [menu, setMenu] = useState(false)
@@ -91,7 +93,7 @@ function TopBar() {
     <header className="no-print flex h-12 shrink-0 items-center gap-3 border-b border-base-700 bg-base-900 px-3">
       <div className="flex items-center gap-2 text-xs">
         <span className={`h-2 w-2 rounded-full ${connTone} ${connection === 'online' ? '' : 'animate-pulse'}`} />
-        <span className="text-ink-mute">{t('top.system')}:</span>
+        <span className="text-ink-mute">{t('top.link')}:</span>
         <span className="font-semibold">{t(`top.${connection}`)}</span>
         <span className="mx-1 h-4 w-px bg-base-700" />
         <Video size={13} className="text-ink-mute" />
@@ -99,6 +101,11 @@ function TopBar() {
         <span className="font-mono font-semibold">
           {online}/{cameras.length}
         </span>
+        {pending > 0 && (
+          <span className="ml-1 flex items-center gap-1 rounded border border-med/50 bg-med/15 px-1.5 py-0.5 font-mono text-[11px] text-med" title="Actions made while offline. They sync automatically when the link returns.">
+            <CloudUpload size={12} /> {pending} {t('top.pending')}
+          </span>
+        )}
       </div>
 
       <div className="ml-auto flex items-center gap-2">
@@ -253,12 +260,17 @@ function DemoBanner() {
 function ConnectionBanner() {
   const connection = useData((s) => s.connection)
   const error = useData((s) => s.error)
-  if (connection !== 'offline' && !error) return null
+  const loading = useData((s) => s.loading)
+  const pending = useData((s) => s.pending.length)
+  if ((connection === 'online' && !error) || (connection === 'connecting' && loading)) return null
   return (
-    <div className="no-print flex items-center gap-2 border-b border-high/40 bg-high/15 px-3 py-1.5 text-xs text-high">
+    <div className="no-print flex flex-wrap items-center gap-2 border-b border-high/40 bg-high/15 px-3 py-1.5 text-xs text-high">
       <WifiOff size={14} />
       <span className="font-semibold">Backend not reachable, showing cached data.</span>
-      <span className="text-ink-dim">Live alerts are paused; reconnecting automatically.</span>
+      <span className="text-ink-dim">
+        Live alerts are paused. {connection === 'connecting' ? 'Reconnecting now.' : 'Reconnecting automatically.'} You can keep acknowledging alerts and adding notes
+        {pending ? `: ${pending} action${pending > 1 ? 's' : ''} pending sync.` : '; they sync when the link returns.'}
+      </span>
       <button className="btn btn-sm ml-auto" onClick={() => void useData.getState().load()}>
         Retry now
       </button>

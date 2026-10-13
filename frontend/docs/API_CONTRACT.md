@@ -260,10 +260,16 @@ zones itself from the `detections` WebSocket channel, so operators can toggle th
 |---|---|---|---|
 | GET | `/alerts` | `?from=ISO&to=ISO&cameraId=cam-01&limit=100` (all optional) | `Alert[]`, **newest first** |
 | GET | `/alerts/{id}` | | `Alert` |
-| PATCH | `/alerts/{id}/status` | `{ "status": "ACKNOWLEDGED", "by": "Ct. S. Meena", "note": "optional" }` | updated `Alert` |
+| PATCH | `/alerts/{id}/status` | `{ "status": "ACKNOWLEDGED", "by": "Ct. S. Meena", "note": "optional", "at": "optional ISO time" }` | updated `Alert` |
 | PATCH | `/alerts/{id}/notes` | `{ "notes": "text" }` | updated `Alert` |
 | PATCH | `/alerts/{id}/playbook` | `{ "stepId": "s2", "label": "Inform QRT", "done": true, "by": "Ct. S. Meena" }` | updated `Alert` |
 | POST | `/alerts/{id}/notify-qrt` | `{ "channel": "WHATSAPP", "message": "text", "by": "Ct. S. Meena" }` | updated `Alert` |
+
+**Offline queue:** when the link is down the dashboard queues acknowledge / escalate / false-alarm / resolve and
+notes edits, and replays them in order after reconnecting. Queued status changes carry `at` = the moment the
+operator really clicked. When `at` is present the backend must use it (not the receive time) as the history entry
+time, so response-time analytics stay correct. Replays can arrive late or twice: applying the same status again must
+be harmless, and an unknown alert id should return 404 (the dashboard then drops that action).
 
 On a status change the backend must: set `status`, append `{status, at: now, by, note}` to `history`, set
 `assignedTo`, and **broadcast the updated alert on the WebSocket** (so other operator screens update).
@@ -335,6 +341,26 @@ correction turns a read into a blacklisted plate.
 
 Every watchlist match (except category `AUTHORISED`) should also create a `FACE_MATCH` alert and link it via `alertId`.
 
+### Edge node health
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/health/nodes` | | `EdgeNode[]` |
+
+```json
+{
+  "id": "edge-01", "name": "BOP Sundar Edge Node", "locationName": "BOP Sundar, Jaisalmer Sector (RJ)",
+  "status": "online",
+  "cpuPct": 48, "gpuPct": 62, "ramPct": 55, "diskPct": 41, "tempC": 58,
+  "processingFps": 24.1, "latencyMs": 70, "uptimeSec": 1832400, "bandwidthMbps": 3.2,
+  "modelVersion": "yolo11s-ibvap-1.4.2", "cameraIds": ["cam-01", "cam-02"],
+  "lastHeartbeat": "2026-10-13T18:20:00.000Z"
+}
+```
+`status`: `online | degraded | offline`. Each edge node (the box running the AI engine at an outpost) should send a
+heartbeat with these numbers every few seconds; the backend marks a node `offline` when heartbeats stop. The System
+Health page polls this endpoint every 5 s and warns at: temperature >= 80 °C, disk >= 90 %, processing FPS < 12,
+latency > 250 ms, CPU >= 90 %.
+
 ### Audit log
 | Method | Path | Body | Returns |
 |---|---|---|---|
@@ -369,7 +395,8 @@ append-only. In production the backend should take `user` / `role` from the auth
 
 ## 3. WebSocket
 
-One connection to `VITE_WS_URL`. The frontend reconnects automatically (1 s, doubling up to 15 s).
+One connection to `VITE_WS_URL`. The frontend reconnects automatically with exponential backoff (1 s, doubling up to 15 s) and shows the link as
+Connected / Reconnecting / Offline in the top bar.
 
 ### Server -> client
 Every message is `{ "type": ..., "data": ... }`:

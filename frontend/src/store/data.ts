@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { create } from 'zustand'
-import type { Alert, AlertStatus, AlertType, AppSettings, Camera, ConnectionState, Zone } from '@/types'
+import type { Alert, AlertStatus, AlertType, AppSettings, Camera, ConnectionState, PendingAction, Zone } from '@/types'
 import { service } from '@/services'
 import { beep } from '@/lib/sound'
 import { SEV_RANK, eligibleFor, existingIncidentSeverity, groupIncidents } from '@/lib/incidents'
@@ -34,6 +34,8 @@ interface DataState {
   /** cameraId -> time of last alert, drives the red flash on camera tiles. */
   flash: Record<string, number>
   bellPulse: boolean
+  /** Operator actions made while the backend was unreachable, synced automatically on reconnect. */
+  pending: PendingAction[]
 
   load: () => Promise<void>
   start: () => () => void
@@ -42,6 +44,8 @@ interface DataState {
   refreshSettings: () => Promise<void>
   ingest: (alert: Alert) => void
   setStatus: (id: string, status: AlertStatus, note?: string) => Promise<void>
+  saveNotes: (id: string, notes: string) => Promise<void>
+  flushPending: () => Promise<void>
   /** Apply a status to every eligible alert in the list (incident-level action). */
   setStatusMany: (ids: string[], status: AlertStatus, note?: string) => Promise<void>
   /** Apply a status to the whole incident that contains this alert. */
@@ -51,10 +55,31 @@ interface DataState {
   clearBell: () => void
 }
 
+const PENDING_KEY = 'ibvap.pending'
+function readPending(): PendingAction[] {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_KEY) ?? '[]') as PendingAction[]
+  } catch {
+    return []
+  }
+}
+let flushing = false
+
 let toastKey = 1
 const lastNotified = new Map<string, number>()
 
 export const useData = create<DataState>((set, get) => {
+  function setPending(pending: PendingAction[]) {
+    set({ pending })
+    try {
+      localStorage.setItem(PENDING_KEY, JSON.stringify(pending))
+    } catch {
+      /* storage full: queue stays in memory */
+    }
+  }
+  // A newer notes edit for the same alert replaces the older queued one.
+  const enqueue = (p: PendingAction) => setPending([...get().pending.filter((x) => x.key !== p.key), p])
+
   function notify(a: Alert, repeat: boolean) {
     const ui = useUi.getState()
     lastNotified.set(a.id, Date.now())
@@ -83,6 +108,7 @@ export const useData = create<DataState>((set, get) => {
     modalQueue: [],
     flash: {},
     bellPulse: false,
+    pending: readPending(),
 
     async load() {
       set({ loading: true, error: null })
@@ -105,7 +131,11 @@ export const useData = create<DataState>((set, get) => {
       const offConn = service.subscribeConnection((connection) => {
         const was = get().connection
         set({ connection })
-        if (was === 'offline' && connection === 'online') void get().load()
+        if (connection !== 'online') return
+        // Back online: push queued operator actions first, then refresh everything.
+        void get()
+          .flushPending()
+          .then(() => (was === 'offline' ? get().load() : undefined))
       })
       // Unacknowledged CRITICAL alerts keep re-notifying every 30 s.
       const timer = setInterval(() => {
@@ -150,7 +180,56 @@ export const useData = create<DataState>((set, get) => {
 
     async setStatus(id, status, note) {
       const by = useAuth.getState().user?.name ?? 'Operator'
-      get().ingest(await service.updateAlertStatus(id, status, by, note))
+      const queue = () => {
+        const at = new Date().toISOString()
+        const a = get().alerts.find((x) => x.id === id)
+        // Optimistic local update so the operator sees the result immediately.
+        if (a) get().ingest({ ...a, status, assignedTo: a.assignedTo ?? by, history: [...a.history, { status, at, by, note: note ? `${note} (pending sync)` : 'pending sync' }] })
+        enqueue({ key: `${id}-${at}`, kind: 'status', alertId: id, status, note, by, at })
+      }
+      if (get().connection !== 'online') return queue()
+      try {
+        get().ingest(await service.updateAlertStatus(id, status, by, note))
+      } catch (e) {
+        if (!(e instanceof TypeError)) throw e
+        queue() // network failure
+      }
+    },
+
+    async saveNotes(id, notes) {
+      const by = useAuth.getState().user?.name ?? 'Operator'
+      const queue = () => {
+        const a = get().alerts.find((x) => x.id === id)
+        if (a) get().ingest({ ...a, notes })
+        enqueue({ key: `${id}-notes`, kind: 'notes', alertId: id, notes, by, at: new Date().toISOString() })
+      }
+      if (get().connection !== 'online') return queue()
+      try {
+        get().ingest(await service.updateAlertNotes(id, notes))
+      } catch (e) {
+        if (!(e instanceof TypeError)) throw e
+        queue()
+      }
+    },
+
+    async flushPending() {
+      if (flushing || !get().pending.length) return
+      flushing = true
+      try {
+        while (get().pending.length && get().connection === 'online') {
+          const p = get().pending[0]
+          try {
+            const updated = p.kind === 'status' ? await service.updateAlertStatus(p.alertId, p.status!, p.by, p.note, p.at) : await service.updateAlertNotes(p.alertId, p.notes ?? '')
+            get().ingest(updated)
+          } catch (e) {
+            if (e instanceof TypeError) break // still offline: keep the queue and try again later
+            // Rejected by the backend (e.g. alert no longer exists): drop it rather than block the queue.
+          }
+          setPending(get().pending.slice(1))
+        }
+      } finally {
+        flushing = false
+      }
     },
 
     async setStatusMany(ids, status, note) {
