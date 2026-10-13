@@ -206,9 +206,16 @@ store them and return normal URLs.
 
 ### AppSettings
 ```json
-{ "confidenceThreshold": 0.5, "loiteringSeconds": 30, "nightMode": "auto", "webhookUrl": "" }
+{
+  "confidenceThreshold": 0.5, "loiteringSeconds": 30, "nightMode": "auto", "webhookUrl": "",
+  "retention": { "clipsDays": 30, "snapshotsDays": 90, "faceDataDays": 30 },
+  "blurFacesInExports": true,
+  "sessionTimeoutMin": 15
+}
 ```
-`nightMode`: `auto | on | off`
+`nightMode`: `auto | on | off`. Each `retention` value is `7 | 30 | 90` days; the backend must delete clips,
+snapshots and face crops / embeddings older than that (data minimisation under the DPDP Act 2023).
+`sessionTimeoutMin`: the dashboard signs the user out after this many idle minutes.
 
 ## 2. REST endpoints
 
@@ -247,6 +254,24 @@ zones itself from the `detections` WebSocket channel, so operators can toggle th
 
 On a status change the backend must: set `status`, append `{status, at: now, by, note}` to `history`, set
 `assignedTo`, and **broadcast the updated alert on the WebSocket** (so other operator screens update).
+**Evidence:**
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/alerts/{id}/evidence` | | `EvidenceRecord` |
+| POST | `/alerts/{id}/evidence/export` | `{ "by": "Insp. A. Rathore", "packageSha256": "ab12...", "files": ["ALT-00733/snapshot.jpg"] }` | updated `Alert` |
+
+```json
+{ "alertId": "ALT-00733", "algorithm": "SHA-256", "snapshotSha256": "9f2c...64 hex chars", "clipSha256": "optional", "recordedAt": "2026-10-13T18:04:56.000Z" }
+```
+- The backend must compute `snapshotSha256` (and `clipSha256`) **when it writes the file** and never change it. The
+  dashboard downloads the file, hashes it in the browser and shows "Integrity verified" only if both match.
+- `snapshotUrl` / `clipUrl` must allow CORS `GET` from the dashboard origin, otherwise the browser cannot hash or zip them.
+- The ZIP itself is built in the browser (snapshot, clip, `metadata.json`, `SHA256SUMS.txt`, `chain_of_custody.json`).
+  `evidence/export` only records that it happened: append a history entry with `kind: "evidence"`.
+- When `AppSettings.blurFacesInExports` is true, `snapshotUrl` / `clipUrl` requested with `?blur=1` should return a copy
+  with non-watchlist faces blurred. (The mock cannot blur; the custody log records `faceBlurApplied: false`.)
+
 **Playbook:** add / remove `stepId` in `playbookDone` and append a history entry
 `{ kind: "playbook", status: <current>, at, by, note: "Done: Inform QRT" }`. The step lists live in the frontend
 (`src/lib/playbooks.ts`); the backend only stores ids.

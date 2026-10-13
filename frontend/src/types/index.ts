@@ -230,11 +230,28 @@ export interface User {
   active: boolean
 }
 
+export type RetentionDays = 7 | 30 | 90
+
 export interface AppSettings {
   confidenceThreshold: number
   loiteringSeconds: number
   nightMode: 'auto' | 'on' | 'off'
   webhookUrl: string
+  /** Data & privacy: how long each kind of data is kept before automatic deletion. */
+  retention: { clipsDays: RetentionDays; snapshotsDays: RetentionDays; faceDataDays: RetentionDays }
+  /** Blur faces of people who are not on the watchlist in exported snapshots / clips. */
+  blurFacesInExports: boolean
+  /** Auto-logout after this many minutes without operator activity. */
+  sessionTimeoutMin: number
+}
+
+/** Hash recorded by the backend when the evidence file was captured. */
+export interface EvidenceRecord {
+  alertId: string
+  algorithm: 'SHA-256'
+  snapshotSha256: string
+  clipSha256?: string
+  recordedAt: string
 }
 
 export type ConnectionState = 'connecting' | 'online' | 'offline'

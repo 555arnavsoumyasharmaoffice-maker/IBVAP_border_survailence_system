@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { create } from 'zustand'
-import type { Alert, AlertStatus, AlertType, Camera, ConnectionState, Zone } from '@/types'
+import type { Alert, AlertStatus, AlertType, AppSettings, Camera, ConnectionState, Zone } from '@/types'
 import { service } from '@/services'
 import { beep } from '@/lib/sound'
 import { SEV_RANK, eligibleFor, existingIncidentSeverity, groupIncidents } from '@/lib/incidents'
@@ -25,6 +25,7 @@ interface DataState {
   cameras: Camera[]
   zones: Zone[]
   alerts: Alert[]
+  settings: AppSettings | null
   loading: boolean
   error: string | null
   connection: ConnectionState
@@ -38,6 +39,7 @@ interface DataState {
   start: () => () => void
   refreshCameras: () => Promise<void>
   refreshZones: () => Promise<void>
+  refreshSettings: () => Promise<void>
   ingest: (alert: Alert) => void
   setStatus: (id: string, status: AlertStatus, note?: string) => Promise<void>
   /** Apply a status to every eligible alert in the list (incident-level action). */
@@ -73,6 +75,7 @@ export const useData = create<DataState>((set, get) => {
     cameras: [],
     zones: [],
     alerts: [],
+    settings: null,
     loading: true,
     error: null,
     connection: 'connecting',
@@ -85,12 +88,12 @@ export const useData = create<DataState>((set, get) => {
       set({ loading: true, error: null })
       try {
         const from = new Date(Date.now() - HISTORY_DAYS * 86_400_000).toISOString()
-        const [cameras, zones, alerts] = await Promise.all([service.getCameras(), service.getZones(), service.getAlerts({ from })])
+        const [cameras, zones, alerts, settings] = await Promise.all([service.getCameras(), service.getZones(), service.getAlerts({ from }), service.getSettings()])
         // Keep anything that arrived over the live stream while the request was in flight.
         const ids = new Set(alerts.map((a) => a.id))
         const merged = [...get().alerts.filter((a) => !ids.has(a.id)), ...alerts]
         merged.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-        set({ cameras, zones, alerts: merged, loading: false })
+        set({ cameras, zones, alerts: merged, settings, loading: false })
       } catch (e) {
         set({ loading: false, error: e instanceof Error ? e.message : 'Failed to load data' })
       }
@@ -125,6 +128,7 @@ export const useData = create<DataState>((set, get) => {
 
     refreshCameras: async () => set({ cameras: await service.getCameras() }),
     refreshZones: async () => set({ zones: await service.getZones() }),
+    refreshSettings: async () => set({ settings: await service.getSettings() }),
 
     ingest(a) {
       const { alerts } = get()

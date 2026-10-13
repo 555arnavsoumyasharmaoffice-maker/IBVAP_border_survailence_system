@@ -1,8 +1,9 @@
 import type {
   Alert, AlertStatus, AlertType, AppSettings, BBox, ConnectionState, Detection, DetectionClass,
-  DetectionFrame, FaceMatch, PlateRead, Severity, Zone, ZoneAuditEntry,
+  DetectionFrame, EvidenceRecord, FaceMatch, PlateRead, Severity, Zone, ZoneAuditEntry,
 } from '@/types'
 import type { DataService, DemoAlertSpec } from '../types'
+import { fetchBytes, sha256Hex } from '@/lib/evidence'
 import {
   SUSPICIOUS, VEHICLE_CLASSES, VEHICLE_COLORS, faceSvg, isNightHour, pick, plateSvg, rand, randInt,
   randomPlate, seedBlacklist, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
@@ -46,7 +47,13 @@ export function createMockService(): DataService {
   const watchlist = seedWatchlist()
   const blacklist = seedBlacklist()
   const users = seedUsers()
-  let settings: AppSettings = { confidenceThreshold: 0.5, loiteringSeconds: 30, nightMode: 'auto', webhookUrl: '' }
+  let settings: AppSettings = {
+    confidenceThreshold: 0.5, loiteringSeconds: 30, nightMode: 'auto', webhookUrl: '',
+    retention: { clipsDays: 30, snapshotsDays: 90, faceDataDays: 30 },
+    blurFacesInExports: true,
+    sessionTimeoutMin: 15,
+  }
+  const evidenceRecords = new Map<string, EvidenceRecord>()
 
   const alerts: Alert[] = []
   const plateReads: PlateRead[] = []
@@ -479,6 +486,23 @@ export function createMockService(): DataService {
       a.history.push({ kind: 'notify', status: a.status, at: a.qrtNotifiedAt, by, note: `QRT notified via ${channel === 'SMS' ? 'SMS' : 'WhatsApp'}: ${message}` })
       emit(a)
       return later(a, 700)
+    },
+
+    async getEvidenceRecord(id) {
+      const a = findAlert(id)
+      let rec = evidenceRecords.get(id)
+      if (!rec) {
+        // A real backend stores this hash when the snapshot is written. The mock derives it once on first request.
+        rec = { alertId: id, algorithm: 'SHA-256', snapshotSha256: await sha256Hex((await fetchBytes(a.snapshotUrl)).bytes), recordedAt: a.timestamp }
+        evidenceRecords.set(id, rec)
+      }
+      return later(rec, 60)
+    },
+    async logEvidenceExport(id, by, packageSha256, files) {
+      const a = findAlert(id)
+      a.history.push({ kind: 'evidence', status: a.status, at: new Date().toISOString(), by, note: `Evidence exported (${files.length} files, package SHA-256 ${packageSha256.slice(0, 16)}...)` })
+      emit(a)
+      return later(a, 60)
     },
 
     getZones: () => later(zones),

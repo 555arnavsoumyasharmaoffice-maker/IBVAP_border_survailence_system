@@ -14,6 +14,7 @@ import { MiniMap } from '@/components/MiniMap'
 import { ZoneShapes } from '@/components/ZoneShapes'
 import { NotifyQrt, Playbook, ResponseTimer } from '@/components/Playbook'
 import { hasPlaybook } from '@/lib/playbooks'
+import { EvidencePanel } from '@/components/EvidencePanel'
 import { Chip, EmptyState, PlateTag, SeverityBadge, Skeleton, StatusBadge, TYPE_ICON, useNow } from '@/components/ui'
 
 const DAY = 86_400_000
@@ -274,6 +275,8 @@ export default function AlertDetail() {
               </div>
             )}
           </div>
+
+          <EvidencePanel alert={alert} incident={incident} />
 
           {hasPlaybook(alert) && (
             <div className="panel space-y-3 p-3">

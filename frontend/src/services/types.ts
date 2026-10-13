@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertStatus, AlertType, AppSettings, BlacklistVehicle, Camera, ConnectionState,
+  Alert, AlertStatus, AlertType, AppSettings, BlacklistVehicle, Camera, ConnectionState, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -57,6 +57,11 @@ export interface DataService {
   setPlaybookStep(id: string, stepId: string, label: string, done: boolean, by: string): Promise<Alert>
   /** Send an SMS / WhatsApp-style message to the Quick Reaction Team. Logged in the alert history. */
   notifyQrt(id: string, channel: 'SMS' | 'WHATSAPP', message: string, by: string): Promise<Alert>
+
+  /** Hashes recorded at capture time, used to verify evidence integrity. */
+  getEvidenceRecord(id: string): Promise<EvidenceRecord>
+  /** Record that an evidence package was exported (chain of custody). Logged in the alert history. */
+  logEvidenceExport(id: string, by: string, packageSha256: string, files: string[]): Promise<Alert>
 
   getZones(): Promise<Zone[]>
   /** Create (no id) or update. `by` is the acting user's name; every change is written to the zone audit log. */
