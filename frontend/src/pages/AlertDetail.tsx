@@ -6,6 +6,7 @@ import { service } from '@/services'
 import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
 import { SEV, fmtDateTime, fmtDuration, keyDetail, pct, relTime } from '@/lib/format'
+import { groupIncidents } from '@/lib/incidents'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
 import { AlertActions } from '@/components/AlertCard'
@@ -96,6 +97,7 @@ export default function AlertDetail() {
       ((alert.trackId !== null && a.trackId === alert.trackId) || (!!d.plateNumber && a.details.plateNumber === d.plateNumber)),
   )
   const ack = alert.history.find((h) => h.status === 'ACKNOWLEDGED')
+  const incident = groupIncidents(alerts).find((i) => i.alerts.some((a) => a.id === alert.id))
 
   const saveNotes = async () => {
     useData.getState().ingest(await service.updateAlertNotes(alert.id, notes))
@@ -184,6 +186,32 @@ export default function AlertDetail() {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {incident && incident.alerts.length > 1 && (
+            <div className="panel p-3">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="panel-title">
+                  Incident {incident.id} - {incident.alerts.length} alerts grouped
+                </span>
+                <StatusBadge status={incident.status} />
+                <span className="ml-auto"><AlertActions alert={alert} incident={incident} /></span>
+              </div>
+              <ul className="max-h-44 divide-y divide-base-800 overflow-y-auto text-xs">
+                {incident.alerts.map((a) => (
+                  <li key={a.id}>
+                    <Link to={`/alerts/${a.id}`} replace className={`flex items-center gap-2 py-1.5 hover:text-accent ${a.id === alert.id ? 'font-semibold text-accent' : ''}`}>
+                      <span className={`h-2 w-2 rounded-full ${SEV[a.severity].bg}`} />
+                      <span className="font-mono text-ink-mute">{fmtDateTime(a.timestamp)}</span>
+                      <span>{t(`type.${a.type}`)}</span>
+                      <span className="truncate font-mono text-ink-dim">{keyDetail(a)}</span>
+                      <span className="ml-auto"><StatusBadge status={a.status} /></span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-1 text-[10px] text-ink-mute">Buttons above act on every open alert in this incident.</div>
             </div>
           )}
 

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BellRing, Car, Fence, ScanFace, Siren, Video, type LucideIcon } from 'lucide-react'
 import type { Alert } from '@/types'
-import { useData } from '@/store/data'
+import { useData, useIncidents } from '@/store/data'
 import { SEV, SEVERITIES, fmtTime, isActive, keyDetail } from '@/lib/format'
 import { useT } from '@/i18n'
 import { CameraFeed } from '@/components/CameraFeed'
@@ -95,6 +95,7 @@ export default function CommandCenter() {
   const navigate = useNavigate()
   const now = useNow(1000)
   const { alerts, cameras, loading, error } = useData()
+  const incidents = useIncidents()
 
   const kpis = useMemo(() => {
     const ts = Date.now()
@@ -160,7 +161,7 @@ export default function CommandCenter() {
             {loading && !alerts.length ? (
               Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-24" />)
             ) : alerts.length ? (
-              alerts.slice(0, 40).map((a) => <AlertCard key={a.id} alert={a} now={now} />)
+              incidents.slice(0, 40).map((i) => <AlertCard key={i.id} alert={i.alerts[0]} incident={i} now={now} />)
             ) : (
               <EmptyState title={t('common.noAlerts')} hint="All quiet. New detections will appear here in real time." />
             )}

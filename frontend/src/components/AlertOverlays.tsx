@@ -75,7 +75,8 @@ export function CriticalModal() {
   const queue = useData((s) => s.modalQueue)
   const alert = useData((s) => s.alerts.find((a) => a.id === s.modalQueue[0]))
   const camera = useData((s) => s.cameras.find((c) => c.id === alert?.cameraId))
-  const setStatus = useData((s) => s.setStatus)
+  // Acknowledging / escalating from the modal applies to the whole incident.
+  const setStatus = useData((s) => s.setIncidentStatus)
   const dismissModal = useData((s) => s.dismissModal)
 
   // Drop queue entries that no longer need attention (handled elsewhere / unknown id).

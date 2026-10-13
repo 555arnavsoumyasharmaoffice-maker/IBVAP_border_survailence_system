@@ -75,6 +75,29 @@ This is what the frontend expects when `VITE_USE_MOCK=false`. The TypeScript sou
 
 Plates are stored **without spaces, uppercase** (`RJ14AB1234`); the UI formats them.
 
+### Incident (derived, no endpoint needed)
+The dashboard groups alerts into incidents **on the client** to reduce alert fatigue. The backend does not need to
+store incidents, but if it sends webhooks to a C2 system it should apply the same rule:
+
+An alert joins an existing incident when
+1. it has the same `cameraId` + `trackId` and arrives within **10 minutes** of that incident's last alert, or
+2. it has the same `cameraId` + `type` and arrives within **2 minutes** of that incident's last alert.
+
+```json
+{
+  "id": "INC-00715", "cameraId": "cam-02", "type": "FENCE_INTRUSION", "trackId": 612,
+  "alerts": ["...Alert objects, newest first..."],
+  "firstSeen": "2026-10-13T18:04:56.000Z", "lastSeen": "2026-10-13T18:05:40.000Z",
+  "severity": "CRITICAL", "status": "NEW"
+}
+```
+`severity` = highest among its alerts. `status` = `NEW` if any alert is NEW, else `ESCALATED` if any, else
+`FALSE_ALARM` / `RESOLVED` when all are closed, else `ACKNOWLEDGED`. Toasts, sound and the critical dialog fire once
+per incident (again only if a later alert is more severe). Incident-level buttons simply call
+`PATCH /alerts/{id}/status` for each open alert in the group.
+
+For this to work the AI engine must keep `trackId` stable while an object stays in view.
+
 ### Detection / DetectionFrame (live overlay)
 ```json
 {

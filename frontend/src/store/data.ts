@@ -1,7 +1,9 @@
+import { useMemo } from 'react'
 import { create } from 'zustand'
 import type { Alert, AlertStatus, AlertType, Camera, ConnectionState, Zone } from '@/types'
 import { service } from '@/services'
 import { beep } from '@/lib/sound'
+import { SEV_RANK, eligibleFor, existingIncidentSeverity, groupIncidents } from '@/lib/incidents'
 import { useUi } from './ui'
 import { useAuth } from './auth'
 
@@ -38,6 +40,10 @@ interface DataState {
   refreshZones: () => Promise<void>
   ingest: (alert: Alert) => void
   setStatus: (id: string, status: AlertStatus, note?: string) => Promise<void>
+  /** Apply a status to every eligible alert in the list (incident-level action). */
+  setStatusMany: (ids: string[], status: AlertStatus, note?: string) => Promise<void>
+  /** Apply a status to the whole incident that contains this alert. */
+  setIncidentStatus: (alertId: string, status: AlertStatus, note?: string) => Promise<void>
   dismissToast: (key: number) => void
   dismissModal: (id: string) => void
   clearBell: () => void
@@ -101,10 +107,13 @@ export const useData = create<DataState>((set, get) => {
       // Unacknowledged CRITICAL alerts keep re-notifying every 30 s.
       const timer = setInterval(() => {
         const now = Date.now()
-        for (const a of get().alerts) {
-          if (now - Date.parse(a.timestamp) > 3_600_000) break
-          if (a.severity !== 'CRITICAL' || a.status !== 'NEW') continue
-          if (now - (lastNotified.get(a.id) ?? Date.parse(a.timestamp)) >= RENOTIFY_MS) notify(a, true)
+        const recent = get().alerts.filter((a) => now - Date.parse(a.timestamp) <= 3_600_000)
+        // One reminder per incident, not per alert.
+        for (const inc of groupIncidents(recent)) {
+          const a = inc.alerts.find((x) => x.severity === 'CRITICAL' && x.status === 'NEW')
+          if (!a) continue
+          const last = Math.max(...inc.alerts.map((x) => lastNotified.get(x.id) ?? 0)) || Date.parse(a.timestamp)
+          if (now - last >= RENOTIFY_MS) notify(a, true)
         }
       }, 5000)
       return () => {
@@ -121,7 +130,12 @@ export const useData = create<DataState>((set, get) => {
       const { alerts } = get()
       const exists = alerts.some((x) => x.id === a.id)
       set({ alerts: exists ? alerts.map((x) => (x.id === a.id ? a : x)) : [a, ...alerts] })
-      if (!exists && a.status === 'NEW') notify(a, false)
+      if (!exists && a.status === 'NEW') {
+        // Popups / sound fire once per incident. A repeat only notifies again when it is more severe.
+        const prior = existingIncidentSeverity(a, alerts)
+        if (prior === null || SEV_RANK[a.severity] > SEV_RANK[prior]) notify(a, false)
+        else set({ flash: { ...get().flash, [a.cameraId]: Date.now() } })
+      }
       if (a.status !== 'NEW') {
         set((s) => ({
           toasts: s.toasts.filter((t) => t.alertId !== a.id),
@@ -135,6 +149,16 @@ export const useData = create<DataState>((set, get) => {
       get().ingest(await service.updateAlertStatus(id, status, by, note))
     },
 
+    async setStatusMany(ids, status, note) {
+      const wanted = new Set(ids)
+      for (const a of eligibleFor(status, get().alerts.filter((x) => wanted.has(x.id)))) await get().setStatus(a.id, status, note)
+    },
+
+    async setIncidentStatus(alertId, status, note) {
+      const inc = groupIncidents(get().alerts).find((i) => i.alerts.some((a) => a.id === alertId))
+      await get().setStatusMany(inc ? inc.alerts.map((a) => a.id) : [alertId], status, note)
+    },
+
     dismissToast: (key) => set((s) => ({ toasts: s.toasts.filter((t) => t.key !== key) })),
     dismissModal: (id) => set((s) => ({ modalQueue: s.modalQueue.filter((x) => x !== id) })),
     clearBell: () => set({ bellPulse: false }),
@@ -142,3 +166,9 @@ export const useData = create<DataState>((set, get) => {
 })
 
 export const useCamera = (id: string | undefined) => useData((s) => s.cameras.find((c) => c.id === id))
+
+/** Alerts grouped into incidents (newest first). */
+export function useIncidents() {
+  const alerts = useData((s) => s.alerts)
+  return useMemo(() => groupIncidents(alerts), [alerts])
+}

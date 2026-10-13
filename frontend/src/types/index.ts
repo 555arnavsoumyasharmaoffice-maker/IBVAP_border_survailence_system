@@ -84,6 +84,26 @@ export interface Alert {
   history: AlertHistoryEntry[]
 }
 
+/**
+ * A group of related alerts shown to the operator as one item.
+ * Derived on the client from the alert list (see src/lib/incidents.ts for the rule).
+ */
+export interface Incident {
+  id: string
+  cameraId: string
+  /** Type of the most severe alert in the group. */
+  type: AlertType
+  trackId: number | null
+  /** Newest first. */
+  alerts: Alert[]
+  firstSeen: string
+  lastSeen: string
+  /** Highest severity among its alerts. */
+  severity: Severity
+  /** NEW if any alert is NEW, else ESCALATED if any, else closed when all are closed, else ACKNOWLEDGED. */
+  status: AlertStatus
+}
+
 export type DetectionClass = 'person' | 'car' | 'truck' | 'motorcycle' | 'bus' | 'tractor' | 'animal'
 
 export interface Detection {

@@ -24,6 +24,8 @@ const TYPE_WEIGHTS: Record<AlertType, number> = {
 }
 const OPERATORS = ['Ct. S. Meena', 'Ct. P. Gill', 'Insp. A. Rathore']
 const VEHICLE_KINDS: DetectionClass[] = ['car', 'truck', 'motorcycle', 'tractor', 'bus']
+/** Types the AI engine typically re-reports while the same object stays in view (these collapse into one incident). */
+const REPEATABLE: AlertType[] = ['FENCE_INTRUSION', 'HUMAN_DETECTED', 'VEHICLE_DETECTED', 'LOITERING', 'NIGHT_MOVEMENT', 'SUSPICIOUS_ACTIVITY']
 
 interface Track extends Detection {
   vx: number
@@ -31,6 +33,8 @@ interface Track extends Detection {
 }
 
 interface BuildOpts {
+  /** Reuse an existing track id (repeat alert about the same object). */
+  trackId?: number
   plate?: string
   personId?: string
   live?: boolean
@@ -152,6 +156,8 @@ export function createMockService(): DataService {
         trackId = trackSeq++
       }
     }
+
+    if (opts.trackId !== undefined && kind !== 'none') trackId = opts.trackId
 
     let severity: Severity = 'LOW'
     let confidence = rand(0.6, 0.97)
@@ -316,6 +322,18 @@ export function createMockService(): DataService {
       const a = buildAlert(type, cameraId, ts, type === 'ANPR_MATCH' ? { plate: plateReads[0].plate } : {})
       ageAlert(a)
       alerts.push(a)
+      // Follow-up alerts about the same track, so history contains multi-alert incidents.
+      if (REPEATABLE.includes(type) && Math.random() < 0.25) {
+        for (let k = 1, n = randInt(1, 3); k <= n; k++) {
+          const ts2 = new Date(ts.getTime() + k * rand(15, 45) * 1000)
+          if (ts2.getTime() > now) break
+          const b = buildAlert(type, cameraId, ts2, { trackId: a.trackId ?? undefined })
+          b.status = a.status
+          b.assignedTo = a.assignedTo
+          b.history = [b.history[0], ...a.history.slice(1)]
+          alerts.push(b)
+        }
+      }
     }
     alerts.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
 
@@ -344,12 +362,20 @@ export function createMockService(): DataService {
     return read
   }
 
+  let lastSim: Alert | null = null
   function simulateOnce() {
     const now = new Date()
+    // ~30% of the time the same object is reported again: the UI groups these into one incident.
+    if (lastSim && REPEATABLE.includes(lastSim.type) && now.getTime() - Date.parse(lastSim.timestamp) < 60_000 && Math.random() < 0.3) {
+      lastSim = buildAlert(lastSim.type, lastSim.cameraId, now, { live: true, trackId: lastSim.trackId ?? undefined })
+      emit(lastSim)
+      return
+    }
     const type = randomType(now)
     const cameraId = camForType(type)
     if (type === 'ANPR_MATCH') emitPlateRead(cameraId, pick(blacklist).plate)
     else emit(buildAlert(type, cameraId, now, { live: true }))
+    lastSim = alerts[0]
   }
 
   function startSimulator() {

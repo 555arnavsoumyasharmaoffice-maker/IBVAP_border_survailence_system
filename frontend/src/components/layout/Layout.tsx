@@ -201,7 +201,7 @@ function useShortcuts() {
         case 'A': {
           const id = data.modalQueue[0] ?? ui.focusedAlertId
           const alert = data.alerts.find((x) => x.id === id)
-          if (alert?.status === 'NEW') void data.setStatus(alert.id, 'ACKNOWLEDGED')
+          if (alert?.status === 'NEW') void data.setIncidentStatus(alert.id, 'ACKNOWLEDGED')
           break
         }
         case 'm':
