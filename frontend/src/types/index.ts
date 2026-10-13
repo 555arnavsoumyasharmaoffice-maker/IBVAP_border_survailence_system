@@ -1,0 +1,213 @@
+// Shared domain types. The backend must return JSON in exactly these shapes
+// (see docs/API_CONTRACT.md). All timestamps are ISO-8601 strings.
+
+export type CameraStatus = 'online' | 'offline' | 'degraded'
+
+export interface DetectionModules {
+  human: boolean
+  vehicle: boolean
+  anpr: boolean
+  face: boolean
+  fence: boolean
+}
+
+export interface Camera {
+  id: string
+  name: string
+  locationName: string
+  lat: number
+  lng: number
+  streamUrl: string
+  status: CameraStatus
+  fps: number
+  isNightMode: boolean
+  lastSeen: string
+  modules: DetectionModules
+}
+
+export type AlertType =
+  | 'FENCE_INTRUSION'
+  | 'HUMAN_DETECTED'
+  | 'VEHICLE_DETECTED'
+  | 'ANPR_MATCH'
+  | 'FACE_MATCH'
+  | 'LOITERING'
+  | 'NIGHT_MOVEMENT'
+  | 'SUSPICIOUS_ACTIVITY'
+  | 'CAMERA_OFFLINE'
+
+export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+
+export type AlertStatus = 'NEW' | 'ACKNOWLEDGED' | 'ESCALATED' | 'RESOLVED' | 'FALSE_ALARM'
+
+/** [x, y, w, h], all normalized 0-1 relative to the frame, origin top-left. */
+export type BBox = [number, number, number, number]
+
+export interface AlertDetails {
+  plateNumber?: string
+  vehicleClass?: string
+  vehicleColor?: string
+  blacklistReason?: string
+  matchedPersonId?: string
+  matchedPersonName?: string
+  similarity?: number
+  faceCropUrl?: string
+  zoneId?: string
+  zoneName?: string
+  dwellTimeSec?: number
+  objectCount?: number
+  description?: string
+}
+
+export interface AlertHistoryEntry {
+  status: AlertStatus
+  at: string
+  by: string
+  note?: string
+}
+
+export interface Alert {
+  id: string
+  timestamp: string
+  cameraId: string
+  type: AlertType
+  severity: Severity
+  status: AlertStatus
+  confidence: number
+  snapshotUrl: string
+  clipUrl?: string
+  trackId: number | null
+  bbox?: BBox
+  details: AlertDetails
+  assignedTo: string | null
+  notes: string
+  history: AlertHistoryEntry[]
+}
+
+export type DetectionClass = 'person' | 'car' | 'truck' | 'motorcycle' | 'bus' | 'tractor' | 'animal'
+
+export interface Detection {
+  trackId: number
+  class: DetectionClass
+  confidence: number
+  bbox: BBox
+}
+
+export interface DetectionFrame {
+  cameraId: string
+  timestamp: string
+  detections: Detection[]
+}
+
+/** Object groups a zone reacts to. "vehicle" covers car, truck, bus, motorcycle and tractor. */
+export type ZoneClass = 'person' | 'vehicle' | 'animal'
+
+/**
+ * Tripwire crossing direction, relative to walking from points[0] (A) to points[1] (B):
+ *  - forward: object crosses from the LEFT side of A->B to the RIGHT side
+ *  - reverse: right side to left side
+ *  - both:    any crossing
+ */
+export type TripwireDirection = 'both' | 'forward' | 'reverse'
+
+export interface Zone {
+  id: string
+  cameraId: string
+  name: string
+  type: 'polygon' | 'line'
+  /** Normalized 0-1 so the zone works at any video resolution. line = 2 points, polygon = 3+. */
+  points: [number, number][]
+  active: boolean
+  schedule: 'always' | 'night-only'
+  /** Severity of the alert this zone raises. */
+  severity: Severity
+  /** Object classes that trigger the zone (animals are ignored by default). */
+  classes: ZoneClass[]
+  /** Seconds an object must stay inside (polygon) before alerting. 0 = immediately. */
+  minDwellSec: number
+  /** Only meaningful for type "line". */
+  direction: TripwireDirection
+}
+
+export interface ZoneAuditEntry {
+  id: string
+  at: string
+  by: string
+  action: 'CREATE' | 'UPDATE' | 'DELETE'
+  zoneId: string
+  zoneName: string
+  cameraId: string
+  /** Human-readable summary of what changed. */
+  changes: string
+}
+
+export type PersonCategory = 'WANTED' | 'SUSPECT' | 'MISSING' | 'AUTHORISED'
+export type Level = 'HIGH' | 'MEDIUM' | 'LOW'
+
+export interface WatchlistPerson {
+  id: string
+  name: string
+  category: PersonCategory
+  riskLevel: Level
+  photos: string[]
+  notes: string
+  addedAt: string
+}
+
+export type BlacklistReason = 'STOLEN' | 'SMUGGLING' | 'WANTED' | 'OTHER'
+
+export interface BlacklistVehicle {
+  id: string
+  plate: string
+  reason: BlacklistReason
+  priority: Level
+  notes: string
+  addedAt: string
+}
+
+export interface PlateRead {
+  id: string
+  timestamp: string
+  cameraId: string
+  plate: string
+  vehicleClass: string
+  color: string | null
+  confidence: number
+  cropUrl: string
+  blacklisted: boolean
+  needsVerification: boolean
+  correctedFrom?: string
+}
+
+export type ReviewState = 'PENDING' | 'CONFIRMED' | 'REJECTED'
+
+export interface FaceMatch {
+  id: string
+  timestamp: string
+  cameraId: string
+  personId: string
+  similarity: number
+  capturedUrl: string
+  alertId: string | null
+  review: ReviewState
+  reviewedBy?: string
+}
+
+export type Role = 'OPERATOR' | 'COMMANDER' | 'ADMIN'
+
+export interface User {
+  id: string
+  name: string
+  username: string
+  role: Role
+  active: boolean
+}
+
+export interface AppSettings {
+  confidenceThreshold: number
+  loiteringSeconds: number
+  nightMode: 'auto' | 'on' | 'off'
+  webhookUrl: string
+}
+
+export type ConnectionState = 'connecting' | 'online' | 'offline'
