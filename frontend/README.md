@@ -24,6 +24,19 @@ cameras, detections and alerts), and switches to the real FastAPI backend with o
 | Integration with command and control systems | Settings > Integration (C2): REST endpoints, WebSocket URL, webhook with test event, example JSON payload; `docs/API_CONTRACT.md` |
 | Improves response time | Analytics: average response time (NEW to ACKNOWLEDGED) and false alarm rate; Reports: shift report |
 
+Operational features beyond the problem statement:
+
+| Feature | Where |
+|---|---|
+| Incident grouping (same track, or same camera + type within 2 min, shown once with an xN counter; one popup per incident) | Command Center feed, Alerts > Incidents |
+| Response playbook (SOP checklist per alert type), Notify QRT, live response timer | Alert detail, critical alert dialog |
+| Evidence export: ZIP with snapshot, clip, metadata, SHA-256 hashes, chain of custody; integrity badge | Alert detail |
+| Audit log (camera views, zone / watchlist / blacklist edits, exports, settings), Commander / Admin only | Audit Log |
+| Data retention, face blurring preference, DPDP Act 2023 note; stream encryption status, idle auto-logout | Settings > Data & Privacy, Security |
+| "Why it fired" (frames confirmed, dwell, class, confidence), visibility badges, per-camera sensitivity | Alert cards and detail, Live Cameras, Settings > Detection |
+| Backend link status, offline action queue with sync, edge node health | Top bar, System Health |
+| Requirements coverage and architecture | About IBVAP |
+
 Also included: Map View with the border line, camera status markers that pulse on new alerts, alert-density heat circles and an offline grid fallback, role-based access (Operator / Commander / Admin),
 English / Hindi toggle, keyboard shortcuts, camera health ("SIGNAL LOST" with last-seen time), printable shift
 reports, and a scripted Demo Mode.
@@ -91,11 +104,13 @@ npm run preview    # serve dist/ on http://localhost:4173
 
 ## Demo Mode (for the presentation)
 
-Mock mode only. Start it from **Settings > Demo Mode** or press **Ctrl+Shift+D**. It runs a scripted 2-minute
-scenario with captions at the bottom of the screen:
+Mock mode only. Start it from **Settings > Demo Mode** or press **Ctrl+Shift+D**. It runs a scripted scenario of
+about 2 minutes with captions at the bottom of the screen:
 
-normal patrol → vehicle at check post → ANPR blacklist match → person crosses the virtual fence at night →
-CRITICAL alert modal → operator acknowledges → map flies to the camera and its marker pulses → escalation → shift report generated.
+patrol → vehicle at check post → ANPR blacklist match → person crosses the virtual fence at night → CRITICAL alert
+modal → operator acknowledges → repeat alerts collapse into one incident (x3) → playbook steps ticked → QRT notified →
+evidence ZIP exported (the browser downloads a file) → map flies to the camera and its marker pulses → escalation →
+shift report → About IBVAP (requirements coverage).
 
 Random alerts are paused while it runs. Press Ctrl+Shift+D again to stop.
 

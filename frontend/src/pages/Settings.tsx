@@ -450,7 +450,7 @@ function DemoTab() {
     <div className="panel max-w-xl space-y-3 p-3">
       <div className="panel-title">Demo Mode (for presentations)</div>
       <p className="text-xs text-ink-dim">
-        Runs a scripted 2-minute scenario: normal patrol → vehicle at check post → ANPR blacklist match → night fence intrusion → CRITICAL alert → acknowledge and escalate → map location → shift report.
+        Runs a scripted scenario (about 2 minutes): patrol → vehicle at check post → ANPR blacklist match → night fence intrusion → CRITICAL alert → acknowledge → repeat alerts collapse into one incident → playbook ticks → Notify QRT → evidence export (downloads a ZIP) → map marker pulse → escalation → shift report → Capabilities page.
         Random alerts are paused while it runs.
       </p>
       {!service.demo.available && <InlineWarning>Demo Mode only works in mock mode (VITE_USE_MOCK=true).</InlineWarning>}
@@ -482,7 +482,8 @@ function DemoTab() {
 export default function SettingsPage() {
   const t = useT()
   const canManage = useCan('manage')
-  const [tab, setTab] = useState<TabId>('cameras')
+  // Deep link: /settings?tab=integration
+  const [tab, setTab] = useState<TabId>(() => (new URLSearchParams(location.search).get('tab') as TabId | null) ?? 'cameras')
   const gated = tab === 'cameras' || tab === 'detection' || tab === 'integration' || tab === 'privacy' || tab === 'security'
   return (
     <Page>

@@ -111,7 +111,7 @@ const cam = (
   isNightMode: isNightHour(new Date()),
   lastSeen: new Date().toISOString(),
   modules: ALL,
-  visibility: isNightHour(new Date()) ? 'low-light' : 'clear',
+  visibility: 'clear',
   sensitivity: 0.5,
   minConfirmFrames: 5,
   ignoreAnimals: true,

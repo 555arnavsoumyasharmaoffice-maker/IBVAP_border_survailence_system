@@ -34,7 +34,11 @@ frontend/              React Command Center (this is the active work)
                        MiniMap.tsx, ZoneShapes.tsx (zones on still snapshots),
                        layout/Layout.tsx (sidebar, top bar, shortcuts, banners)
     demo/              useDemoRunner.ts (scripted 2-minute judge scenario)
-    pages/             One file per route
+    pages/             One file per route (incl. AuditLog, SystemHealth, About)
+    lib/incidents.ts   Incident grouping rule (client-derived from alerts)
+    lib/playbooks.ts   SOP checklists per alert type, QRT message text
+    lib/evidence.ts    Evidence ZIP + SHA-256 (jszip, Web Crypto)
+    lib/audit.ts       audit(category, action, target, details) helper -> service.logAudit
 ```
 
 ## Commands (run inside `frontend/`)
@@ -81,10 +85,20 @@ Leaflet + react-leaflet with OpenStreetMap tiles, Recharts, lucide-react, Zustan
   `i18n/dict.ts` (English required, Hindi optional and falls back to English).
 - Every data view needs a loading skeleton, an empty state and an error state (`components/ui.tsx`).
 
+## Rules added with the operational features
+
+- Incidents are derived on the client (`groupIncidents`); never store them separately. Notifications fire once per incident.
+- Anything an operator does that matters for accountability calls `audit(...)` from `lib/audit.ts`.
+- Alert status changes and notes go through `useData().setStatus` / `saveNotes` so they are queued when the backend
+  link is down (`pending` in the store) and replayed on reconnect. Do not call `service.updateAlertStatus` from a page.
+- Operator actions that do not change status (playbook ticks, QRT notify, evidence export) are appended to
+  `alert.history` with a `kind`.
+
 ## Status
 
 Built: login with roles, Command Center, Live Cameras, Map View, Alerts + Alert Detail, ANPR, Face Watchlist,
-Zones, Analytics, Reports, Settings, global alert system, keyboard shortcuts, Demo Mode (Ctrl+Shift+D).
+Zones, Analytics, Reports, Settings, Audit Log, System Health, About IBVAP, global alert system, incident grouping,
+response playbook, evidence export, offline action queue, keyboard shortcuts, Demo Mode (Ctrl+Shift+D).
 
 Map View (border line, status markers, alert pulse + popup, type/window filters, heat circles, offline grid) and
 the Zones editor (polygon + tripwire with direction, drag handles, per-zone severity / classes / dwell, audit log)

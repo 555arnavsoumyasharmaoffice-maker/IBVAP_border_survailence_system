@@ -267,7 +267,7 @@ export function createMockService(): DataService {
       trackId,
       bbox,
       confirmFrames: kind === 'none' ? undefined : randInt(camera.minConfirmFrames, camera.minConfirmFrames + 14),
-      visibility: camera.visibility === 'clear' && isNightHour(ts) ? 'low-light' : camera.visibility,
+      visibility: camera.visibility,
       details,
       assignedTo: null,
       notes: '',

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Bell, ChartColumn, CircleHelp, CloudUpload, Fence, FileText, HeartPulse, Languages, LayoutDashboard, LogOut, Map, Play,
+  Bell, ChartColumn, CircleHelp, CloudUpload, Fence, FileText, HeartPulse, Info, Languages, LayoutDashboard, LogOut, Map, Play,
   ScanFace, ScanLine, ScrollText, Settings, Shield, Square, User, Video, Volume2, VolumeX, WifiOff, type LucideIcon,
 } from 'lucide-react'
 import { service } from '@/services'
@@ -27,6 +27,7 @@ const NAV: { to: string; key: DictKey; icon: LucideIcon; manageOnly?: boolean }[
   { to: '/audit', key: 'nav.audit', icon: ScrollText, manageOnly: true },
   { to: '/health', key: 'nav.health', icon: HeartPulse },
   { to: '/settings', key: 'nav.settings', icon: Settings },
+  { to: '/about', key: 'nav.about', icon: Info },
 ]
 
 function Sidebar() {
@@ -165,7 +166,7 @@ const SHORTCUTS: [string, string][] = [
   ['1 2 3 4', 'Live Cameras layout: 1x1, 2x2, 3x3, 4x4'],
   ['?', 'Show this help'],
   ['Esc', 'Close dialogs'],
-  ['Ctrl+Shift+D', 'Start / stop Demo Mode (scripted 2-minute scenario)'],
+  ['Ctrl+Shift+D', 'Start / stop Demo Mode (scripted scenario, about 2 minutes)'],
 ]
 
 function ShortcutsModal() {
