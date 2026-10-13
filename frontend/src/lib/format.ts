@@ -1,4 +1,4 @@
-import type { Alert, AlertStatus, AlertType, Severity } from '@/types'
+import type { Alert, AlertStatus, AlertType, Severity, Visibility } from '@/types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -80,6 +80,24 @@ export function keyDetail(a: Alert): string {
   if (d.vehicleClass) return `${d.vehicleColor ?? ''} ${d.vehicleClass}`.trim()
   return d.description ?? ''
 }
+
+/** Short "why it fired" facts for alert cards: class, frames confirmed, dwell, confidence. */
+export function whyFired(a: Alert): string[] {
+  const out: string[] = []
+  if (a.details.objectClass) out.push(a.details.objectClass)
+  if (a.confirmFrames) out.push(`confirmed over ${a.confirmFrames} frames`)
+  if (a.details.dwellTimeSec) out.push(`dwell ${fmtDuration(a.details.dwellTimeSec)}`)
+  out.push(`${pct(a.confidence)} confidence`)
+  return out
+}
+
+export const VISIBILITY: Record<Visibility, { label: string; style: string }> = {
+  clear: { label: 'Clear', style: 'border-low/40 bg-low/10 text-low' },
+  'low-light': { label: 'Low light', style: 'border-indigo-400/50 bg-indigo-400/15 text-indigo-300' },
+  fog: { label: 'Fog', style: 'border-med/50 bg-med/15 text-med' },
+  dust: { label: 'Dust', style: 'border-high/50 bg-high/15 text-high' },
+}
+export const isLowVisibility = (v: Visibility | undefined) => !!v && v !== 'clear'
 
 export function downloadFile(name: string, content: string | Blob, mime = 'text/csv') {
   const blob = typeof content === 'string' ? new Blob([content], { type: mime }) : content

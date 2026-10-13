@@ -28,10 +28,20 @@ This is what the frontend expects when `VITE_USE_MOCK=false`. The TypeScript sou
   "fps": 25,
   "isNightMode": false,
   "lastSeen": "2026-10-13T18:04:56.000Z",
-  "modules": { "human": true, "vehicle": true, "anpr": true, "face": true, "fence": true }
+  "modules": { "human": true, "vehicle": true, "anpr": true, "face": true, "fence": true },
+  "visibility": "clear",
+  "sensitivity": 0.5,
+  "minConfirmFrames": 5,
+  "ignoreAnimals": true
 }
 ```
 `status`: `online | offline | degraded`
+
+False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`):
+- `visibility`: `clear | low-light | fog | dust`, estimated by the AI engine from the image (brightness / contrast).
+- `sensitivity` (0-1): per-camera detection sensitivity; higher lowers the effective confidence threshold.
+- `minConfirmFrames`: a detection must persist for this many consecutive frames before an alert is raised.
+- `ignoreAnimals`: when true, the `animal` class never raises alerts on this camera.
 
 ### Alert
 ```json
@@ -56,6 +66,9 @@ This is what the frontend expects when `VITE_USE_MOCK=false`. The TypeScript sou
 - `type`: `FENCE_INTRUSION | HUMAN_DETECTED | VEHICLE_DETECTED | ANPR_MATCH | FACE_MATCH | LOITERING | NIGHT_MOVEMENT | SUSPICIOUS_ACTIVITY | CAMERA_OFFLINE`
 - `severity`: `CRITICAL | HIGH | MEDIUM | LOW`
 - `status`: `NEW | ACKNOWLEDGED | ESCALATED | RESOLVED | FALSE_ALARM`
+- `confirmFrames` (optional number): how many consecutive frames the detection was confirmed over ("why it fired").
+- `visibility` (optional): camera visibility when the alert fired; anything but `clear` is shown as a "low visibility" tag.
+- `details.objectClass` (optional): class of the triggering object (`person`, `truck`, ...).
 - `clipUrl`, `bbox` are optional. `trackId` and `assignedTo` may be `null`.
 - `history` must contain one entry per status change, oldest first. The frontend computes **response time** as
   (first `ACKNOWLEDGED` entry `at`) - (`timestamp`), so always append, never overwrite.

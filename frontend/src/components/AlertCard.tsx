@@ -5,7 +5,7 @@ import type { Alert, AlertStatus, Incident } from '@/types'
 import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
 import { useCan } from '@/store/auth'
-import { SEV, keyDetail, relTime } from '@/lib/format'
+import { SEV, isLowVisibility, keyDetail, relTime, whyFired } from '@/lib/format'
 import { useT } from '@/i18n'
 import { StatusBadge, TYPE_ICON } from './ui'
 
@@ -85,10 +85,14 @@ export function AlertCard({ alert, incident, now, compact = false }: { alert: Al
           <span className="ml-auto shrink-0 font-mono text-[10px] text-ink-mute">{relTime(alert.timestamp, now)}</span>
         </div>
         <div className="mt-1 flex gap-2">
-          <img src={alert.snapshotUrl} alt="" className="h-10 w-[72px] shrink-0 rounded-sm border border-base-700 object-cover" />
+          <img src={alert.snapshotUrl} alt="" className="h-11 w-[72px] shrink-0 rounded-sm border border-base-700 object-cover" />
           <div className="min-w-0 text-[11px]">
             <div className="truncate text-ink-dim">{camera?.name ?? alert.cameraId}</div>
             <div className="truncate font-mono text-ink">{detail || '-'}</div>
+            <div className="truncate text-[10px] text-ink-mute" title="Why this alert fired">
+              {isLowVisibility(alert.visibility) && <span className="mr-1 rounded bg-med/20 px-1 font-semibold text-med">LOW VISIBILITY</span>}
+              {whyFired(alert).join(' · ')}
+            </div>
           </div>
         </div>
         {!compact && (

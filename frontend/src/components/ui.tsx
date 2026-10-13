@@ -3,8 +3,8 @@ import {
   Car, Fence, Inbox, Moon, ScanFace, ScanLine, Timer, TriangleAlert, User, VideoOff, X, Activity, WifiOff,
   type LucideIcon,
 } from 'lucide-react'
-import type { AlertStatus, AlertType, Severity } from '@/types'
-import { SEV, STATUS_STYLE, fmtPlate } from '@/lib/format'
+import type { AlertStatus, AlertType, Severity, Visibility } from '@/types'
+import { SEV, STATUS_STYLE, VISIBILITY, fmtPlate } from '@/lib/format'
 import { useT } from '@/i18n'
 
 /** Re-renders the caller every `ms` and returns the current time. */
@@ -39,6 +39,15 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
 export function StatusBadge({ status }: { status: AlertStatus }) {
   const t = useT()
   return <span className={`${chip} ${STATUS_STYLE[status]}`}>{t(`status.${status}`)}</span>
+}
+
+/** Per-camera visibility condition (Clear / Low light / Fog / Dust). */
+export function VisibilityBadge({ visibility }: { visibility: Visibility }) {
+  return (
+    <span className={`${chip} ${VISIBILITY[visibility].style}`} title="Visibility condition estimated at this camera">
+      {VISIBILITY[visibility].label}
+    </span>
+  )
 }
 
 export function Chip({ children, className = 'bg-base-800 text-ink-dim border-base-600' }: { children: ReactNode; className?: string }) {

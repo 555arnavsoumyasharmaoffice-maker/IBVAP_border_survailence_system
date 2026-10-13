@@ -5,7 +5,7 @@ import type { Alert, WatchlistPerson } from '@/types'
 import { service } from '@/services'
 import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
-import { SEV, fmtDateTime, fmtDuration, keyDetail, pct, relTime } from '@/lib/format'
+import { SEV, VISIBILITY, fmtDateTime, fmtDuration, isLowVisibility, keyDetail, pct, relTime } from '@/lib/format'
 import { groupIncidents } from '@/lib/incidents'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
@@ -256,6 +256,19 @@ export default function AlertDetail() {
                 )}
               </Row>
               <Row label="Confidence"><span className="font-mono">{pct(alert.confidence)}</span></Row>
+              {d.objectClass && <Row label="Object class"><span className="capitalize">{d.objectClass}</span></Row>}
+              {alert.confirmFrames !== undefined && (
+                <Row label="Why it fired">
+                  Confirmed over <span className="font-mono font-semibold">{alert.confirmFrames}</span> consecutive frames
+                  {camera ? ` (camera minimum ${camera.minConfirmFrames})` : ''}
+                </Row>
+              )}
+              {alert.visibility && (
+                <Row label="Visibility">
+                  <Chip className={VISIBILITY[alert.visibility].style}>{VISIBILITY[alert.visibility].label}</Chip>
+                  {isLowVisibility(alert.visibility) && <span className="ml-2 text-med">Low visibility: verify before acting</span>}
+                </Row>
+              )}
               <Row label="Track ID"><span className="font-mono">{alert.trackId ?? '-'}</span></Row>
               {d.plateNumber && <Row label="Plate"><PlateTag plate={d.plateNumber} flagged={alert.type === 'ANPR_MATCH'} /></Row>}
               {d.vehicleClass && <Row label="Vehicle">{[d.vehicleColor, d.vehicleClass].filter(Boolean).join(' ')}</Row>}

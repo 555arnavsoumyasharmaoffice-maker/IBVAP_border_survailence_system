@@ -181,6 +181,11 @@ function DetectionTab({ canManage }: { canManage: boolean }) {
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
+  const patchCamera = async (c: Camera, change: Partial<Camera>, what: string) => {
+    await service.saveCamera({ id: c.id, name: c.name, ...change })
+    await useData.getState().refreshCameras()
+    audit('SETTINGS', 'Camera detection changed', c.name, what)
+  }
   const toggleModule = async (c: Camera, key: keyof DetectionModules) => {
     await service.saveCamera({ id: c.id, name: c.name, modules: { ...c.modules, [key]: !c.modules[key] } })
     await useData.getState().refreshCameras()
@@ -214,7 +219,10 @@ function DetectionTab({ canManage }: { canManage: boolean }) {
       </div>
 
       <div className="panel col-span-12 overflow-x-auto lg:col-span-8">
-        <div className="panel-title px-3 pt-3">Detection modules per camera</div>
+        <div className="flex items-baseline justify-between px-3 pt-3">
+          <span className="panel-title">Per-camera detection and false-alarm controls</span>
+          <span className="text-[10px] text-ink-mute">More frames to confirm = fewer false alarms, slightly slower alerts</span>
+        </div>
         <table className="mt-2 w-full text-xs">
           <thead>
             <tr className="border-b border-base-700 text-left text-[10px] tracking-wider text-ink-mute uppercase">
@@ -222,6 +230,9 @@ function DetectionTab({ canManage }: { canManage: boolean }) {
               {MODULES.map((m) => (
                 <th key={m.key} className="px-2 text-center">{m.label}</th>
               ))}
+              <th className="px-2">Sensitivity</th>
+              <th className="px-2">Min frames</th>
+              <th className="px-2 text-center">Ignore animals</th>
             </tr>
           </thead>
           <tbody>
@@ -233,6 +244,23 @@ function DetectionTab({ canManage }: { canManage: boolean }) {
                     <input type="checkbox" aria-label={`${m.label} on ${c.name}`} checked={c.modules[m.key]} onChange={() => void toggleModule(c, m.key)} />
                   </td>
                 ))}
+                <td className="px-2">
+                  <select className="field py-0.5" aria-label={`Sensitivity for ${c.name}`} value={c.sensitivity} onChange={(e) => void patchCamera(c, { sensitivity: Number(e.target.value) }, `sensitivity ${e.target.value}`)}>
+                    <option value={0.3}>Low</option>
+                    <option value={0.5}>Medium</option>
+                    <option value={0.7}>High</option>
+                  </select>
+                </td>
+                <td className="px-2">
+                  <select className="field py-0.5 font-mono" aria-label={`Minimum frames for ${c.name}`} value={c.minConfirmFrames} onChange={(e) => void patchCamera(c, { minConfirmFrames: Number(e.target.value) }, `min frames ${e.target.value}`)}>
+                    {[3, 5, 8, 12].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-2 text-center">
+                  <input type="checkbox" aria-label={`Ignore animals on ${c.name}`} checked={c.ignoreAnimals} onChange={(e) => void patchCamera(c, { ignoreAnimals: e.target.checked }, `ignore animals ${e.target.checked ? 'on' : 'off'}`)} />
+                </td>
               </tr>
             ))}
           </tbody>

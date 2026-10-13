@@ -111,6 +111,10 @@ const cam = (
   isNightMode: isNightHour(new Date()),
   lastSeen: new Date().toISOString(),
   modules: ALL,
+  visibility: isNightHour(new Date()) ? 'low-light' : 'clear',
+  sensitivity: 0.5,
+  minConfirmFrames: 5,
+  ignoreAnimals: true,
   ...extra,
 })
 
@@ -118,14 +122,17 @@ export const seedCameras = (): Camera[] => [
   cam('cam-01', 'BOP Sundar - Gate Cam', 'BOP Sundar, Jaisalmer Sector (RJ)', 27.7904, 70.3521, 'rtsp://10.21.4.11:554/stream1'),
   cam('cam-02', 'BOP Sundar - Fence East', 'BOP Sundar, Jaisalmer Sector (RJ)', 27.7962, 70.3618, 'rtsp://10.21.4.12:554/stream1', {
     isNightMode: true,
+    visibility: 'low-light',
+    sensitivity: 0.7,
     modules: { ...ALL, anpr: false },
   }),
   cam('cam-03', 'Check Post Munabao', 'Munabao, Barmer (RJ)', 25.7453, 70.2771, 'rtsp://10.22.1.20:554/h264'),
   cam('cam-04', 'Border Road KM 42', 'Jaisalmer-Tanot Road (RJ)', 27.4215, 70.5183, 'rtsp://10.21.9.42:554/stream1', {
     modules: { ...ALL, face: false, fence: false },
+    visibility: 'dust',
   }),
   cam('cam-05', 'BOP Kishangarh - Watch Tower', 'Kishangarh, Jaisalmer (RJ)', 27.8721, 70.5634, 'rtsp://10.21.7.5:554/stream2', {
-    status: 'degraded', fps: 9, isNightMode: true, modules: { ...ALL, anpr: false, face: false },
+    status: 'degraded', fps: 9, isNightMode: true, visibility: 'fog', minConfirmFrames: 8, modules: { ...ALL, anpr: false, face: false },
   }),
   cam('cam-06', 'Check Post Hussainiwala', 'Hussainiwala, Ferozepur (PB)', 30.9981, 74.5472, 'rtsp://10.31.2.8:554/stream1'),
   cam('cam-07', 'ICP Attari - Lane 2', 'Attari, Amritsar (PB)', 31.6042, 74.5731, 'http://10.32.1.15:8080/video', {

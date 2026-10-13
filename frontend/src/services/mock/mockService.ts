@@ -167,6 +167,8 @@ export function createMockService(): DataService {
 
     if (opts.trackId !== undefined && kind !== 'none') trackId = opts.trackId
 
+    const liveClass = trackId !== null ? tracks.get(cameraId)?.find((t) => t.trackId === trackId)?.class : undefined
+
     let severity: Severity = 'LOW'
     let confidence = rand(0.6, 0.97)
     const details: Alert['details'] = {}
@@ -247,11 +249,15 @@ export function createMockService(): DataService {
       snapshotUrl: snapshotSvg({ night, kind, bbox, camName: camera.name, time: fmtTime(ts) }),
       trackId,
       bbox,
+      confirmFrames: kind === 'none' ? undefined : randInt(camera.minConfirmFrames, camera.minConfirmFrames + 14),
+      visibility: camera.visibility === 'clear' && isNightHour(ts) ? 'low-light' : camera.visibility,
       details,
       assignedTo: null,
       notes: '',
       history: [{ status: 'NEW', at: ts.toISOString(), by: 'AI Engine' }],
     }
+
+    if (kind !== 'none') details.objectClass = kind === 'person' ? 'person' : (details.vehicleClass?.toLowerCase() ?? liveClass ?? 'vehicle')
 
     if (type === 'FACE_MATCH') {
       faceMatches.unshift({
@@ -436,6 +442,7 @@ export function createMockService(): DataService {
         id: `cam-${String(cameras.length + 1).padStart(2, '0')}`,
         locationName: '', lat: 27.5, lng: 70.5, streamUrl: '', status: 'online' as const, fps: 25,
         isNightMode: isNightHour(new Date()), lastSeen: new Date().toISOString(),
+        visibility: 'clear' as const, sensitivity: 0.5, minConfirmFrames: 5, ignoreAnimals: true,
         modules: { human: true, vehicle: true, anpr: true, face: true, fence: true },
         ...input,
       }

@@ -3,6 +3,9 @@
 
 export type CameraStatus = 'online' | 'offline' | 'degraded'
 
+/** Scene visibility estimated by the AI engine. Anything other than "clear" raises the false-alarm risk. */
+export type Visibility = 'clear' | 'low-light' | 'fog' | 'dust'
+
 export interface DetectionModules {
   human: boolean
   vehicle: boolean
@@ -23,6 +26,12 @@ export interface Camera {
   isNightMode: boolean
   lastSeen: string
   modules: DetectionModules
+  visibility: Visibility
+  /** 0-1. Higher = detects more, at the cost of more false alarms. */
+  sensitivity: number
+  /** An object must be detected in this many consecutive frames before an alert is raised. */
+  minConfirmFrames: number
+  ignoreAnimals: boolean
 }
 
 export type AlertType =
@@ -57,6 +66,8 @@ export interface AlertDetails {
   dwellTimeSec?: number
   objectCount?: number
   description?: string
+  /** Class of the object that triggered the alert (person, truck, ...). */
+  objectClass?: string
 }
 
 export interface AlertHistoryEntry {
@@ -81,6 +92,10 @@ export interface Alert {
   clipUrl?: string
   trackId: number | null
   bbox?: BBox
+  /** Why it fired: number of consecutive frames the detection was confirmed over. */
+  confirmFrames?: number
+  /** Visibility at the camera when the alert fired. */
+  visibility?: Visibility
   details: AlertDetails
   assignedTo: string | null
   notes: string

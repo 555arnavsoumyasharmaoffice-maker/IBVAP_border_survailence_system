@@ -9,7 +9,7 @@ import { audit } from '@/lib/audit'
 import { useT } from '@/i18n'
 import { CameraFeed, type CameraFeedHandle } from '@/components/CameraFeed'
 import { AlertCard } from '@/components/AlertCard'
-import { Chip, EmptyState, Skeleton, useNow } from '@/components/ui'
+import { Chip, EmptyState, Skeleton, VisibilityBadge, useNow } from '@/components/ui'
 
 interface Overlay {
   boxes: boolean
@@ -66,6 +66,7 @@ function Tile({ camera, onFocus }: { camera: Camera; onFocus: () => void }) {
         </div>
         <span className="font-mono text-[10px] text-ink-dim">{camera.fps} FPS</span>
         {camera.isNightMode ? <Moon size={12} className="text-indigo-300" aria-label="Night mode" /> : <Sun size={12} className="text-amber-300" aria-label="Day mode" />}
+        <VisibilityBadge visibility={camera.visibility} />
         <StatusChip camera={camera} />
         <OverlayToggles value={overlay} onChange={setOverlay} />
         <button onClick={onFocus} title="Open focused view" aria-label="Open focused view" className="text-ink-mute hover:text-ink">
@@ -111,7 +112,8 @@ function Focused({ camera, onBack }: { camera: Camera; onBack: () => void }) {
             <span className="text-sm font-semibold">{camera.name}</span>
             <span className="ml-2 text-xs text-ink-mute">{camera.locationName}</span>
           </div>
-          <StatusChip camera={camera} />
+          <VisibilityBadge visibility={camera.visibility} />
+        <StatusChip camera={camera} />
           <OverlayToggles value={overlay} onChange={setOverlay} />
           <button className="btn btn-sm btn-primary" onClick={() => void takeSnapshot()} disabled={camera.status === 'offline'}>
             <CameraIcon size={12} /> Snapshot
