@@ -12,6 +12,9 @@ export const en = {
   'nav.analytics': 'Analytics',
   'nav.reports': 'Reports',
   'nav.settings': 'Settings',
+  'nav.audit': 'Audit Log',
+  'nav.health': 'System Health',
+  'nav.about': 'About IBVAP',
 
   'type.FENCE_INTRUSION': 'Fence Intrusion',
   'type.HUMAN_DETECTED': 'Human Detected',
@@ -86,6 +89,9 @@ export const hi: Partial<Record<DictKey, string>> = {
   'nav.analytics': 'विश्लेषण',
   'nav.reports': 'रिपोर्ट',
   'nav.settings': 'सेटिंग्स',
+  'nav.audit': 'ऑडिट लॉग',
+  'nav.health': 'सिस्टम स्वास्थ्य',
+  'nav.about': 'IBVAP के बारे में',
 
   'type.FENCE_INTRUSION': 'बाड़ घुसपैठ',
   'type.HUMAN_DETECTED': 'व्यक्ति की पहचान',

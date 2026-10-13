@@ -322,6 +322,27 @@ correction turns a read into a blacklisted plate.
 
 Every watchlist match (except category `AUTHORISED`) should also create a `FACE_MATCH` alert and link it via `alertId`.
 
+### Audit log
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/audit` | | `AuditEntry[]`, newest first (Commander / Admin only) |
+| POST | `/audit` | `AuditEntry` without `id`, `at` | 204 |
+
+```json
+{
+  "id": "au-91", "at": "2026-10-13T18:20:00.000Z", "user": "Insp. A. Rathore", "role": "COMMANDER",
+  "category": "EVIDENCE", "action": "Evidence exported", "target": "ALT-00733", "details": "1 alert(s), 3 files"
+}
+```
+`category`: `AUTH | CAMERA_VIEW | ZONE | WATCHLIST | BLACKLIST | ANPR | EXPORT | EVIDENCE | SETTINGS`.
+
+The dashboard POSTs an entry for: sign-in / sign-out (incl. auto-logout), opening a camera's live view, zone
+create / update / delete, watchlist and blacklist edits, face-match review, plate correction, CSV / report / evidence
+exports, and settings or camera changes. The backend sets `id` and `at` (server time) and must make entries
+append-only. In production the backend should take `user` / `role` from the authenticated session, not from the body.
+
+`User` has an optional `lastLogin` timestamp, set by `POST /auth/login`.
+
 ### Users, settings, integration
 | Method | Path | Body | Returns |
 |---|---|---|---|

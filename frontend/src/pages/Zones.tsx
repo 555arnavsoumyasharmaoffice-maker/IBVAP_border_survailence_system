@@ -6,6 +6,7 @@ import { useData } from '@/store/data'
 import { useAuth, useCan } from '@/store/auth'
 import { SEV, SEVERITIES, fmtDateTime } from '@/lib/format'
 import { DIRECTION_LABEL, tripwireArrows } from '@/lib/zones'
+import { audit as logAudit } from '@/lib/audit'
 import { useT } from '@/i18n'
 import { CameraFeed } from '@/components/CameraFeed'
 import { Chip, EmptyState, Field, InlineWarning, Skeleton, Tabs } from '@/components/ui'
@@ -131,10 +132,12 @@ export default function Zones() {
       if (!draft) return
       const saved = await service.saveZone({ ...draft, name: draft.name.trim() || (draft.type === 'line' ? 'New tripwire' : 'New zone') }, userName)
       setDraft(structuredClone(saved))
+      logAudit('ZONE', draft.id ? 'Zone updated' : 'Zone created', saved.name, `${camName(saved.cameraId)}: ${saved.type}, severity ${saved.severity}`)
     })
   const remove = (z: { id?: string }) =>
     mutate(async () => {
       if (z.id) await service.deleteZone(z.id, userName)
+      if (z.id) logAudit('ZONE', 'Zone deleted', draft?.name ?? z.id, camera ? camera.name : '')
       cancel()
     })
 

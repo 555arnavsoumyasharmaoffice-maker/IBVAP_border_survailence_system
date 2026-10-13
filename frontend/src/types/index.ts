@@ -228,6 +228,22 @@ export interface User {
   username: string
   role: Role
   active: boolean
+  lastLogin?: string
+}
+
+export type AuditCategory = 'AUTH' | 'CAMERA_VIEW' | 'ZONE' | 'WATCHLIST' | 'BLACKLIST' | 'ANPR' | 'EXPORT' | 'EVIDENCE' | 'SETTINGS'
+
+export interface AuditEntry {
+  id: string
+  at: string
+  user: string
+  role: Role
+  category: AuditCategory
+  /** Short verb phrase, e.g. "Opened live view", "Zone updated". */
+  action: string
+  /** What it was done to: camera name, zone name, plate, alert id... */
+  target: string
+  details: string
 }
 
 export type RetentionDays = 7 | 30 | 90

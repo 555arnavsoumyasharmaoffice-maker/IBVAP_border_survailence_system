@@ -1,5 +1,5 @@
 import type {
-  BBox, BlacklistVehicle, Camera, DetectionModules, User, WatchlistPerson, Zone,
+  AuditCategory, AuditEntry, BBox, BlacklistVehicle, Camera, DetectionModules, Role, User, WatchlistPerson, Zone,
 } from '@/types'
 
 // ---------- random helpers ----------
@@ -176,10 +176,10 @@ export const seedBlacklist = (): BlacklistVehicle[] => [
 ]
 
 export const seedUsers = (): User[] => [
-  { id: 'u-01', name: 'Insp. A. Rathore', username: 'rathore', role: 'COMMANDER', active: true },
-  { id: 'u-02', name: 'Ct. S. Meena', username: 'meena', role: 'OPERATOR', active: true },
-  { id: 'u-03', name: 'Ct. P. Gill', username: 'gill', role: 'OPERATOR', active: true },
-  { id: 'u-04', name: 'SI R. Sharma', username: 'sharma', role: 'ADMIN', active: true },
+  { id: 'u-01', name: 'Insp. A. Rathore', username: 'rathore', role: 'COMMANDER', active: true, lastLogin: new Date(Date.now() - 95 * 60_000).toISOString() },
+  { id: 'u-02', name: 'Ct. S. Meena', username: 'meena', role: 'OPERATOR', active: true, lastLogin: new Date(Date.now() - 22 * 60_000).toISOString() },
+  { id: 'u-03', name: 'Ct. P. Gill', username: 'gill', role: 'OPERATOR', active: true, lastLogin: new Date(Date.now() - 9.5 * 3_600_000).toISOString() },
+  { id: 'u-04', name: 'SI R. Sharma', username: 'sharma', role: 'ADMIN', active: true, lastLogin: new Date(Date.now() - 2.2 * 86_400_000).toISOString() },
   { id: 'u-05', name: 'Ct. D. Bishnoi', username: 'bishnoi', role: 'OPERATOR', active: false },
 ]
 
@@ -191,3 +191,30 @@ export const SUSPICIOUS = [
   'Vehicle halted on border road > 5 min',
   'Person running towards fence',
 ]
+
+/** Believable audit history for the last three days. */
+export function seedAudit(): AuditEntry[] {
+  const rows: [number, string, Role, AuditCategory, string, string, string][] = [
+    [22, 'Ct. S. Meena', 'OPERATOR', 'AUTH', 'Signed in', 'Command Center', 'workstation OPS-2'],
+    [41, 'Ct. S. Meena', 'OPERATOR', 'CAMERA_VIEW', 'Opened live view', 'BOP Sundar - Fence East', ''],
+    [63, 'Insp. A. Rathore', 'COMMANDER', 'EVIDENCE', 'Evidence exported', 'ALT-00412', '1 alert(s), 3 files'],
+    [95, 'Insp. A. Rathore', 'COMMANDER', 'AUTH', 'Signed in', 'Command Center', 'workstation OPS-1'],
+    [130, 'Ct. S. Meena', 'OPERATOR', 'ANPR', 'Plate corrected', 'RJ14CA4S21', 'corrected to RJ14CA4521'],
+    [205, 'Insp. A. Rathore', 'COMMANDER', 'ZONE', 'Zone updated', 'Fence Line East', 'severity: HIGH -> CRITICAL'],
+    [260, 'Insp. A. Rathore', 'COMMANDER', 'BLACKLIST', 'Plate added', 'RJ19GD0627', 'reason STOLEN, priority LOW'],
+    [410, 'Ct. P. Gill', 'OPERATOR', 'EXPORT', 'CSV export', 'Alerts', '86 rows'],
+    [570, 'Ct. P. Gill', 'OPERATOR', 'AUTH', 'Signed in', 'Command Center', 'workstation OPS-2'],
+    [640, 'Ct. P. Gill', 'OPERATOR', 'CAMERA_VIEW', 'Opened live view', 'Check Post Munabao', ''],
+    [900, 'Insp. A. Rathore', 'COMMANDER', 'WATCHLIST', 'Person added', 'Subject S-040 (unidentified)', 'category SUSPECT, risk MEDIUM, 1 photo(s)'],
+    [1380, 'Insp. A. Rathore', 'COMMANDER', 'EXPORT', 'Shift report printed', 'Reports', 'all cameras'],
+    [1500, 'Ct. S. Meena', 'OPERATOR', 'CAMERA_VIEW', 'Opened live view', 'ICP Attari - Lane 2', ''],
+    [2900, 'SI R. Sharma', 'ADMIN', 'SETTINGS', 'Settings changed', 'Data & Privacy', 'retention face data 90d -> 30d'],
+    [2960, 'SI R. Sharma', 'ADMIN', 'SETTINGS', 'Camera saved', 'BOP Kishangarh - Watch Tower', 'stream URL updated'],
+    [3170, 'SI R. Sharma', 'ADMIN', 'AUTH', 'Signed in', 'Command Center', 'workstation ADMIN-1'],
+    [3400, 'Insp. A. Rathore', 'COMMANDER', 'ZONE', 'Zone created', 'Riverbed Crossing', 'polygon with 4 points, severity CRITICAL'],
+    [4100, 'Ct. P. Gill', 'OPERATOR', 'AUTH', 'Signed out', 'Command Center', 'auto-logout after inactivity'],
+  ]
+  return rows.map(([minAgo, user, role, category, action, target, details], i) => ({
+    id: `au-seed-${i}`, at: new Date(Date.now() - minAgo * 60_000).toISOString(), user, role, category, action, target, details,
+  }))
+}

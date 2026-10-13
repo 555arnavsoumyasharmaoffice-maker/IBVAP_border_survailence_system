@@ -12,6 +12,7 @@ import Zones from '@/pages/Zones'
 import Analytics from '@/pages/Analytics'
 import Reports from '@/pages/Reports'
 import SettingsPage from '@/pages/Settings'
+import AuditLog from '@/pages/AuditLog'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="analytics" element={<Analytics />} />
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="audit" element={<AuditLog />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

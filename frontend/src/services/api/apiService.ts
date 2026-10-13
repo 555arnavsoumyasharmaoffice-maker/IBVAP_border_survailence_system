@@ -135,6 +135,8 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
     reviewFaceMatch: (id, review, by) => send('PATCH', `/faces/matches/${id}`, { review, by }) as never,
 
     getUsers: () => request('/users'),
+    getAuditLog: () => request('/audit'),
+    logAudit: (entry) => send('POST', '/audit', entry) as never,
     getSettings: () => request('/settings'),
     saveSettings: (s) => send('PUT', '/settings', s) as never,
     sendTestWebhook: (url) => send('POST', '/integration/webhook/test', { url }) as never,

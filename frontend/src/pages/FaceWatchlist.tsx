@@ -6,6 +6,7 @@ import { service } from '@/services'
 import { useData } from '@/store/data'
 import { useAuth, useCan } from '@/store/auth'
 import { fmtDate, fmtDateTime, pct } from '@/lib/format'
+import { audit } from '@/lib/audit'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
 import { Chip, EmptyState, ErrorState, Field, Modal, PageHeader, Skeleton, Tabs } from '@/components/ui'
@@ -51,6 +52,7 @@ function AddPersonModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
     setBusy(true)
     try {
       await service.addWatchlistPerson({ name: name.trim(), category, riskLevel, notes, photos })
+      audit('WATCHLIST', 'Person added', name.trim(), `category ${category}, risk ${riskLevel}, ${photos.length} photo(s)`)
       onAdded()
       onClose()
     } finally {
@@ -127,7 +129,7 @@ function PersonsTab({ persons, reload }: { persons: WatchlistPerson[]; reload: (
             </div>
             <div className="ml-auto flex flex-col items-end justify-between">
               <Chip className={CATEGORY[p.category].style}>{CATEGORY[p.category].label}</Chip>
-              <button className="text-ink-mute hover:text-crit disabled:opacity-30" disabled={!canManage} aria-label={`Remove ${p.name}`} title={canManage ? 'Remove' : 'Commander / Admin only'} onClick={() => void service.removeWatchlistPerson(p.id).then(reload)}>
+              <button className="text-ink-mute hover:text-crit disabled:opacity-30" disabled={!canManage} aria-label={`Remove ${p.name}`} title={canManage ? 'Remove' : 'Commander / Admin only'} onClick={() => void service.removeWatchlistPerson(p.id).then(() => { audit('WATCHLIST', 'Person removed', p.name); reload() })}>
                 <Trash2 size={14} />
               </button>
             </div>
@@ -225,6 +227,7 @@ export default function FaceWatchlist() {
 
   const review = async (id: string, state: ReviewState) => {
     const updated = await service.reviewFaceMatch(id, state, userName)
+    audit('WATCHLIST', `Match ${state.toLowerCase()}`, id, `similarity ${Math.round(updated.similarity * 100)}%`)
     setMatches((list) => list?.map((m) => (m.id === id ? updated : m)) ?? null)
   }
   const pending = matches?.filter((m) => m.review === 'PENDING').length

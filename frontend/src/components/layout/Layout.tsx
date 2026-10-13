@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, ChartColumn, CircleHelp, Fence, FileText, Languages, LayoutDashboard, LogOut, Map, Play,
-  ScanFace, ScanLine, Settings, Shield, Square, User, Video, Volume2, VolumeX, WifiOff, type LucideIcon,
+  ScanFace, ScanLine, ScrollText, Settings, Shield, Square, User, Video, Volume2, VolumeX, WifiOff, type LucideIcon,
 } from 'lucide-react'
 import { service } from '@/services'
-import { useAuth } from '@/store/auth'
+import { useAuth, useCan } from '@/store/auth'
 import { useData } from '@/store/data'
 import { useUi, type CameraLayout } from '@/store/ui'
 import { useT, type DictKey } from '@/i18n'
@@ -14,7 +14,7 @@ import { useDemoRunner } from '@/demo/useDemoRunner'
 import { AlertToasts, CriticalModal } from '../AlertOverlays'
 import { Modal, useNow } from '../ui'
 
-const NAV: { to: string; key: DictKey; icon: LucideIcon }[] = [
+const NAV: { to: string; key: DictKey; icon: LucideIcon; manageOnly?: boolean }[] = [
   { to: '/', key: 'nav.command', icon: LayoutDashboard },
   { to: '/cameras', key: 'nav.cameras', icon: Video },
   { to: '/map', key: 'nav.map', icon: Map },
@@ -24,11 +24,13 @@ const NAV: { to: string; key: DictKey; icon: LucideIcon }[] = [
   { to: '/zones', key: 'nav.zones', icon: Fence },
   { to: '/analytics', key: 'nav.analytics', icon: ChartColumn },
   { to: '/reports', key: 'nav.reports', icon: FileText },
+  { to: '/audit', key: 'nav.audit', icon: ScrollText, manageOnly: true },
   { to: '/settings', key: 'nav.settings', icon: Settings },
 ]
 
 function Sidebar() {
   const t = useT()
+  const canManage = useCan('manage')
   const active = useData((s) => s.alerts.reduce((n, a) => n + (isActive(a) ? 1 : 0), 0))
   return (
     <aside className="no-print flex w-48 shrink-0 flex-col border-r border-base-700 bg-base-900">
@@ -40,7 +42,7 @@ function Sidebar() {
         </div>
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
-        {NAV.map(({ to, key, icon: Icon }) => (
+        {NAV.filter((n) => !n.manageOnly || canManage).map(({ to, key, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -139,7 +141,7 @@ function TopBar() {
           </button>
           {menu && (
             <div className="panel absolute right-0 z-[1200] mt-1 w-44 p-1 shadow-xl shadow-black/60" onMouseLeave={() => setMenu(false)}>
-              <button className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-base-800" onClick={logout}>
+              <button className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-base-800" onClick={() => logout()}>
                 <LogOut size={14} /> {t('act.logout')}
               </button>
             </div>
@@ -264,8 +266,32 @@ function ConnectionBanner() {
   )
 }
 
+/** Signs the operator out after `settings.sessionTimeoutMin` minutes without mouse / keyboard activity. */
+function useIdleLogout() {
+  const minutes = useData((s) => s.settings?.sessionTimeoutMin ?? 15)
+  useEffect(() => {
+    let last = Date.now()
+    const bump = () => {
+      last = Date.now()
+    }
+    const events = ['mousemove', 'mousedown', 'keydown', 'wheel', 'touchstart'] as const
+    events.forEach((e) => window.addEventListener(e, bump, { passive: true }))
+    const timer = setInterval(() => {
+      if (useUi.getState().demo.running) return bump() // a running demo counts as activity
+      if (Date.now() - last < minutes * 60_000) return
+      sessionStorage.setItem('ibvap.timedOut', String(minutes))
+      useAuth.getState().logout('auto-logout after inactivity')
+    }, 5000)
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, bump))
+      clearInterval(timer)
+    }
+  }, [minutes])
+}
+
 function Shell() {
   useEffect(() => useData.getState().start(), [])
+  useIdleLogout()
   useShortcuts()
   useDemoRunner()
   return (

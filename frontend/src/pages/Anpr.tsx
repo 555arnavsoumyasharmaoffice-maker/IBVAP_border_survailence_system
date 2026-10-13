@@ -5,6 +5,7 @@ import { service } from '@/services'
 import { useData } from '@/store/data'
 import { useCan } from '@/store/auth'
 import { fmtDate, fmtDateTime, pct } from '@/lib/format'
+import { audit } from '@/lib/audit'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
 import { MiniMap } from '@/components/MiniMap'
@@ -126,6 +127,7 @@ function ReadsTab() {
   const saveCorrection = async () => {
     if (!editing) return
     const updated = await service.correctPlateRead(editing.id, norm(editing.value))
+    audit('ANPR', 'Plate corrected', updated.correctedFrom ?? '', `corrected to ${updated.plate}`)
     setReads((list) => list?.map((r) => (r.id === updated.id ? updated : r)) ?? null)
     setEditing(null)
   }
@@ -255,6 +257,7 @@ function BlacklistTab() {
   const add = async (e: FormEvent) => {
     e.preventDefault()
     await service.addBlacklistVehicle({ plate: norm(plate), reason, priority, notes })
+    audit('BLACKLIST', 'Plate added', norm(plate), `reason ${reason}, priority ${priority}`)
     setPlate('')
     setNotes('')
     load()
@@ -330,7 +333,7 @@ function BlacklistTab() {
                   <td className="max-w-64 truncate px-2 text-ink-dim">{b.notes}</td>
                   <td className="px-2 font-mono text-ink-mute">{fmtDate(b.addedAt)}</td>
                   <td className="px-2 text-right">
-                    <button className="btn btn-sm" disabled={!canManage} onClick={() => void service.removeBlacklistVehicle(b.id).then(load)}>
+                    <button className="btn btn-sm" disabled={!canManage} onClick={() => void service.removeBlacklistVehicle(b.id).then(() => { audit('BLACKLIST', 'Plate removed', b.plate); load() })}>
                       <Trash2 size={11} /> Remove
                     </button>
                   </td>

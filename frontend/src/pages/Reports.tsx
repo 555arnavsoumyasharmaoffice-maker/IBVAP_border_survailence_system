@@ -6,6 +6,7 @@ import { service } from '@/services'
 import { useData } from '@/store/data'
 import { useAuth } from '@/store/auth'
 import { downloadFile, fmtDateTime, fmtDuration, keyDetail, pct, toCsv } from '@/lib/format'
+import { audit } from '@/lib/audit'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
 import { EmptyState, ErrorState, Field, PageHeader, PlateTag, SeverityBadge, SkeletonRows, Stat, StatusBadge } from '@/components/ui'
@@ -76,6 +77,7 @@ export default function Reports() {
 
   const exportCsv = () => {
     if (!report) return
+    audit('EXPORT', 'CSV export', 'Shift report', `${report.alerts.length} rows`)
     downloadFile(
       `ibvap_shift_report_${report.from.slice(0, 10)}.csv`,
       toCsv(
@@ -94,7 +96,7 @@ export default function Reports() {
         <button className="btn" onClick={exportCsv} disabled={!report?.alerts.length}>
           <Download size={13} /> Export CSV
         </button>
-        <button className="btn" onClick={() => window.print()} disabled={!report}>
+        <button className="btn" onClick={() => { audit('EXPORT', 'Shift report printed', 'Reports', report?.cameraId ? camName[report.cameraId] : 'all cameras'); window.print() }} disabled={!report}>
           <Printer size={13} /> Print / Save as PDF
         </button>
       </PageHeader>

@@ -6,7 +6,7 @@ import type { DataService, DemoAlertSpec } from '../types'
 import { fetchBytes, sha256Hex } from '@/lib/evidence'
 import {
   SUSPICIOUS, VEHICLE_CLASSES, VEHICLE_COLORS, faceSvg, isNightHour, pick, plateSvg, rand, randInt,
-  randomPlate, seedBlacklist, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
+  randomPlate, seedAudit, seedBlacklist, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
 } from './data'
 
 // In-memory fake backend + simulator. Emits a new random alert every 5-10 s,
@@ -59,6 +59,7 @@ export function createMockService(): DataService {
   const plateReads: PlateRead[] = []
   const faceMatches: FaceMatch[] = []
   const zoneAudit: ZoneAuditEntry[] = []
+  const auditLog = seedAudit()
 
   const alertSubs = new Set<(a: Alert) => void>()
   const plateSubs = new Set<(r: PlateRead) => void>()
@@ -418,8 +419,11 @@ export function createMockService(): DataService {
   return {
     mode: 'mock',
 
-    login: (username, role) =>
-      later({ id: 'u-session', name: username.trim() || role, username: username.trim() || role.toLowerCase(), role, active: true }, 350),
+    login(username, role) {
+      const known = users.find((u) => u.role === role && (!username.trim() || u.name === username.trim()))
+      if (known) known.lastLogin = new Date().toISOString()
+      return later({ id: known?.id ?? 'u-session', name: username.trim() || role, username: known?.username ?? role.toLowerCase(), role, active: true, lastLogin: new Date().toISOString() }, 350)
+    },
 
     getCameras: () => later(cameras),
     saveCamera(input) {
@@ -583,6 +587,11 @@ export function createMockService(): DataService {
     },
 
     getUsers: () => later(users),
+    getAuditLog: () => later(auditLog),
+    logAudit(entry) {
+      auditLog.unshift({ ...entry, id: `au-${seq++}`, at: new Date().toISOString() })
+      return later(undefined, 10)
+    },
     getSettings: () => later(settings),
     saveSettings(s) {
       settings = clone(s)

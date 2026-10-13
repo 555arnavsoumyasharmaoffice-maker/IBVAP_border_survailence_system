@@ -6,7 +6,7 @@ import { service } from '@/services'
 interface AuthState {
   user: User | null
   login: (username: string, role: Role) => Promise<void>
-  logout: () => void
+  logout: (reason?: string) => void
 }
 
 export const useAuth = create<AuthState>()(
@@ -14,9 +14,15 @@ export const useAuth = create<AuthState>()(
     (set) => ({
       user: null,
       login: async (username, role) => {
-        set({ user: await service.login(username, role) })
+        const user = await service.login(username, role)
+        set({ user })
+        void service.logAudit({ user: user.name, role: user.role, category: 'AUTH', action: 'Signed in', target: 'Command Center', details: '' }).catch(() => {})
       },
-      logout: () => set({ user: null }),
+      logout: (reason = '') => {
+        const user = useAuth.getState().user
+        if (user) void service.logAudit({ user: user.name, role: user.role, category: 'AUTH', action: 'Signed out', target: 'Command Center', details: reason }).catch(() => {})
+        set({ user: null })
+      },
     }),
     { name: 'ibvap.auth', storage: createJSONStorage(() => sessionStorage) },
   ),

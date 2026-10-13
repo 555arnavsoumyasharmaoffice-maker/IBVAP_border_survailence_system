@@ -9,9 +9,11 @@ import { beep } from '@/lib/sound'
 import { SEVERITIES } from '@/lib/format'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
+import { audit } from '@/lib/audit'
+import { PrivacyTab, SecurityTab } from './SettingsPrivacySecurity'
 import { Chip, EmptyState, ErrorState, Field, InlineWarning, Modal, PageHeader, SkeletonRows, Tabs } from '@/components/ui'
 
-type TabId = 'cameras' | 'detection' | 'notifications' | 'integration' | 'users' | 'demo'
+type TabId = 'cameras' | 'detection' | 'notifications' | 'integration' | 'privacy' | 'security' | 'users' | 'demo'
 
 const MODULES: { key: keyof DetectionModules; label: string }[] = [
   { key: 'human', label: 'Human' },
@@ -60,6 +62,7 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
     try {
       await service.saveCamera({ id: form.id, name: form.name.trim(), locationName: form.locationName.trim(), streamUrl: form.streamUrl.trim(), lat, lng })
       await useData.getState().refreshCameras()
+      audit('SETTINGS', 'Camera saved', form.name.trim(), form.streamUrl.trim())
       onClose()
     } finally {
       setBusy(false)
@@ -173,6 +176,8 @@ function DetectionTab({ canManage }: { canManage: boolean }) {
 
   const save = async () => {
     setSettings(await service.saveSettings(settings))
+    await useData.getState().refreshSettings()
+    audit('SETTINGS', 'Settings changed', 'Detection', `confidence ${settings.confidenceThreshold}, loitering ${settings.loiteringSeconds}s, night mode ${settings.nightMode}`)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -435,16 +440,18 @@ export default function SettingsPage() {
   const t = useT()
   const canManage = useCan('manage')
   const [tab, setTab] = useState<TabId>('cameras')
-  const gated = tab === 'cameras' || tab === 'detection' || tab === 'integration'
+  const gated = tab === 'cameras' || tab === 'detection' || tab === 'integration' || tab === 'privacy' || tab === 'security'
   return (
     <Page>
-      <PageHeader title={t('nav.settings')} subtitle="Cameras, detection, notifications, Command & Control integration and users" />
+      <PageHeader title={t('nav.settings')} subtitle="Cameras, detection, notifications, C2 integration, privacy, security and users" />
       <Tabs
         tabs={[
           { id: 'cameras', label: 'Cameras' },
           { id: 'detection', label: 'Detection' },
           { id: 'notifications', label: 'Notifications' },
           { id: 'integration', label: 'Integration (C2)' },
+          { id: 'privacy', label: 'Data & Privacy' },
+          { id: 'security', label: 'Security' },
           { id: 'users', label: 'Users' },
           { id: 'demo', label: 'Demo Mode' },
         ]}
@@ -456,6 +463,8 @@ export default function SettingsPage() {
       {tab === 'detection' && <DetectionTab canManage={canManage} />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'integration' && <IntegrationTab canManage={canManage} />}
+      {tab === 'privacy' && <PrivacyTab canManage={canManage} />}
+      {tab === 'security' && <SecurityTab canManage={canManage} />}
       {tab === 'users' && <UsersTab />}
       {tab === 'demo' && <DemoTab />}
     </Page>

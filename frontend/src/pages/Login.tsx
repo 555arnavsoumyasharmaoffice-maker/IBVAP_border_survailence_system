@@ -21,6 +21,7 @@ export default function Login() {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [timedOut] = useState(() => sessionStorage.getItem('ibvap.timedOut'))
 
   if (user) return <Navigate to="/" replace />
 
@@ -28,6 +29,7 @@ export default function Login() {
     e.preventDefault()
     setBusy(true)
     setError('')
+    sessionStorage.removeItem('ibvap.timedOut')
     try {
       await login(name.trim() || ROLES.find((r) => r.role === role)!.name, role)
       navigate('/')
@@ -72,6 +74,9 @@ export default function Login() {
           <input className="field mt-1 w-full normal-case" value={name} onChange={(e) => setName(e.target.value)} placeholder={ROLES.find((r) => r.role === role)!.name} />
         </label>
 
+        {timedOut && !error && (
+          <div className="mb-3 rounded border border-med/50 bg-med/10 px-3 py-2 text-xs text-med">You were signed out after {timedOut} minute(s) of inactivity.</div>
+        )}
         {error && <div className="mb-3 rounded border border-crit/50 bg-crit/10 px-3 py-2 text-xs text-crit">{error}</div>}
 
         <button type="submit" disabled={busy} className="btn btn-primary w-full py-2 text-sm">

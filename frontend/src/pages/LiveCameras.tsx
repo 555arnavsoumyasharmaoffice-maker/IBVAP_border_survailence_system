@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Camera as CameraIcon, ChevronLeft, ChevronRight, Fence, Hash, MapPin, Maximize2, Moon, Square, Sun, Video } from 'lucide-react'
 import type { Camera } from '@/types'
 import { useData } from '@/store/data'
 import { useUi, type CameraLayout } from '@/store/ui'
 import { downloadFile, fmtDateTime } from '@/lib/format'
+import { audit } from '@/lib/audit'
 import { useT } from '@/i18n'
 import { CameraFeed, type CameraFeedHandle } from '@/components/CameraFeed'
 import { AlertCard } from '@/components/AlertCard'
@@ -85,6 +86,7 @@ function Focused({ camera, onBack }: { camera: Camera; onBack: () => void }) {
   const [snapMsg, setSnapMsg] = useState('')
   const alerts = useData((s) => s.alerts)
   const recent = alerts.filter((a) => a.cameraId === camera.id).slice(0, 25)
+  useEffect(() => audit('CAMERA_VIEW', 'Opened live view', camera.name), [camera.id, camera.name])
 
   const takeSnapshot = async () => {
     const url = feedRef.current?.snapshot()

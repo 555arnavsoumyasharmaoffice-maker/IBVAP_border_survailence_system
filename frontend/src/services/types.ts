@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertStatus, AlertType, AppSettings, BlacklistVehicle, Camera, ConnectionState, EvidenceRecord,
+  Alert, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -83,6 +83,9 @@ export interface DataService {
   reviewFaceMatch(id: string, review: ReviewState, by: string): Promise<FaceMatch>
 
   getUsers(): Promise<User[]>
+  /** System-wide audit log, newest first. */
+  getAuditLog(): Promise<AuditEntry[]>
+  logAudit(entry: Omit<AuditEntry, 'id' | 'at'>): Promise<void>
   getSettings(): Promise<AppSettings>
   saveSettings(settings: AppSettings): Promise<AppSettings>
   sendTestWebhook(url: string): Promise<{ ok: boolean; message: string }>
