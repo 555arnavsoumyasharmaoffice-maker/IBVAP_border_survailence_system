@@ -53,6 +53,10 @@ export interface DataService {
   getAlert(id: string): Promise<Alert>
   updateAlertStatus(id: string, status: AlertStatus, by: string, note?: string): Promise<Alert>
   updateAlertNotes(id: string, notes: string): Promise<Alert>
+  /** Tick / untick one response-playbook step. Logged in the alert history. */
+  setPlaybookStep(id: string, stepId: string, label: string, done: boolean, by: string): Promise<Alert>
+  /** Send an SMS / WhatsApp-style message to the Quick Reaction Team. Logged in the alert history. */
+  notifyQrt(id: string, channel: 'SMS' | 'WHATSAPP', message: string, by: string): Promise<Alert>
 
   getZones(): Promise<Zone[]>
   /** Create (no id) or update. `by` is the acting user's name; every change is written to the zone audit log. */

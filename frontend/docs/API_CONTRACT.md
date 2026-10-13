@@ -60,6 +60,10 @@ This is what the frontend expects when `VITE_USE_MOCK=false`. The TypeScript sou
 - `history` must contain one entry per status change, oldest first. The frontend computes **response time** as
   (first `ACKNOWLEDGED` entry `at`) - (`timestamp`), so always append, never overwrite.
 - `history[].note` is optional.
+- `history[].kind` is optional: absent / `"status"` = a status change; `"playbook"`, `"notify"`, `"evidence"` log an
+  operator action and carry the alert's current status unchanged.
+- `playbookDone` (optional string array): ids of ticked response-playbook steps (`s1`, `s2`, ...).
+- `qrtNotifiedAt` (optional): when the Quick Reaction Team was last notified.
 
 `details` (all optional; send what applies to the type):
 
@@ -238,9 +242,21 @@ zones itself from the `detections` WebSocket channel, so operators can toggle th
 | GET | `/alerts/{id}` | | `Alert` |
 | PATCH | `/alerts/{id}/status` | `{ "status": "ACKNOWLEDGED", "by": "Ct. S. Meena", "note": "optional" }` | updated `Alert` |
 | PATCH | `/alerts/{id}/notes` | `{ "notes": "text" }` | updated `Alert` |
+| PATCH | `/alerts/{id}/playbook` | `{ "stepId": "s2", "label": "Inform QRT", "done": true, "by": "Ct. S. Meena" }` | updated `Alert` |
+| POST | `/alerts/{id}/notify-qrt` | `{ "channel": "WHATSAPP", "message": "text", "by": "Ct. S. Meena" }` | updated `Alert` |
 
 On a status change the backend must: set `status`, append `{status, at: now, by, note}` to `history`, set
 `assignedTo`, and **broadcast the updated alert on the WebSocket** (so other operator screens update).
+**Playbook:** add / remove `stepId` in `playbookDone` and append a history entry
+`{ kind: "playbook", status: <current>, at, by, note: "Done: Inform QRT" }`. The step lists live in the frontend
+(`src/lib/playbooks.ts`); the backend only stores ids.
+
+**Notify QRT:** `channel` is `SMS` or `WHATSAPP`. Send `message` through the SMS / WhatsApp gateway to the QRT
+contacts of that camera's sector, set `qrtNotifiedAt`, append a history entry with `kind: "notify"`. Return a
+non-2xx status if the gateway rejects it, so the UI can show "not sent".
+
+All three PATCH/POST calls above must also broadcast the updated alert on the WebSocket.
+
 On startup the frontend loads the last 14 days with `GET /alerts?from=...`.
 
 ### Zones

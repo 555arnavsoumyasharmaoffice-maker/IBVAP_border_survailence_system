@@ -463,6 +463,24 @@ export function createMockService(): DataService {
       return later(a, 60)
     },
 
+    async setPlaybookStep(id, stepId, label, done, by) {
+      const a = findAlert(id)
+      const set = new Set(a.playbookDone ?? [])
+      if (done) set.add(stepId)
+      else set.delete(stepId)
+      a.playbookDone = [...set]
+      a.history.push({ kind: 'playbook', status: a.status, at: new Date().toISOString(), by, note: `${done ? 'Done' : 'Undone'}: ${label}` })
+      emit(a)
+      return later(a, 60)
+    },
+    async notifyQrt(id, channel, message, by) {
+      const a = findAlert(id)
+      a.qrtNotifiedAt = new Date().toISOString()
+      a.history.push({ kind: 'notify', status: a.status, at: a.qrtNotifiedAt, by, note: `QRT notified via ${channel === 'SMS' ? 'SMS' : 'WhatsApp'}: ${message}` })
+      emit(a)
+      return later(a, 700)
+    },
+
     getZones: () => later(zones),
     saveZone(z, by) {
       const existing = z.id ? zones.find((x) => x.id === z.id) : undefined

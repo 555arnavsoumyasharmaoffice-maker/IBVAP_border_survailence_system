@@ -140,7 +140,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-black/70 p-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[2200] flex items-center justify-center bg-black/70 p-4" onMouseDown={onClose}>
       <div className={`panel flex max-h-full w-full flex-col ${wide ? 'max-w-3xl' : 'max-w-lg'}`} onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-base-700 px-4 py-2.5">
           <div className="text-sm font-semibold">{title}</div>

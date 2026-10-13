@@ -5,6 +5,7 @@ import { useData, type Toast } from '@/store/data'
 import { SEV, fmtDateTime, keyDetail } from '@/lib/format'
 import { useT } from '@/i18n'
 import { SeverityBadge, TYPE_ICON } from './ui'
+import { NotifyQrt, Playbook, ResponseTimer } from './Playbook'
 
 const TOAST_MS = 8000
 
@@ -119,7 +120,9 @@ export function CriticalModal() {
               <dt className="text-ink-mute">ID</dt>
               <dd className="font-mono">{alert.id}</dd>
             </dl>
-            <div className="mt-auto flex flex-col gap-2">
+            <ResponseTimer alert={alert} large />
+            <Playbook alert={alert} />
+            <div className="mt-auto flex flex-col gap-2 pt-1">
               <button className="btn btn-danger py-2 text-sm" onClick={() => void setStatus(alert.id, 'ACKNOWLEDGED')}>
                 <Check size={16} /> {t('act.ack')} <kbd className="rounded bg-black/30 px-1 font-mono text-[10px]">A</kbd>
               </button>
@@ -137,6 +140,7 @@ export function CriticalModal() {
                   <Video size={14} /> {t('act.viewCamera')}
                 </button>
               </div>
+              <NotifyQrt alert={alert} />
             </div>
           </div>
         </div>

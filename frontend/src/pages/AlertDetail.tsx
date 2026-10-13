@@ -12,7 +12,9 @@ import { Page } from '@/components/layout/Layout'
 import { AlertActions } from '@/components/AlertCard'
 import { MiniMap } from '@/components/MiniMap'
 import { ZoneShapes } from '@/components/ZoneShapes'
-import { EmptyState, PlateTag, SeverityBadge, Skeleton, StatusBadge, TYPE_ICON, useNow } from '@/components/ui'
+import { NotifyQrt, Playbook, ResponseTimer } from '@/components/Playbook'
+import { hasPlaybook } from '@/lib/playbooks'
+import { Chip, EmptyState, PlateTag, SeverityBadge, Skeleton, StatusBadge, TYPE_ICON, useNow } from '@/components/ui'
 
 const DAY = 86_400_000
 
@@ -273,15 +275,25 @@ export default function AlertDetail() {
             )}
           </div>
 
+          {hasPlaybook(alert) && (
+            <div className="panel space-y-3 p-3">
+              <Playbook alert={alert} />
+              <NotifyQrt alert={alert} className="btn w-full" />
+            </div>
+          )}
+
           <div className="panel p-3">
-            <div className="panel-title mb-2">Workflow</div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="panel-title">Workflow</span>
+              <ResponseTimer alert={alert} />
+            </div>
             <AlertActions alert={alert} showResolve size="md" />
             <ol className="mt-3 space-y-0 border-l border-base-600 pl-4 text-xs">
               {alert.history.map((h, i) => (
                 <li key={i} className="relative pb-2.5">
                   <span className="absolute top-1 -left-[21px] h-2.5 w-2.5 rounded-full border-2 border-base-900 bg-accent" />
                   <div className="flex items-center gap-2">
-                    <StatusBadge status={h.status} />
+                    {h.kind && h.kind !== 'status' ? <Chip className="border-accent/40 bg-accent/10 text-accent">{h.kind}</Chip> : <StatusBadge status={h.status} />}
                     <span className="font-mono text-ink-mute">{fmtDateTime(h.at)}</span>
                   </div>
                   <div className="text-ink-dim">

@@ -60,10 +60,13 @@ export interface AlertDetails {
 }
 
 export interface AlertHistoryEntry {
+  /** Alert status at the time of the entry. */
   status: AlertStatus
   at: string
   by: string
   note?: string
+  /** Absent or "status" = a status change. Other kinds log operator actions without changing status. */
+  kind?: 'status' | 'playbook' | 'notify' | 'evidence'
 }
 
 export interface Alert {
@@ -82,6 +85,10 @@ export interface Alert {
   assignedTo: string | null
   notes: string
   history: AlertHistoryEntry[]
+  /** Ids of completed response-playbook steps (see src/lib/playbooks.ts). */
+  playbookDone?: string[]
+  /** Set when the Quick Reaction Team was notified. */
+  qrtNotifiedAt?: string
 }
 
 /**
