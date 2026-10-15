@@ -54,7 +54,7 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
   "status": "NEW",
   "confidence": 0.93,
   "snapshotUrl": "http://localhost:8000/media/snapshots/ALT-00715.jpg",
-  "clipUrl": "http://localhost:8000/media/clips/ALT-00715.mp4",
+  "clip": { "url": "http://localhost:8000/media/clips/ALT-00715.mp4", "startOffsetSec": -10, "endOffsetSec": 20 },
   "trackId": 612,
   "bbox": [0.41, 0.52, 0.06, 0.22],
   "details": { "zoneId": "zone-02", "zoneName": "Fence Line East", "objectCount": 1 },
@@ -69,12 +69,16 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
 - `confirmFrames` (optional number): how many consecutive frames the detection was confirmed over ("why it fired").
 - `visibility` (optional): camera visibility when the alert fired; anything but `clear` is shown as a "low visibility" tag.
 - `details.objectClass` (optional): class of the triggering object (`person`, `truck`, ...).
-- `clipUrl`, `bbox` are optional. `trackId` and `assignedTo` may be `null`.
+- `clip` (optional): video around the alert. `startOffsetSec` / `endOffsetSec` are seconds relative to `timestamp`
+  (record 10 s before to 20 s after, using the engine's ring buffer). `url` may be `null` while the clip is still being
+  written. `simulated: true` is only ever set by the mock. Must allow CORS GET (the dashboard hashes it for evidence).
+- `bbox` is optional. `trackId` and `assignedTo` may be `null`.
 - `history` must contain one entry per status change, oldest first. The frontend computes **response time** as
   (first `ACKNOWLEDGED` entry `at`) - (`timestamp`), so always append, never overwrite.
 - `history[].note` is optional.
-- `history[].kind` is optional: absent / `"status"` = a status change; `"playbook"`, `"notify"`, `"evidence"` log an
-  operator action and carry the alert's current status unchanged.
+- `history[].kind` is optional: absent / `"status"` = a status change; `"playbook"`, `"notify"`, `"evidence"`, `"bookmark"`,
+  `"auto-escalation"` log an operator / system action and carry the alert's current status unchanged.
+- `history[].offsetSec` (only for `kind: "bookmark"`): clip position in seconds relative to `timestamp`.
 - `playbookDone` (optional string array): ids of ticked response-playbook steps (`s1`, `s2`, ...).
 - `qrtNotifiedAt` (optional): when the Quick Reaction Team was last notified.
 
@@ -261,6 +265,8 @@ zones itself from the `detections` WebSocket channel, so operators can toggle th
 | GET | `/alerts` | `?from=ISO&to=ISO&cameraId=cam-01&limit=100` (all optional) | `Alert[]`, **newest first** |
 | GET | `/alerts/{id}` | | `Alert` |
 | PATCH | `/alerts/{id}/status` | `{ "status": "ACKNOWLEDGED", "by": "Ct. S. Meena", "note": "optional", "at": "optional ISO time", "kind": "optional" }` | updated `Alert` |
+| GET | `/alerts/{id}/clip` | | `AlertClip` (`{ url, startOffsetSec, endOffsetSec }`), 404 if none |
+| POST | `/alerts/{id}/history` | `{ "kind": "bookmark", "note": "+2.5 s: climbs fence", "by": "Ct. S. Meena", "offsetSec": 2.5 }` | updated `Alert` (append entry with current `status` and server `at`, broadcast on WS) |
 | PATCH | `/alerts/{id}/notes` | `{ "notes": "text" }` | updated `Alert` |
 | PATCH | `/alerts/{id}/playbook` | `{ "stepId": "s2", "label": "Inform QRT", "done": true, "by": "Ct. S. Meena" }` | updated `Alert` |
 | POST | `/alerts/{id}/notify-qrt` | `{ "channel": "WHATSAPP", "message": "text", "by": "Ct. S. Meena" }` | updated `Alert` |
@@ -288,7 +294,8 @@ On a status change the backend must: set `status`, append `{status, at: now, by,
 - The backend must compute `snapshotSha256` (and `clipSha256`) **when it writes the file** and never change it. The
   dashboard downloads the file, hashes it in the browser and shows "SHA-256 hash computed" (with a mismatch warning if they differ). This is a hash, not a signature: it proves the file is unchanged since the hash was recorded, nothing more.
 - `snapshotUrl` / `clipUrl` must allow CORS `GET` from the dashboard origin, otherwise the browser cannot hash or zip them.
-- The ZIP itself is built in the browser (snapshot, clip, `metadata.json`, `SHA256SUMS.txt`, `chain_of_custody.json`).
+- The ZIP itself is built in the browser (snapshot, clip file if `clip.url` is set, `metadata.json` with the clip window
+  and all bookmarks, `SHA256SUMS.txt`, `chain_of_custody.json`).
   `evidence/export` only records that it happened: append a history entry with `kind: "evidence"`.
 - When `AppSettings.blurFacesInExports` is true, `snapshotUrl` / `clipUrl` requested with `?blur=1` should return a copy
   with non-watchlist faces blurred. (The mock cannot blur; the custody log records `faceBlurApplied: false`.)

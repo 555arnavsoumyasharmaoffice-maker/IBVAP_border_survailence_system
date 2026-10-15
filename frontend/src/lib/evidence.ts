@@ -63,13 +63,21 @@ export async function buildEvidencePackage(opts: {
     integrity.push({ alertId: a.id, file: snapFile.path, recordedSha256: recorded, exportedSha256: snapFile.sha256, matches: recorded ? recorded === snapFile.sha256 : null })
 
     let clipPath: string | null = null
-    if (a.clipUrl) {
-      const clip = await fetchBytes(a.clipUrl)
+    if (a.clip?.url) {
+      const clip = await fetchBytes(a.clip.url)
       clipPath = (await add(`${a.id}/clip.${clip.ext}`, clip.bytes)).path
     }
+    const bookmarks = a.history.filter((h) => h.kind === 'bookmark').map((h) => ({ offsetSec: h.offsetSec ?? 0, note: h.note ?? '', by: h.by, at: h.at }))
     const camera = opts.cameras.find((c) => c.id === a.cameraId)
     const metadata = {
-      alert: { ...a, snapshotUrl: snapFile.path, clipUrl: clipPath, details: { ...a.details, faceCropUrl: a.details.faceCropUrl ? '(not exported)' : undefined } },
+      clip: a.clip && {
+        file: clipPath,
+        window: { startOffsetSec: a.clip.startOffsetSec, endOffsetSec: a.clip.endOffsetSec, alertMomentUtc: a.timestamp },
+        simulated: !!a.clip.simulated,
+        note: a.clip.simulated ? 'Simulated clip (mock mode): no video file exists; only the clip window and bookmarks are exported.' : undefined,
+      },
+      bookmarks,
+      alert: { ...a, snapshotUrl: snapFile.path, clip: a.clip && { ...a.clip, url: clipPath }, details: { ...a.details, faceCropUrl: a.details.faceCropUrl ? '(not exported)' : undefined } },
       camera: camera && { id: camera.id, name: camera.name, locationName: camera.locationName, lat: camera.lat, lng: camera.lng },
     }
     await add(`${a.id}/metadata.json`, JSON.stringify(metadata, null, 2))

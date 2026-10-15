@@ -6,6 +6,7 @@ import { SEV, fmtDateTime, keyDetail } from '@/lib/format'
 import { useT } from '@/i18n'
 import { SeverityBadge, TYPE_ICON } from './ui'
 import { NotifyQrt, Playbook, ResponseTimer } from './Playbook'
+import { ClipPlayer } from './ClipPlayer'
 
 const TOAST_MS = 8000
 
@@ -110,8 +111,9 @@ export function CriticalModal() {
           </button>
         </div>
         <div className="grid grid-cols-5 gap-4 p-4">
-          <div className="relative col-span-3 aspect-video overflow-hidden rounded border border-base-600 bg-black">
-            <img src={alert.snapshotUrl} alt="Alert snapshot" className="h-full w-full object-cover" />
+          <div className="col-span-3 flex flex-col gap-1">
+            <ClipPlayer key={alert.id} alert={alert} compact autoPlay loop className="aspect-[16/10] overflow-hidden rounded border border-base-600" />
+            <div className="text-[10px] text-ink-mute">{t('clip.verifyHint')}</div>
           </div>
           <div className="col-span-2 flex flex-col gap-2 text-sm">
             <div className="flex items-center gap-2">

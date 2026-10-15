@@ -15,6 +15,7 @@ import { ZoneShapes } from '@/components/ZoneShapes'
 import { NotifyQrt, Playbook, ResponseTimer } from '@/components/Playbook'
 import { hasPlaybook } from '@/lib/playbooks'
 import { EvidencePanel } from '@/components/EvidencePanel'
+import { ClipPlayer } from '@/components/ClipPlayer'
 import { Chip, EmptyState, PlateTag, SeverityBadge, Skeleton, StatusBadge, TYPE_ICON, useNow } from '@/components/ui'
 
 const DAY = 86_400_000
@@ -45,6 +46,7 @@ export default function AlertDetail() {
   const camera = useData((s) => s.cameras.find((c) => c.id === alert?.cameraId))
   const zones = useData((s) => s.zones)
   const [showZones, setShowZones] = useState(true)
+  const [view, setView] = useState<'clip' | 'snapshot'>('clip')
 
   // Older alerts may not be in the 14-day store: fetch on demand.
   useEffect(() => {
@@ -132,6 +134,17 @@ export default function AlertDetail() {
       <div className="grid grid-cols-12 gap-3">
         <div className="col-span-12 space-y-3 lg:col-span-7">
           <div className="panel overflow-hidden">
+            <div className="flex items-center gap-1 border-b border-base-700 px-2 py-1">
+              {(['clip', 'snapshot'] as const).map((v) => (
+                <button key={v} className={`btn btn-sm ${view === v ? 'btn-primary' : ''}`} onClick={() => setView(v)}>
+                  {t(v === 'clip' ? 'clip.tab' : 'clip.snapshotTab')}
+                </button>
+              ))}
+              {alert.clip && <span className="ml-auto font-mono text-[10px] text-ink-mute">{alert.clip.startOffsetSec}s .. +{alert.clip.endOffsetSec}s</span>}
+            </div>
+            {view === 'clip' ? (
+              <ClipPlayer alert={alert} className="aspect-[16/10]" />
+            ) : (
             <div className="relative aspect-video bg-black">
               <img src={alert.snapshotUrl} alt="Alert snapshot" className="h-full w-full object-cover" />
               {showZones && <ZoneShapes zones={zones.filter((z) => z.cameraId === alert.cameraId)} highlightId={d.zoneId} />}
@@ -154,10 +167,6 @@ export default function AlertDetail() {
                 </div>
               )}
             </div>
-            {alert.clipUrl ? (
-              <video src={alert.clipUrl} controls className="w-full border-t border-base-700 bg-black" />
-            ) : (
-              <div className="border-t border-base-700 px-3 py-1.5 text-[11px] text-ink-mute">No video clip attached to this alert.</div>
             )}
           </div>
 

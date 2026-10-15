@@ -77,7 +77,23 @@ export interface AlertHistoryEntry {
   by: string
   note?: string
   /** Absent or "status" = a status change. Other kinds log operator actions without changing status. */
-  kind?: 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation'
+  kind?: HistoryKind
+  /** kind "bookmark": position in the clip, seconds relative to the alert moment (negative = before). */
+  offsetSec?: number
+}
+
+export type HistoryKind = 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation' | 'bookmark'
+
+/**
+ * Video clip around the alert moment. Offsets are seconds relative to `Alert.timestamp`
+ * (default -10 .. +20). `url` is null when the backend has no video (the mock renders a simulated clip).
+ */
+export interface AlertClip {
+  url: string | null
+  startOffsetSec: number
+  endOffsetSec: number
+  /** True for the mock's canvas-rendered clip. Never true for real evidence. */
+  simulated?: boolean
 }
 
 export interface Alert {
@@ -89,7 +105,7 @@ export interface Alert {
   status: AlertStatus
   confidence: number
   snapshotUrl: string
-  clipUrl?: string
+  clip?: AlertClip
   trackId: number | null
   bbox?: BBox
   /** Why it fired: number of consecutive frames the detection was confirmed over. */

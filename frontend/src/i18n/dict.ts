@@ -99,6 +99,17 @@ export const en = {
   'notif.high': "Quiet toast, no sound.",
   'notif.low': "No toast: appears in the live feed only.",
   'notif.renotify': "Unacknowledged critical incident: one reminder after 60 s; after 3 min it is escalated to the supervisor automatically (logged in history and audit). No repeated beeping. Notifications fire once per incident.",
+  'clip.tab': "Clip",
+  'clip.snapshotTab': "Snapshot + zones",
+  'clip.simulated': "SIMULATED CLIP",
+  'clip.alertMoment': "ALERT MOMENT",
+  'clip.bookmark': "Bookmark",
+  'clip.bookmarked': "Bookmark saved to alert history",
+  'clip.bookmarkFailed': "Bookmark not saved: backend not reachable",
+  'clip.notePh': "Note for this moment (optional)",
+  'clip.save': "Save",
+  'clip.none': "No clip for this alert",
+  'clip.verifyHint': "Clip loops 10 s before to 20 s after the alert: verify before acknowledging.",
 } as const
 
 export type DictKey = keyof typeof en
@@ -201,4 +212,15 @@ export const hi: Partial<Record<DictKey, string>> = {
   'notif.high': "शांत सूचना, कोई ध्वनि नहीं।",
   'notif.low': "कोई सूचना नहीं: केवल लाइव फ़ीड में।",
   'notif.renotify': "अस्वीकृत गंभीर घटना: 60 सेकंड बाद एक अनुस्मारक; 3 मिनट बाद स्वतः पर्यवेक्षक को भेजी जाती है (इतिहास और ऑडिट में दर्ज)। बार-बार बीप नहीं।",
+  'clip.tab': "क्लिप",
+  'clip.snapshotTab': "स्नैपशॉट + ज़ोन",
+  'clip.simulated': "सिम्युलेटेड क्लिप",
+  'clip.alertMoment': "अलर्ट क्षण",
+  'clip.bookmark': "बुकमार्क",
+  'clip.bookmarked': "बुकमार्क अलर्ट इतिहास में सहेजा गया",
+  'clip.bookmarkFailed': "बुकमार्क नहीं सहेजा: बैकएंड उपलब्ध नहीं",
+  'clip.notePh': "इस क्षण के लिए नोट (वैकल्पिक)",
+  'clip.save': "सहेजें",
+  'clip.none': "इस अलर्ट की कोई क्लिप नहीं",
+  'clip.verifyHint': "क्लिप अलर्ट से 10 सेकंड पहले से 20 सेकंड बाद तक: स्वीकारने से पहले जाँचें।",
 }

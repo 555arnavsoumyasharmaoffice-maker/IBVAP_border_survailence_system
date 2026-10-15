@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertHistoryEntry, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
+  Alert, AlertClip, AlertHistoryEntry, HistoryKind, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -61,6 +61,11 @@ export interface DataService {
   setPlaybookStep(id: string, stepId: string, label: string, done: boolean, by: string): Promise<Alert>
   /** Relay a message to the Quick Reaction Team (SMS = secure SMS gateway, WHATSAPP = radio relay; name kept for compatibility). Logged in the alert history. */
   notifyQrt(id: string, channel: 'SMS' | 'WHATSAPP', message: string, by: string): Promise<Alert>
+
+  /** Clip window around the alert (GET /alerts/{id}/clip). */
+  getAlertClip(id: string): Promise<AlertClip>
+  /** Append a non-status entry to the alert history (bookmark, shared, ...). */
+  addAlertHistory(id: string, entry: { kind: HistoryKind; note: string; by: string; offsetSec?: number }): Promise<Alert>
 
   /** Hashes recorded at capture time, used to verify evidence integrity. */
   getEvidenceRecord(id: string): Promise<EvidenceRecord>

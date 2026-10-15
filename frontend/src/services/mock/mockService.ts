@@ -268,6 +268,8 @@ export function createMockService(): DataService {
       status: 'NEW',
       confidence,
       snapshotUrl: snapshotSvg({ night, kind, bbox, camName: camera.name, time: fmtTime(ts) }),
+      // No real video in mock mode: the dashboard renders a deterministic simulated clip from the alert data.
+      clip: kind === 'none' ? undefined : { url: null, startOffsetSec: -10, endOffsetSec: 20, simulated: true },
       trackId,
       bbox,
       confirmFrames: kind === 'none' ? undefined : randInt(camera.minConfirmFrames, camera.minConfirmFrames + 14),
@@ -522,6 +524,19 @@ export function createMockService(): DataService {
       a.history.push({ kind: 'notify', status: a.status, at: a.qrtNotifiedAt, by, note: `QRT notified via ${channel === 'SMS' ? 'secure SMS' : 'radio relay'} (simulated): ${message}` })
       emit(a)
       return later(a, 700)
+    },
+
+    async getAlertClip(id) {
+      const a = findAlert(id)
+      if (!a.clip) throw new Error('No clip for this alert')
+      return later(a.clip, 120)
+    },
+    async addAlertHistory(id, entry) {
+      requireLink()
+      const a = findAlert(id)
+      a.history.push({ ...entry, status: a.status, at: new Date().toISOString() })
+      emit(a)
+      return later(a, 60)
     },
 
     async getEvidenceRecord(id) {
