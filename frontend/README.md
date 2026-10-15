@@ -105,12 +105,9 @@ npm run preview    # serve dist/ on http://localhost:4173
 ## Demo Mode (for the presentation)
 
 Mock mode only. Start it from **Settings > Demo Mode** or press **Ctrl+Shift+D**. It runs a scripted scenario of
-about 2 minutes with captions at the bottom of the screen:
+about 2.5 minutes with captions at the bottom of the screen. It can run twice in a row without a reload:
 
-patrol → vehicle at check post → ANPR blacklist match → person crosses the virtual fence at night → CRITICAL alert
-modal → operator acknowledges → repeat alerts collapse into one incident (x3) → playbook steps ticked → QRT notified →
-evidence ZIP exported (the browser downloads a file) → map flies to the camera and its marker pulses → escalation →
-shift report → About IBVAP (requirements coverage).
+"Punjab sector, foggy night, drone drop": fog degrades the visible cameras (thermal River Cam unaffected) → DRONE_SIGHTING near BOP Ajnala → operator marks it on the map, 2 km drone watch starts, nakas highlighted → face watchlist match at Attari (quiet toast) → thermal camera: person crawling (night movement + crawling, tagged In drone watch area, severity raised) → the same track loiters (counter grows, no extra beep) → it crosses the riverbed zone: CRITICAL dialog with the clip → acknowledge → a jeep leaves, ANPR reads a blacklisted plate → share with police naka → playbook + QRT notified → QRT mobile view accepts → bookmark + evidence ZIP (the browser downloads a file) → escalation → About IBVAP.
 
 Random alerts are paused while it runs. Press Ctrl+Shift+D again to stop.
 

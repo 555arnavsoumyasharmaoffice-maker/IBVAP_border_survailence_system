@@ -189,6 +189,7 @@ export const seedBlacklist = (): BlacklistVehicle[] => [
   { id: 'bl-02', plate: 'PB05AK7788', reason: 'STOLEN', priority: 'MEDIUM', notes: 'Stolen from Ferozepur, FIR 87/2026.', addedAt: daysAgo(9) },
   { id: 'bl-03', plate: 'GJ12BT9034', reason: 'WANTED', priority: 'HIGH', notes: 'Linked to Subject W-014.', addedAt: daysAgo(41) },
   { id: 'bl-04', plate: 'JK02BM3310', reason: 'SMUGGLING', priority: 'MEDIUM', notes: 'Truck, repeated night movement.', addedAt: daysAgo(5) },
+  { id: 'bl-06', plate: 'PB02DJ4410', reason: 'SMUGGLING', priority: 'MEDIUM', notes: 'Jeep seen at earlier drone-drop pickups, Ajnala belt.', addedAt: daysAgo(6) },
   { id: 'bl-05', plate: 'RJ19GD0627', reason: 'STOLEN', priority: 'LOW', notes: 'Motorcycle reported stolen.', addedAt: daysAgo(2) },
 ]
 

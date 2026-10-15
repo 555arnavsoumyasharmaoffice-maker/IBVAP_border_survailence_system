@@ -15,14 +15,15 @@ interface Requirement {
 
 // Problem Statement 26187 requirement -> how IBVAP covers it -> where to see it.
 const REQUIREMENTS: Requirement[] = [
-  { req: 'Human detection & tracking', how: 'YOLO person detection with ByteTrack IDs; every box shows class, track ID and confidence', page: 'nav.cameras', to: '/cameras' },
-  { req: 'Vehicle detection & classification', how: 'Car / truck / bus / motorcycle / tractor classes on live feeds and in every plate read', page: 'nav.cameras', to: '/cameras' },
+  { req: 'Human detection & tracking', how: 'YOLO person detection with ByteTrack IDs; every box shows class, track ID and confidence; Tracking view lists every sighting of a track', page: 'nav.cameras', to: '/cameras' },
+  { req: 'Vehicle detection & classification', how: 'Car / truck / bus / motorcycle / tractor / jeep classes on live feeds, alerts and plate reads; Vehicles-by-class chart and ANPR class filter', page: 'nav.cameras', to: '/cameras' },
   { req: 'Face detection', how: 'Faces matched against a watchlist; captured vs watchlist photo with similarity and human Confirm / Reject', page: 'nav.faces', to: '/faces' },
   { req: 'ANPR', how: 'Live plate reads, search, vehicle route across cameras, blacklist that raises alerts, operator correction of low-confidence reads', page: 'nav.anpr', to: '/anpr' },
   { req: 'Virtual fence intrusion', how: 'Polygon zones and directional tripwires drawn on the camera view, with severity, trigger classes, dwell time and schedule', page: 'nav.zones', to: '/zones' },
-  { req: 'Suspicious activity', how: 'Loitering and suspicious-activity alerts, grouped into incidents, each with a response playbook and QRT notification', page: 'nav.alerts', to: '/alerts' },
-  { req: 'Night-time movement', how: 'Low-light / IR mode per camera, night-only zones, night-movement alerts and a day vs night comparison', page: 'nav.analytics', to: '/analytics' },
+  { req: 'Suspicious activity', how: 'Subtypes (wall scaling, fake plate, unattended object, crowd, crawling, loitering), grouped into incidents with clip, playbook, shelving and QRT', page: 'nav.alerts', to: '/alerts' },
+  { req: 'Night-time movement', how: 'Thermal / IR-night cameras, night-only zones, NIGHT_MOVEMENT from night-mode cameras, AI-degraded (fog) warnings, day vs night chart', page: 'nav.analytics', to: '/analytics' },
   { req: 'Real-time alerts & event logging', how: 'Toasts, sound and a full-screen critical dialog on every screen; searchable event log; evidence export; audit log', page: 'nav.command', to: '/' },
+  { req: 'Drone drop response (Punjab)', how: 'Mark a drone sighting on the map: 1-5 km watch raises person / vehicle alerts inside, highlights ANPR points and police nakas, share with naka', page: 'nav.map', to: '/map' },
   { req: 'No dedicated hardware', how: 'Existing CCTV cameras are added by their RTSP / HTTP stream URL; no new cameras or sensors', page: 'nav.settings', to: '/settings?tab=cameras', where: 'Cameras' },
   { req: 'C2 integration', how: 'REST API, WebSocket stream and a webhook that pushes every alert as JSON to existing Command & Control systems', page: 'nav.settings', to: '/settings?tab=integration', where: 'Integration (C2)' },
   { req: 'Cost-effective & scalable', how: 'Open-source stack with no licence fees; one small edge node per outpost, added independently as coverage grows', page: 'nav.health', to: '/health' },

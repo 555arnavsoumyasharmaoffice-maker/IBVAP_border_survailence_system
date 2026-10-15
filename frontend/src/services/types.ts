@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertClip, AlertHistoryEntry, DroneWatch, HistoryKind, Naka, QrtStatus, SuspiciousSubtype, TrackPoint, VehicleClass, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
+  Alert, AlertClip, AlertHistoryEntry, DroneWatch, HistoryKind, Naka, QrtStatus, Severity, SuspiciousSubtype, TrackPoint, VehicleClass, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -29,6 +29,8 @@ export interface DemoAlertSpec {
   vehicleClass?: VehicleClass
   /** Repeat alert about the same object. */
   trackId?: number
+  /** Base severity before any drone-watch raise. */
+  severity?: Severity
 }
 
 export interface DemoControls {

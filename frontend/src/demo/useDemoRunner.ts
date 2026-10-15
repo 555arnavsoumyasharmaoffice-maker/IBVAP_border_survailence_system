@@ -1,20 +1,34 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate, type NavigateFunction } from 'react-router-dom'
+import type { Alert } from '@/types'
 import { service } from '@/services'
 import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
 import { useAuth } from '@/store/auth'
 import { groupIncidents } from '@/lib/incidents'
 import { PLAYBOOKS, qrtMessage } from '@/lib/playbooks'
+import { isWatchActive, distanceKm } from '@/lib/geo'
+import { audit } from '@/lib/audit'
 import { translate } from '@/i18n'
 import { exportEvidence } from '@/components/EvidencePanel'
 
-// Scripted ~2 minute scenario for judges (mock mode only).
-// Start/stop: Settings -> Demo Mode, or the hidden shortcut Ctrl+Shift+D.
+// Scripted ~2.5 minute story for judges (mock mode only): "Punjab sector, foggy night, drone drop".
+// Start/stop: Settings -> Demo Mode, or the hidden shortcut Ctrl+Shift+D. Safe to run twice without reload:
+// every run ends earlier demo watches and uses fresh alerts / track ids.
+//
+// PS 26187 coverage: night + fog (a), drone + map + command & control hand-off (b, g, h), human detection and
+// tracking (c, d), suspicious activity + night movement (c), virtual fence (e), face recognition (b2),
+// vehicle classification + ANPR (f), real-time alerts + event logging (all steps, audit log), evidence (i).
 
 interface Ctx {
   navigate: NavigateFunction
-  intrusionId?: string
+  droneId?: string
+  watchId?: string
+  trackId?: number
+  /** First alert of the intruder incident. */
+  firstId?: string
+  fenceId?: string
+  anprId?: string
 }
 
 interface Step {
@@ -23,96 +37,170 @@ interface Step {
   run?: (ctx: Ctx) => void | Promise<void>
 }
 
-const CAM = 'cam-02' // BOP Sundar - Fence East
-const BLACKLISTED_PLATE = 'RJ14CA4521'
+const RIVER = 'cam-06' // BOP Ajnala - River Cam (thermal)
+const GATE = 'cam-08' // BOP Ajnala - Road Gate (ANPR)
+const JEEP_PLATE = 'PB02DJ4410'
 const data = () => useData.getState()
 const actor = () => useAuth.getState().user?.name ?? 'Operator'
-const intrusion = (c: Ctx) => data().alerts.find((a) => a.id === c.intrusionId)
-const intrusionIncident = (c: Ctx) => groupIncidents(data().alerts).find((i) => i.alerts.some((a) => a.id === c.intrusionId))
-const emitFence = () => service.demo.emit({ type: 'FENCE_INTRUSION', cameraId: CAM })
+const incidentOf = (id?: string) => groupIncidents(data().alerts).find((i) => i.alerts.some((a) => a.id === id))
+const latestAlert = (pred: (a: Alert) => boolean) => data().alerts.find(pred)
 
-async function tickPlaybook(c: Ctx, index: number) {
+async function emit(spec: Parameters<typeof service.demo.emit>[0]) {
+  const a = await service.demo.emit(spec)
+  if (a) data().ingest(a)
+  return a
+}
+
+async function tickPlaybook(alertId: string, index: number) {
   const step = PLAYBOOKS.FENCE_INTRUSION[index]
-  if (c.intrusionId) data().ingest(await service.setPlaybookStep(c.intrusionId, step.id, step.label, true, actor()))
+  data().ingest(await service.setPlaybookStep(alertId, step.id, step.label, true, actor()))
 }
 
 const STEPS: Step[] = [
-  { at: 0, caption: 'Normal patrol: AI engine is watching every existing CCTV feed, no new hardware', run: (c) => c.navigate('/') },
   {
-    at: 8,
-    caption: 'Vehicle detected and classified at Check Post Munabao',
-    run: () => void service.demo.emit({ type: 'VEHICLE_DETECTED', cameraId: 'cam-03', plate: 'RJ19TA5512' }),
+    at: 0,
+    caption: 'Punjab sector, 02:10, dense fog: visible cameras report "AI degraded (fog)", the thermal River Cam at BOP Ajnala still sees clearly',
+    run: async (c) => {
+      // Reset anything an earlier run left behind.
+      for (const w of data().droneWatches.filter((x) => isWatchActive(x) && x.reason.startsWith('[DEMO]'))) await service.endDroneWatch(w.id, actor())
+      // Fog degrades the visible cameras; the thermal River Cam is unaffected.
+      for (const [cam, visibility] of [['cam-06', 'clear'], ['cam-08', 'fog'], ['cam-07', 'fog']] as const) {
+        await service.saveCamera({ id: cam, name: data().cameras.find((x) => x.id === cam)?.name ?? cam, visibility, isNightMode: true })
+      }
+      await Promise.all([data().refreshCameras(), data().refreshWatches()])
+      useUi.getState().set({ cameraLayout: 3 })
+      c.navigate('/cameras')
+    },
   },
   {
-    at: 16,
-    caption: 'ANPR reads the next plate: BLACKLIST MATCH (suspected smuggling)',
-    run: () => void service.demo.emit({ type: 'ANPR_MATCH', cameraId: 'cam-03', plate: BLACKLISTED_PLATE }),
+    at: 10,
+    caption: 'Post reports a drone over the Ravi: DRONE_SIGHTING alert near BOP Ajnala - River Cam',
+    run: async (c) => {
+      const a = await emit({ type: 'DRONE_SIGHTING', cameraId: RIVER })
+      c.droneId = a?.id
+      if (a) c.navigate(`/alerts/${a.id}`)
+    },
   },
-  { at: 24, caption: 'ANPR log: every plate read, blacklist status and vehicle history', run: (c) => c.navigate('/anpr') },
-  { at: 33, caption: 'Night: low-light / IR feed at BOP Sundar - Fence East', run: (c) => c.navigate(`/cameras?cam=${CAM}`) },
+  { at: 18, caption: 'Operator marks the drone sighting on the map', run: (c) => c.navigate(`/map?drone=${c.droneId ?? ''}`) },
+  {
+    at: 24,
+    caption: '2 km drone watch starts for 4 h: cameras, ANPR points and police nakas inside are highlighted, countdown in the top bar',
+    run: async (c) => {
+      const cam = data().cameras.find((x) => x.id === RIVER)!
+      const w = await service.createDroneWatch({ lat: cam.lat - 0.004, lng: cam.lng + 0.006, radiusKm: 2, durationH: 4, reason: `[DEMO] Drone sighting ${c.droneId ?? ''}`, linkedAlertId: c.droneId ?? null, createdBy: actor() })
+      audit('DRONE', 'Drone watch started', w.id, `2 km for 4 h, alert ${c.droneId ?? '-'}`)
+      c.watchId = w.id
+      await data().refreshWatches()
+      c.navigate(`/map?watch=${w.id}`)
+    },
+  },
+  {
+    at: 34,
+    caption: 'Meanwhile at ICP Attari: face watchlist match (HIGH: quiet toast, decision support only)',
+    run: () => void emit({ type: 'FACE_MATCH', cameraId: 'cam-07', personId: 'wp-02' }),
+  },
   {
     at: 41,
-    caption: 'A person crosses the virtual fence: CRITICAL alert on every screen',
-    run: async (c) => {
-      c.intrusionId = (await emitFence())?.id
-    },
-  },
-  {
-    at: 50,
-    caption: 'Operator acknowledges: response time is recorded',
-    run: (c) => {
-      if (c.intrusionId) void data().setIncidentStatus(c.intrusionId, 'ACKNOWLEDGED')
-    },
-  },
-  {
-    at: 55,
-    caption: 'The intruder is re-detected twice: alerts collapse into ONE incident (x3), no repeat popups',
+    caption: 'Thermal camera: person crawling near the fence. Tagged "In drone watch area", severity raised one level',
     run: async (c) => {
       c.navigate('/')
-      await emitFence()
-      setTimeout(() => void emitFence(), 2500)
+      const a = await emit({ type: 'NIGHT_MOVEMENT', cameraId: RIVER, severity: 'MEDIUM' })
+      c.firstId = a?.id
+      c.trackId = a?.trackId ?? undefined
+      setTimeout(() => void emit({ type: 'SUSPICIOUS_ACTIVITY', subtype: 'CRAWLING', cameraId: RIVER, trackId: c.trackId, severity: 'MEDIUM' }), 2500)
     },
   },
   {
-    at: 66,
-    caption: 'Response playbook: SOP steps are ticked and saved in the alert history',
+    at: 53,
+    run: (c) => void emit({ type: 'LOITERING', cameraId: RIVER, trackId: c.trackId, severity: 'MEDIUM' }),
+    caption: 'The same track loiters: the incident counter grows, no extra beep (one notification per incident)',
+  },
+  {
+    at: 61,
+    caption: 'It crosses the Riverbed Crossing zone: CRITICAL dialog shows the clip so the operator can verify first',
     run: async (c) => {
-      if (!c.intrusionId) return
-      c.navigate(`/alerts/${c.intrusionId}`)
-      await tickPlaybook(c, 0)
-      setTimeout(() => void tickPlaybook(c, 1), 2500)
+      const a = await emit({ type: 'FENCE_INTRUSION', cameraId: RIVER, trackId: c.trackId })
+      c.fenceId = a?.id
     },
   },
   {
-    at: 74,
-    caption: 'Notify QRT: message relayed over secure SMS / radio relay (simulated) and logged',
-    run: async (c) => {
-      const a = intrusion(c)
-      if (!a) return
-      const camera = data().cameras.find((x) => x.id === a.cameraId)
-      data().ingest(await service.notifyQrt(a.id, 'WHATSAPP', qrtMessage(a, camera, translate('en', `type.${a.type}`)), actor()))
+    at: 70,
+    caption: 'Operator verifies on the clip and acknowledges the whole incident: response time recorded',
+    run: (c) => {
+      if (c.fenceId) void data().setIncidentStatus(c.fenceId, 'ACKNOWLEDGED')
     },
   },
   {
-    at: 82,
-    caption: 'Evidence export: ZIP with snapshots, SHA-256 hashes and chain-of-custody log',
+    at: 76,
+    caption: 'A jeep leaves the area: vehicle classified, ANPR at the Road Gate reads a BLACKLISTED plate inside the watch',
     run: async (c) => {
-      const inc = intrusionIncident(c)
+      const a = await emit({ type: 'ANPR_MATCH', cameraId: GATE, plate: JEEP_PLATE, vehicleClass: 'jeep' })
+      c.anprId = a?.id ?? latestAlert((x) => x.type === 'ANPR_MATCH' && x.details.plateNumber === JEEP_PLATE)?.id
+      c.navigate('/anpr')
+    },
+  },
+  {
+    at: 86,
+    caption: 'Share with police naka: the jeep alert goes to the joint nakas inside the watch (simulated) and is logged',
+    run: async (c) => {
+      const id = c.anprId ?? latestAlert((x) => x.type === 'ANPR_MATCH' && x.details.plateNumber === JEEP_PLATE)?.id
+      const w = data().droneWatches.find((x) => x.id === c.watchId)
+      if (!id) return
+      const nakas = data().nakas.filter((n) => (w ? distanceKm(n.lat, n.lng, w.lat, w.lng) <= w.radiusKm + 3 : true)).slice(0, 2)
+      await service.shareWithNaka({ alertIds: [id] }, nakas.map((n) => n.id), actor())
+      audit('DRONE', 'Shared with police naka', id, nakas.map((n) => n.name).join(', '))
+      c.navigate(`/alerts/${id}`)
+    },
+  },
+  {
+    at: 95,
+    caption: 'Response playbook ticked and QRT notified over secure SMS / radio relay (simulated)',
+    run: async (c) => {
+      const id = c.fenceId
+      if (!id) return
+      c.navigate(`/alerts/${id}`)
+      await tickPlaybook(id, 0)
+      setTimeout(() => void tickPlaybook(id, 1), 1500)
+      const a = data().alerts.find((x) => x.id === id)
+      const camera = data().cameras.find((x) => x.id === RIVER)
+      if (a) data().ingest(await service.notifyQrt(id, 'WHATSAPP', qrtMessage(a, camera, translate('en', `type.${a.type}`)), actor()))
+    },
+  },
+  {
+    at: 103,
+    caption: 'QRT mobile view: the team accepts the task, the dashboard updates live',
+    run: async (c) => {
+      c.navigate('/qrt')
+      const inc = incidentOf(c.fenceId)
+      if (!inc) return
+      setTimeout(async () => {
+        const out = await service.updateQrtStatus(inc.alerts.map((a) => a.id), 'ACCEPTED', 'QRT (Ajnala)')
+        out.forEach((a) => data().ingest(a))
+      }, 3000)
+    },
+  },
+  {
+    at: 112,
+    caption: 'Evidence: bookmark the crossing in the clip, then export ZIP with clip window, bookmarks, SHA-256 hashes, chain of custody',
+    run: async (c) => {
+      const id = c.fenceId
+      if (!id) return
+      c.navigate(`/alerts/${id}`)
+      data().ingest(await service.addAlertHistory(id, { kind: 'bookmark', offsetSec: 0, note: '+0.0 s: crosses Riverbed Crossing zone', by: actor() }))
+      const inc = incidentOf(id)
       if (inc) await exportEvidence(inc.id, inc.alerts)
     },
   },
-  { at: 91, caption: 'Map flies to the intrusion site: the camera marker pulses in the severity colour', run: (c) => c.navigate(`/map?cam=${CAM}`) },
   {
-    at: 100,
-    caption: 'Incident escalated to the Company Commander',
+    at: 122,
+    caption: 'Incident escalated to the Company Commander; every step is in the alert history and the audit log',
     run: (c) => {
-      if (c.intrusionId) void data().setIncidentStatus(c.intrusionId, 'ESCALATED', 'QRT requested at Fence East')
+      if (c.fenceId) void data().setIncidentStatus(c.fenceId, 'ESCALATED', 'Drone drop suspected, QRT on the way')
     },
   },
-  { at: 106, caption: 'Shift report generated: ready to print or hand off to Command & Control', run: (c) => c.navigate('/reports?auto=1') },
-  { at: 117, caption: 'IBVAP covers every requirement of Problem Statement 26187', run: (c) => c.navigate('/about') },
+  { at: 129, caption: 'IBVAP covers every requirement of Problem Statement 26187', run: (c) => c.navigate('/about') },
 ]
-const TOTAL_SECONDS = 132
+const TOTAL_SECONDS = 142
 
 export function useDemoRunner() {
   const navigate = useNavigate()
@@ -143,11 +231,13 @@ export function useDemoRunner() {
     }
     service.demo.setAutoSimulation(false)
     service.demo.setLinkDown(false)
+    useData.setState({ modalQueue: [], toasts: [] })
     const ctx: Ctx = { navigate: (...args: Parameters<NavigateFunction>) => navRef.current(...args) } as Ctx
-    STEPS.forEach((step, i) => {
+    const captions = STEPS.filter((s, i) => i === 0 || s.caption !== STEPS[i - 1].caption)
+    STEPS.forEach((step) => {
       timers.current.push(
         setTimeout(() => {
-          useUi.getState().set({ demo: { running: true, caption: step.caption, step: i + 1, total: STEPS.length } })
+          useUi.getState().set({ demo: { running: true, caption: step.caption, step: captions.findIndex((x) => x.caption === step.caption) + 1, total: captions.length } })
           // A failing step must never stop the rest of the demo.
           Promise.resolve()
             .then(() => step.run?.(ctx))
@@ -158,14 +248,15 @@ export function useDemoRunner() {
     timers.current.push(setTimeout(stop, TOTAL_SECONDS * 1000))
   }, [request])
 
-  // Stop cleanly if the layout unmounts (logout) mid-demo.
-  useEffect(
-    () => () => {
-      timers.current.forEach(clearTimeout)
-      timers.current = []
+  // Mounted at app level (the demo visits /qrt, outside the dashboard layout). Stop cleanly on logout.
+  const user = useAuth((s) => s.user)
+  useEffect(() => {
+    if (user) return
+    timers.current.forEach(clearTimeout)
+    timers.current = []
+    if (useUi.getState().demo.running) {
       service.demo.setAutoSimulation(true)
       useUi.getState().set({ demo: { running: false, caption: '', step: 0, total: 0 } })
-    },
-    [],
-  )
+    }
+  }, [user])
 }

@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from '@/components/layout/Layout'
+import { useDemoRunner } from '@/demo/useDemoRunner'
 import Login from '@/pages/Login'
 import CommandCenter from '@/pages/CommandCenter'
 import LiveCameras from '@/pages/LiveCameras'
@@ -18,6 +19,7 @@ import About from '@/pages/About'
 import QrtView from '@/pages/QrtView'
 
 export default function App() {
+  useDemoRunner()
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

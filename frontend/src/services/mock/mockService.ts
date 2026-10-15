@@ -48,6 +48,8 @@ interface BuildOpts {
   live?: boolean
   subtype?: SuspiciousSubtype
   vehicleClass?: VehicleClass
+  /** Base severity before any drone-watch raise (Demo Mode). */
+  severity?: Severity
 }
 
 export function createMockService(): DataService {
@@ -289,6 +291,7 @@ export function createMockService(): DataService {
         break
     }
 
+    if (opts.severity) severity = opts.severity
     // Inside an active drone watch: person / vehicle activity is raised one severity level.
     const watch = WATCH_RAISE.includes(type) ? watchFor(cameraId, ts) : undefined
     if (watch) {

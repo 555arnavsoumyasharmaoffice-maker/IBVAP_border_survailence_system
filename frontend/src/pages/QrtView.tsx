@@ -9,6 +9,7 @@ import { SEV, fmtTime, keyDetail, relTime } from '@/lib/format'
 import { audit } from '@/lib/audit'
 import { useT } from '@/i18n'
 import { EmptyState, Skeleton, useNow } from '@/components/ui'
+import { DemoBanner } from '@/components/layout/Layout'
 
 const NEXT: Partial<Record<QrtStatus, { status: QrtStatus; key: 'qrt.accept' | 'qrt.onScene' | 'qrt.clear'; cls: string }>> = {
   ASSIGNED: { status: 'ACCEPTED', key: 'qrt.accept', cls: 'bg-accent text-black' },
@@ -128,7 +129,8 @@ export default function QrtView() {
             <EmptyState title={t('qrt.none')} hint={t('qrt.noneHint')} />
           )}
         </main>
-        {service.mode === 'mock' && <div className="p-3 text-center text-[10px] text-ink-mute">{t('qrt.mockNote')}</div>}
+        {service.mode === 'mock' && <div className="p-3 pb-16 text-center text-[10px] text-ink-mute">{t('qrt.mockNote')}</div>}
+        <DemoBanner />
       </div>
     </div>
   )

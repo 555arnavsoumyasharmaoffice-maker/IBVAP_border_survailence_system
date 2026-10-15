@@ -456,7 +456,7 @@ function DemoTab() {
     <div className="panel max-w-xl space-y-3 p-3">
       <div className="panel-title">Demo Mode (for presentations)</div>
       <p className="text-xs text-ink-dim">
-        Runs a scripted scenario (about 2 minutes): patrol → vehicle at check post → ANPR blacklist match → night fence intrusion → CRITICAL alert → acknowledge → repeat alerts collapse into one incident → playbook ticks → Notify QRT → evidence export (downloads a ZIP) → map marker pulse → escalation → shift report → Capabilities page.
+        Runs a scripted story (about 2.5 minutes): "Punjab sector, foggy night, drone drop": fog degrades the visible cameras (thermal River Cam unaffected) → DRONE_SIGHTING near BOP Ajnala → operator marks it on the map, 2 km drone watch starts, nakas highlighted → face watchlist match at Attari (quiet toast) → thermal camera: person crawling (night movement + crawling, tagged In drone watch area, severity raised) → the same track loiters (counter grows, no extra beep) → it crosses the riverbed zone: CRITICAL dialog with the clip → acknowledge → a jeep leaves, ANPR reads a blacklisted plate → share with police naka → playbook + QRT notified → QRT mobile view accepts → bookmark + evidence ZIP (the browser downloads a file) → escalation → About IBVAP.
         Random alerts are paused while it runs.
       </p>
       {!service.demo.available && <InlineWarning>Demo Mode only works in mock mode (VITE_USE_MOCK=true).</InlineWarning>}

@@ -10,7 +10,6 @@ import { useData } from '@/store/data'
 import { useUi, type CameraLayout } from '@/store/ui'
 import { useT, type DictKey } from '@/i18n'
 import { isActive } from '@/lib/format'
-import { useDemoRunner } from '@/demo/useDemoRunner'
 import { AlertToasts, CriticalModal } from '../AlertOverlays'
 import { Modal, useNow } from '../ui'
 import { WatchBanner } from '../DroneWatch'
@@ -248,7 +247,7 @@ function useShortcuts() {
   }, [navigate])
 }
 
-function DemoBanner() {
+export function DemoBanner() {
   const demo = useUi((s) => s.demo)
   if (!demo.caption) return null
   return (
@@ -319,7 +318,6 @@ function Shell() {
   useEffect(() => useData.getState().start(), [])
   useIdleLogout()
   useShortcuts()
-  useDemoRunner()
   return (
     <div className="shell flex h-full">
       <Sidebar />
