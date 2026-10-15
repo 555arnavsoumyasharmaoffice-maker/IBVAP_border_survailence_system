@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertClip, AlertHistoryEntry, DetectionRecord, DroneWatch, Heading, HistoryKind, Naka, QrtStatus, Severity, SuspiciousSubtype, TrackPoint, VehicleClass, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
+  Alert, AlertClip, Bop, Sector, ShiftHandover, AlertHistoryEntry, DetectionRecord, DroneWatch, Heading, HistoryKind, Naka, QrtStatus, Severity, SuspiciousSubtype, TrackPoint, VehicleClass, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -67,6 +67,12 @@ export interface DataService {
   login(username: string, role: Role): Promise<User>
 
   getCameras(): Promise<Camera[]>
+  /** Shift handovers, newest first. */
+  getHandovers(): Promise<ShiftHandover[]>
+  createHandover(h: Omit<ShiftHandover, 'id' | 'createdAt' | 'acceptedBy' | 'acceptedAt'>): Promise<ShiftHandover>
+  acceptHandover(id: string, by: string): Promise<ShiftHandover>
+  /** Sector -> BOP hierarchy (cameras point to a BOP with `bopId`). */
+  getHierarchy(): Promise<{ sectors: Sector[]; bops: Bop[] }>
   saveCamera(camera: Partial<Camera> & { name: string }): Promise<Camera>
   testCameraConnection(streamUrl: string): Promise<{ ok: boolean; latencyMs: number; message: string }>
   /** MJPEG URL for <img src>, or null when there is no real stream (mock mode). */

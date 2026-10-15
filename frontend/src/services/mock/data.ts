@@ -1,5 +1,5 @@
 import type {
-  AuditCategory, AuditEntry, BBox, SuspiciousSubtype, BlacklistVehicle, Camera, DetectionModules, EdgeNode, Naka, Role, User, WatchlistPerson, Zone,
+  AuditCategory, AuditEntry, BBox, Bop, Sector, SuspiciousSubtype, BlacklistVehicle, Camera, DetectionModules, EdgeNode, Naka, Role, User, WatchlistPerson, Zone,
 } from '@/types'
 
 // ---------- random helpers ----------
@@ -106,11 +106,28 @@ export const VEHICLE_COLORS = ['White', 'Silver', 'Black', 'Blue', 'Red', 'Grey'
 
 // ---------- seed entities ----------
 const ALL: DetectionModules = { human: true, vehicle: true, anpr: true, face: true, fence: true }
+export const seedSectors = (): Sector[] => [
+  { id: 'sec-rj', name: 'Jaisalmer-Barmer Sector (RJ)' },
+  { id: 'sec-pb', name: 'Amritsar Sector (PB)' },
+]
+export const seedBops = (): Bop[] => [
+  { id: 'bop-sundar', name: 'BOP Sundar', sectorId: 'sec-rj', lat: 27.793, lng: 70.357 },
+  { id: 'bop-kishangarh', name: 'BOP Kishangarh', sectorId: 'sec-rj', lat: 27.8721, lng: 70.5634 },
+  { id: 'bop-munabao', name: 'Check Post Munabao', sectorId: 'sec-rj', lat: 25.7453, lng: 70.2771 },
+  { id: 'bop-ajnala', name: 'BOP Ajnala', sectorId: 'sec-pb', lat: 31.8616, lng: 74.6395 },
+  { id: 'bop-attari', name: 'ICP Attari', sectorId: 'sec-pb', lat: 31.6042, lng: 74.5731 },
+]
+const BOP_OF: Record<string, string> = {
+  'cam-01': 'bop-sundar', 'cam-02': 'bop-sundar', 'cam-03': 'bop-munabao', 'cam-04': 'bop-kishangarh',
+  'cam-05': 'bop-kishangarh', 'cam-06': 'bop-ajnala', 'cam-07': 'bop-attari', 'cam-08': 'bop-ajnala',
+}
+
 const cam = (
   id: string, name: string, locationName: string, lat: number, lng: number, streamUrl: string,
   extra: Partial<Camera> = {},
 ): Camera => ({
   id, name, locationName, lat, lng, streamUrl,
+  bopId: BOP_OF[id] ?? 'bop-sundar',
   status: 'online',
   cameraType: 'visible',
   fps: randInt(22, 25),

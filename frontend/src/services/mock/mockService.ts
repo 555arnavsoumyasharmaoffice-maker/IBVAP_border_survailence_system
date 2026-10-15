@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertStatus, AlertType, AppSettings, BBox, DetectionRecord, Heading, SuspiciousSubtype, TrackPoint, VehicleClass, ConnectionState, Detection, DetectionClass, DroneWatch,
+  Alert, AlertStatus, AlertType, AppSettings, BBox, ShiftHandover, DetectionRecord, Heading, SuspiciousSubtype, TrackPoint, VehicleClass, ConnectionState, Detection, DetectionClass, DroneWatch,
   DetectionFrame, EvidenceRecord, FaceMatch, PlateRead, Severity, Zone, ZoneAuditEntry,
 } from '@/types'
 import type { DataService, DemoAlertSpec } from '../types'
@@ -9,7 +9,7 @@ import { missingSteps } from '@/lib/playbooks'
 import { groupIncidents } from '@/lib/incidents'
 import {
   CLOTHING_COLORS, SUSPICIOUS, VEHICLE_CLASSES, VEHICLE_COLORS, faceSvg, isNightHour, pick, plateSvg, rand, randInt,
-  randomPlate, seedAudit, seedNakas, seedBlacklist, seedEdgeNodes, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
+  randomPlate, seedAudit, seedBops, seedNakas, seedSectors, seedBlacklist, seedEdgeNodes, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
 } from './data'
 
 // In-memory fake backend + simulator. Emits a random alert about every MOCK_ALERT_INTERVAL_MS (1-2 per minute,
@@ -68,6 +68,11 @@ export function createMockService(): DataService {
   }
   const evidenceRecords = new Map<string, EvidenceRecord>()
   const nakas = seedNakas()
+  const handovers: ShiftHandover[] = [{
+    id: 'ho-1', from: 'Ct. P. Gill', createdAt: new Date(Date.now() - 5.5 * 3_600_000).toISOString(),
+    summary: { openIncidents: [], shelved: [], droneWatches: [], camerasOutOfService: [] },
+    notes: 'Quiet shift. Border Road KM 42 relay still down, technician informed.', acceptedBy: 'Ct. S. Meena', acceptedAt: new Date(Date.now() - 5.4 * 3_600_000).toISOString(),
+  }]
   const droneWatches: DroneWatch[] = []
   /** Alert types raised one level inside an active drone watch (person / vehicle activity). */
   const WATCH_RAISE: AlertType[] = ['HUMAN_DETECTED', 'VEHICLE_DETECTED', 'NIGHT_MOVEMENT', 'LOITERING', 'SUSPICIOUS_ACTIVITY', 'FENCE_INTRUSION', 'ANPR_MATCH']
@@ -554,6 +559,22 @@ export function createMockService(): DataService {
     },
 
     getCameras: () => later(cameras),
+    getHierarchy: () => later({ sectors: seedSectors(), bops: seedBops() }),
+    getHandovers: () => later(handovers),
+    async createHandover(h) {
+      requireLink()
+      const created: ShiftHandover = { ...clone(h), id: `ho-${seq++}`, createdAt: new Date().toISOString() }
+      handovers.unshift(created)
+      return later(created, 120)
+    },
+    async acceptHandover(id, by) {
+      requireLink()
+      const h = handovers.find((x) => x.id === id)
+      if (!h) throw new Error('Handover not found')
+      h.acceptedBy = by
+      h.acceptedAt = new Date().toISOString()
+      return later(h, 120)
+    },
     saveCamera(input) {
       const existing = input.id ? camById(input.id) : undefined
       if (existing) {
@@ -562,7 +583,7 @@ export function createMockService(): DataService {
       }
       const created = {
         id: `cam-${String(cameras.length + 1).padStart(2, '0')}`,
-        locationName: '', lat: 27.5, lng: 70.5, streamUrl: '', status: 'online' as const, fps: 25, cameraType: 'visible' as const,
+        locationName: '', lat: 27.5, lng: 70.5, streamUrl: '', status: 'online' as const, fps: 25, cameraType: 'visible' as const, bopId: 'bop-sundar',
         isNightMode: isNightHour(new Date()), lastSeen: new Date().toISOString(),
         visibility: 'clear' as const, sensitivity: 0.5, minConfirmFrames: 5, ignoreAnimals: true,
         modules: { human: true, vehicle: true, anpr: true, face: true, fence: true },

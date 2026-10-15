@@ -7,6 +7,8 @@ import { SEV, SEVERITIES, fmtDuration, fmtTime, isShelved, keyDetail } from '@/l
 import { useT } from '@/i18n'
 import { CameraFeed } from '@/components/CameraFeed'
 import { AlertCard } from '@/components/AlertCard'
+import { useHierarchy } from '@/components/HierarchyTree'
+import { LastHandover } from '@/pages/Shift'
 import { EmptyState, Skeleton, useNow } from '@/components/ui'
 
 const HOUR = 3_600_000
@@ -71,6 +73,36 @@ function Timeline({ alerts, now }: { alerts: Alert[]; now: number }) {
   )
 }
 
+/** Open incidents per BOP, grouped by sector, on one line. */
+function SectorOverview() {
+  const t = useT()
+  const navigate = useNavigate()
+  const cameras = useData((s) => s.cameras)
+  const incidents = useIncidents()
+  const groups = useHierarchy(cameras)
+  const open = (st: string) => st === 'NEW' || st === 'ACKNOWLEDGED' || st === 'ESCALATED' || st === 'ON_HOLD'
+  const camBop = Object.fromEntries(cameras.map((c) => [c.id, c.bopId]))
+  const counts: Record<string, number> = {}
+  for (const i of incidents) if (open(i.status) && Date.now() - Date.parse(i.lastSeen) < 86_400_000) counts[camBop[i.cameraId]] = (counts[camBop[i.cameraId]] ?? 0) + 1
+  if (!groups.length) return null
+  return (
+    <div className="panel flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 text-xs">
+      <span className="panel-title">{t('hier.overview')}</span>
+      {groups.map(({ sector, bops }) => (
+        <span key={sector.id} className="flex items-center gap-2">
+          <span className="text-ink-mute">{sector.name.replace(/ Sector.*/, '')}:</span>
+          {bops.map(({ bop }) => (
+            <button key={bop.id} onClick={() => navigate('/alerts')} className={`rounded border px-1.5 py-px ${counts[bop.id] ? 'border-high/50 text-high' : 'border-base-700 text-ink-dim'}`}>
+              {bop.name.replace(/^(BOP|ICP|Check Post) /, '')} <span className="font-mono font-bold">{counts[bop.id] ?? 0}</span>
+            </button>
+          ))}
+        </span>
+      ))}
+      <LastHandover />
+    </div>
+  )
+}
+
 export default function CommandCenter() {
   const t = useT()
   const navigate = useNavigate()
@@ -108,6 +140,8 @@ export default function CommandCenter() {
           ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[84px]" />)
           : kpis.map((k) => <Kpi key={k.label} {...k} />)}
       </div>
+
+      <SectorOverview />
 
       <div className="flex min-h-0 flex-1 gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-2">

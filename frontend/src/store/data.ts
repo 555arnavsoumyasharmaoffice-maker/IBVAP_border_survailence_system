@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { create } from 'zustand'
-import type { Alert, AlertHistoryEntry, AlertStatus, AlertType, AppSettings, Camera, ConnectionState, DroneWatch, Naka, PendingAction, Zone } from '@/types'
+import type { Alert, AlertHistoryEntry, Bop, Sector, AlertStatus, AlertType, AppSettings, Camera, ConnectionState, DroneWatch, Naka, PendingAction, Zone } from '@/types'
 import { service } from '@/services'
 import { beep } from '@/lib/sound'
 import { SEV_RANK, eligibleFor, existingIncidentSeverity, groupIncidents } from '@/lib/incidents'
@@ -37,6 +37,8 @@ interface DataState {
   alerts: Alert[]
   droneWatches: DroneWatch[]
   nakas: Naka[]
+  sectors: Sector[]
+  bops: Bop[]
   settings: AppSettings | null
   loading: boolean
   error: string | null
@@ -131,6 +133,8 @@ export const useData = create<DataState>((set, get) => {
     alerts: [],
     droneWatches: [],
     nakas: [],
+    sectors: [],
+    bops: [],
     settings: null,
     loading: true,
     error: null,
@@ -148,11 +152,12 @@ export const useData = create<DataState>((set, get) => {
         const [cameras, zones, alerts, settings, droneWatches, nakas] = await Promise.all([
           service.getCameras(), service.getZones(), service.getAlerts({ from }), service.getSettings(), service.getDroneWatches(), service.getNakas(),
         ])
+        const { sectors, bops } = await service.getHierarchy().catch(() => ({ sectors: [] as Sector[], bops: [] as Bop[] }))
         // Keep anything that arrived over the live stream while the request was in flight.
         const ids = new Set(alerts.map((a) => a.id))
         const merged = [...get().alerts.filter((a) => !ids.has(a.id)), ...alerts]
         merged.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-        set({ cameras, zones, alerts: merged, settings, droneWatches, nakas, loading: false })
+        set({ cameras, zones, alerts: merged, settings, droneWatches, nakas, sectors, bops, loading: false })
       } catch (e) {
         set({ loading: false, error: e instanceof Error ? e.message : 'Failed to load data' })
       }

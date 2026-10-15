@@ -43,6 +43,9 @@ frontend/              React Command Center (this is the active work)
     components/ClipPlayer.tsx  alert clip (real <video> or deterministic simulated canvas), scrubber, bookmarks
     components/DroneWatch.tsx  watch banner, In-watch tag, Share with police naka
     components/Shelve.tsx      shelve / unshelve, camera out-of-service
+    components/Owner.tsx       incident owner (assign to me / user)
+    components/HierarchyTree.tsx  Sector -> BOP -> Camera tree (Live Cameras, Map), groupHierarchy()
+    pages/Search.tsx, Shift.tsx, QrtView.tsx (/qrt, phone layout, outside the dashboard layout)
 ```
 
 ## Commands (run inside `frontend/`)
@@ -118,6 +121,8 @@ Leaflet + react-leaflet with OpenStreetMap tiles, Recharts, lucide-react, Zustan
 - Drone watch: severity raise + `droneWatchId` tagging is a BACKEND rule (mock does it in buildAlert / addPlateRead). The UI only displays it.
 - Shelved incidents and out-of-service cameras never notify. Shelving needs a reason; every shelve / unshelve is in history + audit.
 - Likelihood band (`likelihood()` in lib/format.ts) is shown as text + icon, never colour alone. LOW likelihood never beeps.
+- Resolve is blocked until every mandatory playbook step of the incident is ticked (`missingSteps` in lib/playbooks.ts); the backend enforces it too.
+- Every status change is audited once in the store (setStatus / setStatusMany); do not add extra audit calls for status.
 - SUSPICIOUS_ACTIVITY always carries `details.subtype`; NIGHT_MOVEMENT only comes from night-mode cameras.
 
 ## Status
@@ -126,7 +131,9 @@ Built: login with roles, Command Center, Live Cameras, Map View, Alerts + Alert 
 Zones, Analytics, Reports, Settings, Audit Log, System Health, About IBVAP, global alert system, incident grouping,
 response playbook, evidence export, offline action queue, keyboard shortcuts, Demo Mode (Ctrl+Shift+D), alert clip player
 with bookmarks, drone drop watch + police nakas, suspicious-activity subtypes, vehicle classes, tracking view, shelving,
-camera out-of-service, likelihood band.
+camera out-of-service, likelihood band, forensic Search, incident owner + On hold + SOP gate on Resolve,
+Sector -> BOP -> Camera hierarchy + Sector overview, QRT mobile view (/qrt), camera type (thermal / IR) + AI-degraded
+state, shift handover, Demo story "Punjab sector, foggy night, drone drop" (runner mounted in App so it survives /qrt).
 
 Map View (border line, status markers, alert pulse + popup, type/window filters, heat circles, offline grid) and
 the Zones editor (polygon + tripwire with direction, drag handles, per-zone severity / classes / dwell, audit log)

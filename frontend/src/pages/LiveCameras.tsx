@@ -10,6 +10,7 @@ import { useT } from '@/i18n'
 import { CameraFeed, type CameraFeedHandle } from '@/components/CameraFeed'
 import { AlertCard } from '@/components/AlertCard'
 import { OutOfServiceControl } from '@/components/Shelve'
+import { HierarchyTree } from '@/components/HierarchyTree'
 import { Chip, EmptyState, Skeleton, VisibilityBadge, useNow } from '@/components/ui'
 
 interface Overlay {
@@ -150,11 +151,14 @@ const LAYOUTS: CameraLayout[] = [1, 2, 3]
 export default function LiveCameras() {
   const t = useT()
   const [params, setParams] = useSearchParams()
-  const { cameras, loading } = useData()
+  const { cameras: allCameras, loading } = useData()
+  const bops = useData((s) => s.bops)
+  const [bopFilter, setBopFilter] = useState<string | null>(null)
+  const cameras = !bopFilter ? allCameras : bopFilter.startsWith('sec:') ? allCameras.filter((c) => bops.find((b) => b.id === c.bopId)?.sectorId === bopFilter.slice(4)) : allCameras.filter((c) => c.bopId === bopFilter)
   const layout = useUi((s) => s.cameraLayout)
   const [page, setPage] = useState(0)
   const focusId = params.get('cam')
-  const focused = cameras.find((c) => c.id === focusId)
+  const focused = allCameras.find((c) => c.id === focusId)
 
   if (focused) return <Focused key={focused.id} camera={focused} onBack={() => setParams({})} />
 
@@ -164,7 +168,21 @@ export default function LiveCameras() {
   const visible = cameras.slice(current * perPage, current * perPage + perPage)
 
   return (
-    <div className="flex h-full flex-col gap-2 p-2">
+    <div className="flex h-full gap-2 p-2">
+      <aside className="panel hidden w-52 shrink-0 overflow-y-auto lg:block">
+        <HierarchyTree
+          cameras={allCameras}
+          selectedBop={bopFilter}
+          onSelectBop={(id) => { setBopFilter(id); setPage(0) }}
+          renderCamera={(c) => (
+            <button key={c.id} onClick={() => setParams({ cam: c.id })} className="flex w-full items-center gap-1.5 border-b border-base-800 px-2 py-1 text-left hover:bg-base-850">
+              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.status === 'offline' ? 'bg-ink-mute' : c.status === 'degraded' ? 'bg-med' : 'bg-low'}`} />
+              <span className="truncate text-[11px]">{c.name.replace(/^.* - /, '')}</span>
+            </button>
+          )}
+        />
+      </aside>
+    <div className="flex min-w-0 flex-1 flex-col gap-2">
       <div className="flex shrink-0 items-center gap-2">
         <h1 className="text-base font-semibold">Live Cameras</h1>
         <span className="font-mono text-xs text-ink-mute">
@@ -221,6 +239,7 @@ export default function LiveCameras() {
           ))}
         </div>
       )}
+    </div>
     </div>
   )
 }

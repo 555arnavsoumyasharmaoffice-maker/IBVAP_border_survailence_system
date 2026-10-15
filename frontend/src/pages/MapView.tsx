@@ -9,6 +9,7 @@ import { useAuth } from '@/store/auth'
 import { audit } from '@/lib/audit'
 import { distanceKm } from '@/lib/geo'
 import { fmtLeft, nearbyNakas, useActiveWatches } from '@/components/DroneWatch'
+import { HierarchyTree } from '@/components/HierarchyTree'
 import { useData } from '@/store/data'
 import { ALERT_TYPES, SEV, SEVERITIES, fmtTime, keyDetail, relTime } from '@/lib/format'
 import { BORDER_LINE } from '@/lib/border'
@@ -529,7 +530,7 @@ export default function MapView() {
           ) : !cameras.length ? (
             <EmptyState title="No cameras configured" hint="Add cameras with their coordinates in Settings." />
           ) : (
-            cameras.map((c) => {
+            <HierarchyTree cameras={cameras} renderCamera={(c) => {
               const s = stats[c.id] ?? empty
               return (
                 <button
@@ -550,7 +551,7 @@ export default function MapView() {
                   <span className={`rounded px-1.5 font-mono text-[10px] font-bold ${s.count ? 'bg-base-700 text-ink' : 'text-ink-mute'}`}>{s.count}</span>
                 </button>
               )
-            })
+            }} />
           )}
         </div>
         <div className="border-t border-base-700 px-3 py-1.5 text-[10px] text-ink-mute">Counts = alerts per camera for the selected type and window.</div>

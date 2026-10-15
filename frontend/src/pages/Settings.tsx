@@ -35,10 +35,11 @@ function ReadOnlyNote() {
 }
 
 // ---------------- Cameras ----------------
-type CameraForm = { id?: string; name: string; locationName: string; streamUrl: string; lat: string; lng: string; cameraType: CameraType }
+type CameraForm = { id?: string; name: string; locationName: string; streamUrl: string; lat: string; lng: string; cameraType: CameraType; bopId?: string }
 
 function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () => void }) {
   const [form, setForm] = useState(initial)
+  const bops = useData((s) => s.bops)
   const [test, setTest] = useState<{ ok: boolean; message: string } | 'testing' | null>(null)
   const [busy, setBusy] = useState(false)
   const set = (patch: Partial<CameraForm>) => setForm((f) => ({ ...f, ...patch }))
@@ -60,7 +61,7 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
     e.preventDefault()
     setBusy(true)
     try {
-      await service.saveCamera({ id: form.id, name: form.name.trim(), locationName: form.locationName.trim(), streamUrl: form.streamUrl.trim(), lat, lng, cameraType: form.cameraType })
+      await service.saveCamera({ id: form.id, name: form.name.trim(), locationName: form.locationName.trim(), streamUrl: form.streamUrl.trim(), lat, lng, cameraType: form.cameraType, bopId: form.bopId })
       await useData.getState().refreshCameras()
       audit('SETTINGS', 'Camera saved', form.name.trim(), form.streamUrl.trim())
       onClose()
@@ -94,6 +95,14 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
             <option value="thermal">Thermal</option>
           </select>
         </Field>
+        <Field label="BOP (Sector → BOP)">
+          <select className="field" value={form.bopId ?? ''} onChange={(e) => set({ bopId: e.target.value || undefined })}>
+            <option value="">Select BOP</option>
+            {bops.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Latitude">
             <input type="number" step="any" className="field font-mono" value={form.lat} onChange={(e) => set({ lat: e.target.value })} placeholder="27.7904" required />
@@ -113,7 +122,7 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
 function CamerasTab({ canManage }: { canManage: boolean }) {
   const { cameras, loading } = useData()
   const [editing, setEditing] = useState<CameraForm | null>(null)
-  const toForm = (c: Camera): CameraForm => ({ id: c.id, name: c.name, locationName: c.locationName, streamUrl: c.streamUrl, lat: String(c.lat), lng: String(c.lng), cameraType: c.cameraType })
+  const toForm = (c: Camera): CameraForm => ({ id: c.id, name: c.name, locationName: c.locationName, streamUrl: c.streamUrl, lat: String(c.lat), lng: String(c.lng), cameraType: c.cameraType, bopId: c.bopId })
   const statusStyle = { online: 'border-low/50 bg-low/15 text-low', degraded: 'border-med/50 bg-med/15 text-med', offline: 'border-crit/50 bg-crit/15 text-crit' }
   return (
     <>

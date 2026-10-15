@@ -17,8 +17,35 @@ export interface DetectionModules {
 /** Sensor type. Thermal and IR-night cameras keep working in darkness; thermal also sees through light fog. */
 export type CameraType = 'visible' | 'thermal' | 'ir-night'
 
+/** Shift handover: outgoing operator's summary, accepted by the incoming operator. */
+export interface ShiftHandover {
+  id: string
+  from: string
+  createdAt: string
+  summary: { openIncidents: string[]; shelved: string[]; droneWatches: string[]; camerasOutOfService: string[] }
+  notes: string
+  acceptedBy?: string
+  acceptedAt?: string
+}
+
+/** Command hierarchy: Sector -> BOP (border outpost / check post) -> Camera. */
+export interface Sector {
+  id: string
+  name: string
+}
+
+export interface Bop {
+  id: string
+  name: string
+  sectorId: string
+  lat: number
+  lng: number
+}
+
 export interface Camera {
   id: string
+  /** BOP this camera belongs to (hierarchy). */
+  bopId: string
   cameraType: CameraType
   name: string
   locationName: string
@@ -354,7 +381,7 @@ export interface User {
   lastLogin?: string
 }
 
-export type AuditCategory = 'AUTH' | 'CAMERA_VIEW' | 'ZONE' | 'WATCHLIST' | 'BLACKLIST' | 'ANPR' | 'EXPORT' | 'EVIDENCE' | 'SETTINGS' | 'ALERT' | 'DRONE' | 'CAMERA'
+export type AuditCategory = 'AUTH' | 'CAMERA_VIEW' | 'ZONE' | 'WATCHLIST' | 'BLACKLIST' | 'ANPR' | 'EXPORT' | 'EVIDENCE' | 'SETTINGS' | 'ALERT' | 'DRONE' | 'CAMERA' | 'SHIFT'
 
 export interface AuditEntry {
   id: string

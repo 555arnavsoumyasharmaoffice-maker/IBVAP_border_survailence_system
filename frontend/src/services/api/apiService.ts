@@ -104,6 +104,10 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
     login: (username, role) => send('POST', '/auth/login', { username, role }) as never,
 
     getCameras: () => request('/cameras'),
+    getHierarchy: () => request('/hierarchy'),
+    getHandovers: () => request('/shifts/handovers'),
+    createHandover: (h) => send('POST', '/shifts/handovers', h) as never,
+    acceptHandover: (id, by) => send('POST', `/shifts/handovers/${id}/accept`, { by }) as never,
     saveCamera: (c) => (c.id ? send('PUT', `/cameras/${c.id}`, c) : send('POST', '/cameras', c)) as never,
     testCameraConnection: (streamUrl) => send('POST', '/cameras/test', { streamUrl }) as never,
     getStreamUrl: (camera) => `${apiUrl}/cameras/${camera.id}/stream.mjpg`,

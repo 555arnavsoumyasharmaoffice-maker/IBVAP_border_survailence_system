@@ -398,6 +398,16 @@ camera (the mock drops them). Commander / Admin only.
   colour for persons, body colour for vehicles. `towardBorder` uses each camera's known orientation. `plate` is a substring match.
 - Searches are sensitive: the dashboard writes an audit entry (`CAMERA_VIEW`, "Forensic search") with the filters used.
 
+### Hierarchy and shift handover
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/hierarchy` | | `{ sectors: Sector[], bops: Bop[] }`; every `Camera` has `bopId` |
+| GET | `/shifts/handovers` | | `ShiftHandover[]`, newest first |
+| POST | `/shifts/handovers` | `{ from, summary: { openIncidents[], shelved[], droneWatches[], camerasOutOfService[] }, notes }` | `ShiftHandover` |
+| POST | `/shifts/handovers/{id}/accept` | `{ by }` | `ShiftHandover` with `acceptedBy`, `acceptedAt` |
+
+`Sector { id, name }`, `Bop { id, name, sectorId, lat, lng }`. Audit category `SHIFT` records create / accept.
+
 ### Drone watch and police nakas
 | Method | Path | Body | Returns |
 |---|---|---|---|
@@ -453,7 +463,7 @@ latency > 250 ms, CPU >= 90 %.
   "category": "EVIDENCE", "action": "Evidence exported", "target": "ALT-00733", "details": "1 alert(s), 3 files"
 }
 ```
-`category`: `AUTH | CAMERA_VIEW | ZONE | WATCHLIST | BLACKLIST | ANPR | EXPORT | EVIDENCE | SETTINGS | ALERT | DRONE | CAMERA`.
+`category`: `AUTH | CAMERA_VIEW | ZONE | WATCHLIST | BLACKLIST | ANPR | EXPORT | EVIDENCE | SETTINGS | ALERT | DRONE | CAMERA | SHIFT`.
 
 The dashboard POSTs an entry for: sign-in / sign-out (incl. auto-logout), opening a camera's live view, zone
 create / update / delete, watchlist and blacklist edits, face-match review, plate correction, CSV / report / evidence
