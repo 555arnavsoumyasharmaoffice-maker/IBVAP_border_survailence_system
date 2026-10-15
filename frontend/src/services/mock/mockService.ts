@@ -1,12 +1,12 @@
 import type {
-  Alert, AlertStatus, AlertType, AppSettings, BBox, SuspiciousSubtype, TrackPoint, VehicleClass, ConnectionState, Detection, DetectionClass, DroneWatch,
+  Alert, AlertStatus, AlertType, AppSettings, BBox, DetectionRecord, Heading, SuspiciousSubtype, TrackPoint, VehicleClass, ConnectionState, Detection, DetectionClass, DroneWatch,
   DetectionFrame, EvidenceRecord, FaceMatch, PlateRead, Severity, Zone, ZoneAuditEntry,
 } from '@/types'
 import type { DataService, DemoAlertSpec } from '../types'
 import { fetchBytes, sha256Hex } from '@/lib/evidence'
 import { watchAt } from '@/lib/geo'
 import {
-  SUSPICIOUS, VEHICLE_CLASSES, VEHICLE_COLORS, faceSvg, isNightHour, pick, plateSvg, rand, randInt,
+  CLOTHING_COLORS, SUSPICIOUS, VEHICLE_CLASSES, VEHICLE_COLORS, faceSvg, isNightHour, pick, plateSvg, rand, randInt,
   randomPlate, seedAudit, seedNakas, seedBlacklist, seedEdgeNodes, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
 } from './data'
 
@@ -429,11 +429,60 @@ export function createMockService(): DataService {
   }
   seed()
 
+  // ---------- forensic search history: one record per tracked object, last 3 days ----------
+  const HEADINGS: Heading[] = ['N', 'S', 'E', 'W']
+  const records: Omit<DetectionRecord, 'thumbUrl'>[] = []
+  function addRecord(cameraId: string, ts: Date, from?: Alert) {
+    const vehicle = from ? !!from.details.vehicleClass : Math.random() < (/Check Post|Road|ICP|Gate/.test(camById(cameraId)?.name ?? '') ? 0.6 : 0.25)
+    const camZones = zones.filter((z) => z.cameraId === cameraId)
+    const heading = pick(HEADINGS)
+    records.push({
+      id: `det-${seq++}`,
+      at: ts.toISOString(),
+      cameraId,
+      zoneId: from?.details.zoneId ?? (camZones.length && Math.random() < 0.4 ? pick(camZones).id : undefined),
+      objectClass: vehicle ? 'vehicle' : 'person',
+      vehicleClass: vehicle ? (from?.details.vehicleClass ?? pick(VEHICLE_CLASSES)) : undefined,
+      color: vehicle ? (from?.details.vehicleColor ?? pick(VEHICLE_COLORS)) : pick(CLOTHING_COLORS),
+      heading,
+      // Every camera in this build faces the border to the west / north-west.
+      towardBorder: heading === 'W' || heading === 'N',
+      plate: vehicle ? (from?.details.plateNumber ?? (Math.random() < 0.7 ? randomPlate() : undefined)) : undefined,
+      confidence: from?.confidence ?? rand(0.55, 0.97),
+      trackId: from?.trackId ?? trackSeq++,
+      bbox: from?.bbox ?? (vehicle ? [rand(0.1, 0.7), rand(0.42, 0.6), 0.18, 0.18] : [rand(0.1, 0.8), rand(0.42, 0.6), 0.05, 0.2]),
+      alertId: from?.id,
+    })
+  }
+  {
+    const now = Date.now()
+    const ids = cameras.filter((c) => c.status !== 'offline').map((c) => c.id)
+    for (let i = 0; i < 700; i++) addRecord(pick(ids), new Date(now - rand(0.01, 72) * 3_600_000))
+    for (const a of alerts) if (a.bbox && a.details.objectClass !== 'drone' && now - Date.parse(a.timestamp) < 72 * 3_600_000) addRecord(a.cameraId, new Date(a.timestamp), a)
+    records.sort((a, b) => b.at.localeCompare(a.at))
+  }
+  const thumbs = new Map<string, string>()
+  const withThumb = (r: Omit<DetectionRecord, 'thumbUrl'>): DetectionRecord => {
+    let url = thumbs.get(r.id)
+    if (!url) {
+      const cam = camById(r.cameraId)
+      url = snapshotSvg({ night: isNightHour(new Date(r.at)) || !!cam?.isNightMode, kind: r.objectClass, bbox: r.bbox, camName: cam?.name ?? r.cameraId, time: fmtTime(new Date(r.at)) })
+      thumbs.set(r.id, url)
+    }
+    return { ...r, thumbUrl: url }
+  }
+
   // ---------- live simulator ----------
   function emit(alert: Alert) {
     // Out-of-service camera: new alerts are suppressed (updates to existing ones still go out).
     if (!alerts.includes(alert) && camById(alert.cameraId)?.outOfService) return
-    if (!alerts.includes(alert)) alerts.unshift(alert)
+    if (!alerts.includes(alert)) {
+      alerts.unshift(alert)
+      if (alert.bbox && alert.details.objectClass !== 'drone') {
+        addRecord(alert.cameraId, new Date(alert.timestamp), alert)
+        records.unshift(records.pop()!)
+      }
+    }
     const copy = clone(alert)
     alertSubs.forEach((cb) => cb(copy))
   }
@@ -614,6 +663,22 @@ export function createMockService(): DataService {
       if (!c) throw new Error('Camera not found')
       c.outOfService = reason ? { reason, by, since: new Date().toISOString() } : null
       return later(c, 80)
+    },
+    searchDetections(q) {
+      const plate = q.plate?.replace(/\s/g, '').toUpperCase()
+      const list = records.filter(
+        (r) =>
+          (!q.objectClass || r.objectClass === q.objectClass) &&
+          (!q.vehicleClass || r.vehicleClass === q.vehicleClass) &&
+          (!q.color || r.color.toLowerCase() === q.color.toLowerCase()) &&
+          (!q.direction || (q.direction === 'toward' ? r.towardBorder : q.direction === 'away' ? !r.towardBorder : r.heading === q.direction)) &&
+          (!q.cameraId || r.cameraId === q.cameraId) &&
+          (!q.zoneId || r.zoneId === q.zoneId) &&
+          (!q.from || r.at >= q.from) &&
+          (!q.to || r.at <= q.to) &&
+          (!plate || !!r.plate?.includes(plate)),
+      )
+      return later(list.slice(0, q.limit ?? 120).map(withThumb), 300)
     },
     async getTrack(cameraId, trackId, around) {
       // Deterministic path through the alert position, one sighting per second from -10 s to +20 s.

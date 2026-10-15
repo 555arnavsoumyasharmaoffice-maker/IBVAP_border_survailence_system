@@ -101,6 +101,7 @@ export function randomPlate() {
   return `${state}${pick(RTO[state])}${pick([...LETTERS])}${pick([...LETTERS])}${randInt(1000, 9999)}`
 }
 export const VEHICLE_CLASSES = ['car', 'truck', 'bus', 'motorcycle', 'tractor', 'jeep'] as const
+export const CLOTHING_COLORS = ['Black', 'White', 'Red', 'Blue', 'Green', 'Khaki', 'Grey', 'Brown'] as const
 export const VEHICLE_COLORS = ['White', 'Silver', 'Black', 'Blue', 'Red', 'Grey', 'Brown'] as const
 
 // ---------- seed entities ----------

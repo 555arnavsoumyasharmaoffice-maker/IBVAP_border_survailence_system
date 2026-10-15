@@ -119,6 +119,7 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
     shelveAlerts: (ids, minutes, reason, by) => send('POST', '/alerts/shelve', { ids, minutes, reason, by }) as never,
     unshelveAlerts: (ids, by, note) => send('POST', '/alerts/unshelve', { ids, by, note }) as never,
     setCameraOutOfService: (id, reason, by) => send('PUT', `/cameras/${id}/out-of-service`, { reason, by }) as never,
+    searchDetections: (q) => request(`/search${qs(q)}`),
     getTrack: (cameraId, trackId, around) => request(`/cameras/${cameraId}/tracks/${trackId}${qs({ around })}`),
     getAlertClip: (id) => request(`/alerts/${id}/clip`),
     addAlertHistory: (id, entry) => send('POST', `/alerts/${id}/history`, entry) as never,

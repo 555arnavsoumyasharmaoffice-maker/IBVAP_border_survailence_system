@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertClip, AlertHistoryEntry, DroneWatch, HistoryKind, Naka, QrtStatus, Severity, SuspiciousSubtype, TrackPoint, VehicleClass, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
+  Alert, AlertClip, AlertHistoryEntry, DetectionRecord, DroneWatch, Heading, HistoryKind, Naka, QrtStatus, Severity, SuspiciousSubtype, TrackPoint, VehicleClass, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -14,6 +14,21 @@ export interface PlateQuery {
   search?: string
   from?: string
   to?: string
+  limit?: number
+}
+
+export interface SearchQuery {
+  objectClass?: 'person' | 'vehicle'
+  vehicleClass?: VehicleClass
+  color?: string
+  /** Compass heading, or movement relative to the border. */
+  direction?: Heading | 'toward' | 'away'
+  cameraId?: string
+  zoneId?: string
+  from?: string
+  to?: string
+  /** Partial plate, no spaces. */
+  plate?: string
   limit?: number
 }
 
@@ -76,6 +91,8 @@ export interface DataService {
   unshelveAlerts(ids: string[], by: string, note?: string): Promise<Alert[]>
   /** Mark a camera out of service (reason) or back in service (null). */
   setCameraOutOfService(id: string, reason: string | null, by: string): Promise<Camera>
+  /** Forensic search over detection history (GET /search). Newest first. */
+  searchDetections(q: SearchQuery): Promise<DetectionRecord[]>
   /** Sightings of one track on one camera around a time (Alert Detail > Tracking). */
   getTrack(cameraId: string, trackId: number, around: string): Promise<TrackPoint[]>
   /** Clip window around the alert (GET /alerts/{id}/clip). */

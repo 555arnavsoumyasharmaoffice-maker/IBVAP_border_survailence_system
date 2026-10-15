@@ -17,6 +17,7 @@ import AuditLog from '@/pages/AuditLog'
 import SystemHealth from '@/pages/SystemHealth'
 import About from '@/pages/About'
 import QrtView from '@/pages/QrtView'
+import Search from '@/pages/Search'
 
 export default function App() {
   useDemoRunner()
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="alerts" element={<Alerts />} />
         <Route path="alerts/:id" element={<AlertDetail />} />
         <Route path="anpr" element={<Anpr />} />
+        <Route path="search" element={<Search />} />
         <Route path="faces" element={<FaceWatchlist />} />
         <Route path="zones" element={<Zones />} />
         <Route path="analytics" element={<Analytics />} />

@@ -177,6 +177,31 @@ export interface Detection {
   bbox: BBox
 }
 
+export type Heading = 'N' | 'S' | 'E' | 'W'
+
+/** Searchable record of one detected object (forensic search). One per track, not per frame. */
+export interface DetectionRecord {
+  id: string
+  at: string
+  cameraId: string
+  zoneId?: string
+  objectClass: 'person' | 'vehicle'
+  vehicleClass?: VehicleClass
+  /** Upper-clothing colour (person) or body colour (vehicle). */
+  color: string
+  /** Compass heading of the movement. */
+  heading: Heading
+  /** Moving towards the border (true) or away from it (false). */
+  towardBorder: boolean
+  plate?: string
+  confidence: number
+  trackId: number
+  bbox: BBox
+  thumbUrl: string
+  /** Set when this detection raised an alert. */
+  alertId?: string
+}
+
 /** One sighting of a tracked object (Alert Detail > Tracking). */
 export interface TrackPoint {
   at: string

@@ -376,6 +376,20 @@ Every watchlist match (except category `AUTHORISED`) should also create a `FACE_
 `Camera` with `outOfService: { reason, by, since } | null`. While set, the backend must not raise new alerts for that
 camera (the mock drops them). Commander / Admin only.
 
+### Forensic search
+| Method | Path | Query | Returns |
+|---|---|---|---|
+| GET | `/search` | `objectClass=person\|vehicle&vehicleClass=jeep&color=White&direction=N\|S\|E\|W\|toward\|away&cameraId&zoneId&from&to&plate=PB02&limit=120` (all optional) | `DetectionRecord[]`, newest first |
+
+```json
+{ "id": "det-4412", "at": "2026-10-15T20:41:10Z", "cameraId": "cam-08", "zoneId": "zone-07", "objectClass": "vehicle",
+  "vehicleClass": "jeep", "color": "White", "heading": "E", "towardBorder": false, "plate": "PB02DJ4410",
+  "confidence": 0.91, "trackId": 812, "bbox": [0.3, 0.5, 0.18, 0.18], "thumbUrl": "http://.../thumbs/det-4412.jpg", "alertId": "ALT-00918" }
+```
+- One record per tracked object (not per frame), written by the AI engine when the track ends. `color` is the upper-clothing
+  colour for persons, body colour for vehicles. `towardBorder` uses each camera's known orientation. `plate` is a substring match.
+- Searches are sensitive: the dashboard writes an audit entry (`CAMERA_VIEW`, "Forensic search") with the filters used.
+
 ### Drone watch and police nakas
 | Method | Path | Body | Returns |
 |---|---|---|---|

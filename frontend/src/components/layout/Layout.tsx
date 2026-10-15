@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, ChartColumn, CircleHelp, CloudUpload, Fence, FileText, HeartPulse, Info, Languages, LayoutDashboard, LogOut, Map, Play,
-  ScanFace, ScanLine, ScrollText, Settings, Shield, Square, User, Video, Volume2, VolumeX, WifiOff, type LucideIcon,
+  ScanFace, ScanLine, ScanSearch, ScrollText, Settings, Shield, Square, User, Video, Volume2, VolumeX, WifiOff, type LucideIcon,
 } from 'lucide-react'
 import { service } from '@/services'
 import { useAuth, useCan } from '@/store/auth'
@@ -20,6 +20,7 @@ const NAV: { to: string; key: DictKey; icon: LucideIcon; manageOnly?: boolean }[
   { to: '/map', key: 'nav.map', icon: Map },
   { to: '/alerts', key: 'nav.alerts', icon: Bell },
   { to: '/anpr', key: 'nav.anpr', icon: ScanLine },
+  { to: '/search', key: 'nav.search', icon: ScanSearch },
   { to: '/faces', key: 'nav.faces', icon: ScanFace },
   { to: '/zones', key: 'nav.zones', icon: Fence },
   { to: '/analytics', key: 'nav.analytics', icon: ChartColumn },
