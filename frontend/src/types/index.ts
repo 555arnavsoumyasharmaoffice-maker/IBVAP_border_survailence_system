@@ -32,6 +32,8 @@ export interface Camera {
   /** An object must be detected in this many consecutive frames before an alert is raised. */
   minConfirmFrames: number
   ignoreAnimals: boolean
+  /** Set by a Commander / Admin: the camera's alerts are suppressed until cleared. */
+  outOfService?: { reason: string; by: string; since: string } | null
 }
 
 export type AlertType =
@@ -95,7 +97,7 @@ export interface AlertHistoryEntry {
   offsetSec?: number
 }
 
-export type HistoryKind = 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation' | 'bookmark' | 'shared'
+export type HistoryKind = 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation' | 'bookmark' | 'shared' | 'shelve' | 'unshelve'
 
 /**
  * Video clip around the alert moment. Offsets are seconds relative to `Alert.timestamp`
@@ -133,6 +135,9 @@ export interface Alert {
   playbookDone?: string[]
   /** Set when the Quick Reaction Team was notified. */
   qrtNotifiedAt?: string
+  /** Shelved (snoozed) by an operator until this time: hidden from the live feed, no notifications. */
+  shelvedUntil?: string | null
+  shelveReason?: string
 }
 
 /**
@@ -315,7 +320,7 @@ export interface User {
   lastLogin?: string
 }
 
-export type AuditCategory = 'AUTH' | 'CAMERA_VIEW' | 'ZONE' | 'WATCHLIST' | 'BLACKLIST' | 'ANPR' | 'EXPORT' | 'EVIDENCE' | 'SETTINGS' | 'ALERT' | 'DRONE'
+export type AuditCategory = 'AUTH' | 'CAMERA_VIEW' | 'ZONE' | 'WATCHLIST' | 'BLACKLIST' | 'ANPR' | 'EXPORT' | 'EVIDENCE' | 'SETTINGS' | 'ALERT' | 'DRONE' | 'CAMERA'
 
 export interface AuditEntry {
   id: string

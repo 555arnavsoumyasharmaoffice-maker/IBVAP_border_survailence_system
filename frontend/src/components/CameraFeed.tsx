@@ -217,6 +217,12 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
       )}
       <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
       {!bare && <FeedChrome camera={camera} counts={counts} topBar={!hideTopBar} />}
+      {camera.outOfService && (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 bg-black/70 py-1.5 text-center font-mono text-[11px] text-med">
+          <div className="font-bold tracking-widest">{t('oos.tile')}</div>
+          <div className="truncate px-2 text-[10px] text-ink-dim">{camera.outOfService.reason} · {camera.outOfService.by}</div>
+        </div>
+      )}
       {!streamUrl && (
         <span className="pointer-events-none absolute right-1.5 bottom-6 rounded bg-black/60 px-1 font-mono text-[8px] font-bold tracking-wider text-med">{t('feed.simulated')}</span>
       )}

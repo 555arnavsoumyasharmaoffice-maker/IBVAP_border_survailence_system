@@ -4,6 +4,7 @@ import type { Alert, AlertHistoryEntry, AlertStatus, AlertType, AppSettings, Cam
 import { service } from '@/services'
 import { beep } from '@/lib/sound'
 import { SEV_RANK, eligibleFor, existingIncidentSeverity, groupIncidents } from '@/lib/incidents'
+import { isShelved } from '@/lib/format'
 import { useUi } from './ui'
 import { useAuth } from './auth'
 
@@ -82,6 +83,7 @@ let toastKey = 1
 /** Incident ids (first alert id) that already got their one reminder / auto-escalation. */
 const reminded = new Set<string>()
 const autoEscalated = new Set<string>()
+const unshelving = new Set<string>()
 
 /**
  * Notification policy (ISA-18.2 / EEMUA 191 style): only NEW CRITICAL incidents get sound, an animated toast
@@ -171,7 +173,14 @@ export const useData = create<DataState>((set, get) => {
       const timer = setInterval(() => {
         const now = Date.now()
         const recent = get().alerts.filter((a) => now - Date.parse(a.timestamp) <= 3_600_000)
+        // Shelve time over: return to the live feed (once per alert).
+        const expired = get().alerts.filter((a) => a.shelvedUntil && Date.parse(a.shelvedUntil) <= now && !unshelving.has(a.id))
+        if (expired.length) {
+          expired.forEach((a) => unshelving.add(a.id))
+          service.unshelveAlerts(expired.map((a) => a.id), 'System (shelve expired)', 'Shelve time over: back in the live feed').then((list) => list.forEach((a) => get().ingest(a)), () => expired.forEach((a) => unshelving.delete(a.id)))
+        }
         for (const inc of groupIncidents(recent)) {
+          if (inc.alerts.some((x) => isShelved(x, now))) continue
           const a = inc.alerts.find((x) => x.severity === 'CRITICAL' && x.status === 'NEW')
           if (!a) continue
           const key = inc.alerts[inc.alerts.length - 1].id
@@ -205,7 +214,9 @@ export const useData = create<DataState>((set, get) => {
       const { alerts } = get()
       const exists = alerts.some((x) => x.id === a.id)
       set({ alerts: exists ? alerts.map((x) => (x.id === a.id ? a : x)) : [a, ...alerts] })
-      if (!exists && a.status === 'NEW') {
+      // Shelved incident or out-of-service camera: the alert is stored but nobody is interrupted.
+      const muted = get().cameras.find((c) => c.id === a.cameraId)?.outOfService || alerts.some((x) => isShelved(x) && x.cameraId === a.cameraId && (x.trackId === a.trackId || x.type === a.type) && Date.parse(a.timestamp) - Date.parse(x.timestamp) < 600_000)
+      if (!exists && a.status === 'NEW' && !muted) {
         // Popups / sound fire once per incident. A repeat only notifies again when it is more severe.
         const prior = existingIncidentSeverity(a, alerts)
         if (prior === null || SEV_RANK[a.severity] > SEV_RANK[prior]) notify(a, false)

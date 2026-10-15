@@ -77,8 +77,11 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
   (first `ACKNOWLEDGED` entry `at`) - (`timestamp`), so always append, never overwrite.
 - `history[].note` is optional.
 - `history[].kind` is optional: absent / `"status"` = a status change; `"playbook"`, `"notify"`, `"evidence"`, `"bookmark"`,
-  `"shared"`, `"auto-escalation"` log an operator / system action and carry the alert's current status unchanged.
+  `"shared"`, `"shelve"`, `"unshelve"`, `"auto-escalation"` log an operator / system action and carry the alert's current status unchanged.
 - `history[].offsetSec` (only for `kind: "bookmark"`): clip position in seconds relative to `timestamp`.
+- `shelvedUntil` / `shelveReason` (optional): alarm-management shelving. While `shelvedUntil` is in the future the alert
+  is hidden from the live feed and does not notify. When it passes, the dashboard calls `/alerts/unshelve` with
+  `by: "System (shelve expired)"` (a backend may do this itself). Only Commander / Admin may unshelve early.
 - `playbookDone` (optional string array): ids of ticked response-playbook steps (`s1`, `s2`, ...).
 - `qrtNotifiedAt` (optional): when the Quick Reaction Team was last notified.
 
@@ -273,6 +276,8 @@ zones itself from the `detections` WebSocket channel, so operators can toggle th
 | GET | `/alerts/{id}` | | `Alert` |
 | PATCH | `/alerts/{id}/status` | `{ "status": "ACKNOWLEDGED", "by": "Ct. S. Meena", "note": "optional", "at": "optional ISO time", "kind": "optional" }` | updated `Alert` |
 | GET | `/cameras/{id}/tracks/{trackId}` | `?around=ISO` | `TrackPoint[]` `{ at, bbox, confidence, class }`, oldest first, sightings of that track within a few minutes of `around` (Alert Detail > Tracking) |
+| POST | `/alerts/shelve` | `{ "ids": ["ALT-1"], "minutes": 30, "reason": "known patrol", "by": "..." }` (minutes 15/30/60, reason required) | `Alert[]`: set `shelvedUntil`, `shelveReason`, append history `kind: "shelve"` |
+| POST | `/alerts/unshelve` | `{ "ids": [...], "by": "...", "note": "optional" }` | `Alert[]`: `shelvedUntil: null`, history `kind: "unshelve"` |
 | GET | `/alerts/{id}/clip` | | `AlertClip` (`{ url, startOffsetSec, endOffsetSec }`), 404 if none |
 | POST | `/alerts/{id}/history` | `{ "kind": "bookmark", "note": "+2.5 s: climbs fence", "by": "Ct. S. Meena", "offsetSec": 2.5 }` | updated `Alert` (append entry with current `status` and server `at`, broadcast on WS) |
 | PATCH | `/alerts/{id}/notes` | `{ "notes": "text" }` | updated `Alert` |
@@ -359,6 +364,10 @@ correction turns a read into a blacklisted plate.
 
 Every watchlist match (except category `AUTHORISED`) should also create a `FACE_MATCH` alert and link it via `alertId`.
 
+**Out of service:** `PUT /cameras/{id}/out-of-service` `{ "reason": "lens cleaning" | null, "by": "..." }` returns the
+`Camera` with `outOfService: { reason, by, since } | null`. While set, the backend must not raise new alerts for that
+camera (the mock drops them). Commander / Admin only.
+
 ### Drone watch and police nakas
 | Method | Path | Body | Returns |
 |---|---|---|---|
@@ -414,7 +423,7 @@ latency > 250 ms, CPU >= 90 %.
   "category": "EVIDENCE", "action": "Evidence exported", "target": "ALT-00733", "details": "1 alert(s), 3 files"
 }
 ```
-`category`: `AUTH | CAMERA_VIEW | ZONE | WATCHLIST | BLACKLIST | ANPR | EXPORT | EVIDENCE | SETTINGS | ALERT | DRONE`.
+`category`: `AUTH | CAMERA_VIEW | ZONE | WATCHLIST | BLACKLIST | ANPR | EXPORT | EVIDENCE | SETTINGS | ALERT | DRONE | CAMERA`.
 
 The dashboard POSTs an entry for: sign-in / sign-out (incl. auto-logout), opening a camera's live view, zone
 create / update / delete, watchlist and blacklist edits, face-match review, plate correction, CSV / report / evidence

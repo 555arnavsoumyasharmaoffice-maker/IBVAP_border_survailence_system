@@ -5,10 +5,11 @@ import type { Alert, AlertStatus, Incident } from '@/types'
 import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
 import { useCan } from '@/store/auth'
-import { SEV, isLowVisibility, keyDetail, relTime, whyFired } from '@/lib/format'
+import { SEV, isLowVisibility, isShelved, keyDetail, relTime, whyFired } from '@/lib/format'
 import { useT } from '@/i18n'
 import { StatusBadge, TYPE_ICON } from './ui'
 import { InWatchTag } from './DroneWatch'
+import { ShelveButton } from './Shelve'
 
 /**
  * Workflow buttons. Operators: acknowledge / escalate / false alarm. Commander+: resolve.
@@ -37,6 +38,9 @@ export function AlertActions({ alert, incident, showResolve = false, size = 'sm'
       <button className={cls} disabled={closed} onClick={apply('FALSE_ALARM')}>
         <Ban size={12} /> {t('act.false')}
       </button>
+      {!closed && !(incident?.alerts ?? [alert]).some((a) => isShelved(a)) && (
+        <ShelveButton alerts={incident?.alerts ?? [alert]} label={incident && incident.alerts.length > 1 ? `Incident ${incident.id}` : alert.id} className={cls} />
+      )}
       {showResolve && (
         <button
           className={`${cls} btn-primary`}

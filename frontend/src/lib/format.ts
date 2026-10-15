@@ -75,6 +75,7 @@ export const TYPE_COLOR: Record<AlertType, string> = {
 }
 
 export const isActive = (a: Alert) => a.status === 'NEW' || a.status === 'ESCALATED'
+export const isShelved = (a: Alert, now = Date.now()) => !!a.shelvedUntil && Date.parse(a.shelvedUntil) > now
 
 /** The one detail an operator needs first: plate, person, zone or description. */
 export function keyDetail(a: Alert): string {

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { BellRing, Siren, Timer, Video, type LucideIcon } from 'lucide-react'
 import type { Alert, Severity } from '@/types'
 import { useData, useIncidents } from '@/store/data'
-import { SEV, SEVERITIES, fmtDuration, fmtTime, keyDetail } from '@/lib/format'
+import { SEV, SEVERITIES, fmtDuration, fmtTime, isShelved, keyDetail } from '@/lib/format'
 import { useT } from '@/i18n'
 import { CameraFeed } from '@/components/CameraFeed'
 import { AlertCard } from '@/components/AlertCard'
@@ -139,7 +139,7 @@ export default function CommandCenter() {
             {loading && !alerts.length ? (
               Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-24" />)
             ) : alerts.length ? (
-              incidents.slice(0, 40).map((i) => <AlertCard key={i.id} alert={i.alerts[0]} incident={i} now={now} />)
+              incidents.filter((i) => !i.alerts.some((a) => isShelved(a, now))).slice(0, 40).map((i) => <AlertCard key={i.id} alert={i.alerts[0]} incident={i} now={now} />)
             ) : (
               <EmptyState title={t('common.noAlerts')} hint="All quiet. New detections will appear here in real time." />
             )}

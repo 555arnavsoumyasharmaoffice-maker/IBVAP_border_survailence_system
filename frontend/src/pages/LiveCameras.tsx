@@ -9,6 +9,7 @@ import { audit } from '@/lib/audit'
 import { useT } from '@/i18n'
 import { CameraFeed, type CameraFeedHandle } from '@/components/CameraFeed'
 import { AlertCard } from '@/components/AlertCard'
+import { OutOfServiceControl } from '@/components/Shelve'
 import { Chip, EmptyState, Skeleton, VisibilityBadge, useNow } from '@/components/ui'
 
 interface Overlay {
@@ -69,6 +70,7 @@ function Tile({ camera, onFocus }: { camera: Camera; onFocus: () => void }) {
         <VisibilityBadge visibility={camera.visibility} />
         <StatusChip camera={camera} />
         <OverlayToggles value={overlay} onChange={setOverlay} />
+        <OutOfServiceControl camera={camera} />
         <button onClick={onFocus} title="Open focused view" aria-label="Open focused view" className="text-ink-mute hover:text-ink">
           <Maximize2 size={13} />
         </button>
@@ -115,6 +117,7 @@ function Focused({ camera, onBack }: { camera: Camera; onBack: () => void }) {
           <VisibilityBadge visibility={camera.visibility} />
         <StatusChip camera={camera} />
           <OverlayToggles value={overlay} onChange={setOverlay} />
+          <OutOfServiceControl camera={camera} />
           <button className="btn btn-sm btn-primary" onClick={() => void takeSnapshot()} disabled={camera.status === 'offline'}>
             <CameraIcon size={12} /> Snapshot
           </button>

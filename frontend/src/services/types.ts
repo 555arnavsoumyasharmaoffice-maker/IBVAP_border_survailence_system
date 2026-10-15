@@ -66,6 +66,12 @@ export interface DataService {
   /** Relay a message to the Quick Reaction Team (SMS = secure SMS gateway, WHATSAPP = radio relay; name kept for compatibility). Logged in the alert history. */
   notifyQrt(id: string, channel: 'SMS' | 'WHATSAPP', message: string, by: string): Promise<Alert>
 
+  /** Shelve (snooze) alerts for `minutes` with a mandatory reason. History kind "shelve". */
+  shelveAlerts(ids: string[], minutes: number, reason: string, by: string): Promise<Alert[]>
+  /** Return shelved alerts to the live feed. History kind "unshelve". */
+  unshelveAlerts(ids: string[], by: string, note?: string): Promise<Alert[]>
+  /** Mark a camera out of service (reason) or back in service (null). */
+  setCameraOutOfService(id: string, reason: string | null, by: string): Promise<Camera>
   /** Sightings of one track on one camera around a time (Alert Detail > Tracking). */
   getTrack(cameraId: string, trackId: number, around: string): Promise<TrackPoint[]>
   /** Clip window around the alert (GET /alerts/{id}/clip). */

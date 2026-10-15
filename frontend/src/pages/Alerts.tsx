@@ -4,11 +4,12 @@ import { Download, Layers, Search } from 'lucide-react'
 import type { Alert, AlertStatus, AlertType, Incident, Severity, SuspiciousSubtype } from '@/types'
 import { useData, useIncidents } from '@/store/data'
 import { audit } from '@/lib/audit'
-import { ALERT_TYPES, SEV, SEVERITIES, STATUSES, SUBTYPES, subtypeOf, downloadFile, fmtDateTime, fmtDuration, isActive, keyDetail, pct, toCsv } from '@/lib/format'
+import { ALERT_TYPES, SEV, SEVERITIES, STATUSES, SUBTYPES, isShelved, subtypeOf, downloadFile, fmtDateTime, fmtDuration, isActive, keyDetail, pct, toCsv } from '@/lib/format'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
 import { AlertActions } from '@/components/AlertCard'
-import { EmptyState, ErrorState, PageHeader, SeverityBadge, SkeletonRows, StatusBadge, TYPE_ICON, Tabs } from '@/components/ui'
+import { EmptyState, ErrorState, PageHeader, SeverityBadge, SkeletonRows, StatusBadge, TYPE_ICON, Tabs, useNow } from '@/components/ui'
+import { UnshelveButton } from '@/components/Shelve'
 
 const MAX_ROWS = 200
 const TH = 'border-b border-base-700 text-left text-[10px] tracking-wider text-ink-mute uppercase'
@@ -18,7 +19,10 @@ export default function Alerts() {
   const navigate = useNavigate()
   const { alerts, cameras, loading, error, load } = useData()
   const incidents = useIncidents()
-  const [view, setView] = useState<'incidents' | 'alerts'>('incidents')
+  const [view, setView] = useState<'incidents' | 'alerts' | 'shelved'>('incidents')
+  const now = useNow(1000)
+  const shelvedInc = useMemo(() => incidents.filter((i) => i.alerts.some((a) => isShelved(a, now))), [incidents, now])
+  const shelvedIds = useMemo(() => new Set(shelvedInc.flatMap((i) => i.alerts.map((a) => a.id))), [shelvedInc])
   const [type, setType] = useState<AlertType | ''>('')
   const [severity, setSeverity] = useState<Severity | ''>('')
   const [status, setStatus] = useState<AlertStatus | 'ACTIVE' | ''>('')
@@ -36,21 +40,21 @@ export default function Alerts() {
     () =>
       alerts.filter(
         (a) =>
-          (!type || a.type === type) && (!severity || a.severity === severity) && (!status || (status === 'ACTIVE' ? isActive(a) : a.status === status)) &&
+          !shelvedIds.has(a.id) && (!type || a.type === type) && (!severity || a.severity === severity) && (!status || (status === 'ACTIVE' ? isActive(a) : a.status === status)) &&
           (!cameraId || a.cameraId === cameraId) && (!q || hay(a).includes(q)) && subOk(a),
       ),
-    [alerts, type, severity, status, cameraId, q, camName, subtype], // eslint-disable-line react-hooks/exhaustive-deps
+    [alerts, type, severity, status, cameraId, q, camName, subtype, shelvedIds], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const filteredIncidents = useMemo(
     () =>
       incidents.filter(
         (i) =>
-          (!type || i.alerts.some((a) => a.type === type)) && (!severity || i.severity === severity) && statusOk(i.status) &&
+          !shelvedIds.has(i.alerts[0].id) && (!type || i.alerts.some((a) => a.type === type)) && (!severity || i.severity === severity) && statusOk(i.status) &&
           (!cameraId || i.cameraId === cameraId) && (!q || i.id.toLowerCase().includes(q) || i.alerts.some((a) => hay(a).includes(q))) && (!subtype || i.alerts.some(subOk)),
       ),
-    [incidents, type, severity, status, cameraId, q, camName, subtype], // eslint-disable-line react-hooks/exhaustive-deps
+    [incidents, type, severity, status, cameraId, q, camName, subtype, shelvedIds], // eslint-disable-line react-hooks/exhaustive-deps
   )
-  const rows = view === 'incidents' ? filteredIncidents.length : filteredAlerts.length
+  const rows = view === 'incidents' ? filteredIncidents.length : view === 'shelved' ? shelvedInc.length : filteredAlerts.length
 
   const exportCsv = () => {
     const data =
@@ -131,6 +135,7 @@ export default function Alerts() {
         tabs={[
           { id: 'incidents', label: 'Incidents', count: filteredIncidents.length },
           { id: 'alerts', label: 'All alerts', count: filteredAlerts.length },
+          { id: 'shelved', label: t('shelve.tab'), count: shelvedInc.length },
         ]}
         value={view}
         onChange={setView}
@@ -181,7 +186,41 @@ export default function Alerts() {
         ) : error && !alerts.length ? (
           <ErrorState message={error} onRetry={() => void load()} />
         ) : !rows ? (
-          <EmptyState title={`No ${view === 'incidents' ? 'incidents' : 'alerts'} match these filters`} hint="Clear a filter or widen the search." />
+          view === 'shelved' ? <EmptyState title={t('shelve.none')} hint={t('shelve.hint')} /> : <EmptyState title={`No ${view === 'incidents' ? 'incidents' : 'alerts'} match these filters`} hint="Clear a filter or widen the search." />
+        ) : view === 'shelved' ? (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className={TH}>
+                <th className="w-1" />
+                <th className="px-2 py-2">Type</th>
+                <th className="px-2">Camera</th>
+                <th className="px-2">Detail</th>
+                <th className="px-2">{t('shelve.reason')}</th>
+                <th className="px-2">{t('shelve.by')}</th>
+                <th className="px-2">{t('shelve.returnsIn')}</th>
+                <th className="px-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {shelvedInc.map((i) => {
+                const a = i.alerts.find((x) => isShelved(x, now))!
+                const entry = [...a.history].reverse().find((h) => h.kind === 'shelve')
+                const left = (Date.parse(a.shelvedUntil!) - now) / 1000
+                return (
+                  <tr key={i.id} onClick={() => navigate(`/alerts/${i.alerts[0].id}`)} className="cursor-pointer border-b border-base-800 hover:bg-base-850">
+                    <td className={SEV[i.severity].bg} />
+                    <td className="px-2 py-1.5 font-medium whitespace-nowrap">{t(`type.${i.type}`)} {i.alerts.length > 1 && <span className="font-mono text-ink-mute">x{i.alerts.length}</span>}</td>
+                    <td className="max-w-44 truncate px-2 text-ink-dim">{camName[i.cameraId] ?? i.cameraId}</td>
+                    <td className="max-w-52 truncate px-2 font-mono">{keyDetail(i.alerts[0])}</td>
+                    <td className="max-w-56 truncate px-2">{a.shelveReason}</td>
+                    <td className="px-2 text-ink-dim">{entry?.by ?? '-'}</td>
+                    <td className="px-2 font-mono text-med">{fmtDuration(left)}</td>
+                    <td className="px-2 py-1"><UnshelveButton alerts={i.alerts} label={i.alerts.length > 1 ? `Incident ${i.id}` : i.alerts[0].id} /></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         ) : view === 'incidents' ? (
           <table className="w-full text-xs">
             <thead>

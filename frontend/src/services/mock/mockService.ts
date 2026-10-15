@@ -428,6 +428,8 @@ export function createMockService(): DataService {
 
   // ---------- live simulator ----------
   function emit(alert: Alert) {
+    // Out-of-service camera: new alerts are suppressed (updates to existing ones still go out).
+    if (!alerts.includes(alert) && camById(alert.cameraId)?.outOfService) return
     if (!alerts.includes(alert)) alerts.unshift(alert)
     const copy = clone(alert)
     alertSubs.forEach((cb) => cb(copy))
@@ -569,6 +571,35 @@ export function createMockService(): DataService {
       return later(a, 700)
     },
 
+    async shelveAlerts(ids, minutes, reason, by) {
+      requireLink()
+      const until = new Date(Date.now() + minutes * 60_000).toISOString()
+      const out = ids.map(findAlert).map((a) => {
+        a.shelvedUntil = until
+        a.shelveReason = reason
+        a.history.push({ kind: 'shelve', status: a.status, at: new Date().toISOString(), by, note: `Shelved for ${minutes} min: ${reason}` })
+        emit(a)
+        return clone(a)
+      })
+      return later(out, 80)
+    },
+    async unshelveAlerts(ids, by, note) {
+      requireLink()
+      const out = ids.map(findAlert).map((a) => {
+        a.shelvedUntil = null
+        a.history.push({ kind: 'unshelve', status: a.status, at: new Date().toISOString(), by, note: note ?? 'Returned to live feed' })
+        emit(a)
+        return clone(a)
+      })
+      return later(out, 80)
+    },
+    async setCameraOutOfService(id, reason, by) {
+      requireLink()
+      const c = camById(id)
+      if (!c) throw new Error('Camera not found')
+      c.outOfService = reason ? { reason, by, since: new Date().toISOString() } : null
+      return later(c, 80)
+    },
     async getTrack(cameraId, trackId, around) {
       // Deterministic path through the alert position, one sighting per second from -10 s to +20 s.
       const a = alerts.find((x) => x.cameraId === cameraId && x.trackId === trackId && Math.abs(Date.parse(x.timestamp) - Date.parse(around)) < 600_000)
