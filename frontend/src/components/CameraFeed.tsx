@@ -3,7 +3,7 @@ import { Car, Moon, Sun, User, VideoOff } from 'lucide-react'
 import type { Camera, DetectionFrame, Zone } from '@/types'
 import { service } from '@/services'
 import { useData } from '@/store/data'
-import { fmtDateTime, relTime } from '@/lib/format'
+import { DEGRADED_REASON, fmtDateTime, isLowVisibility, relTime } from '@/lib/format'
 import { tripwireArrows } from '@/lib/zones'
 import { useT } from '@/i18n'
 import { useNow } from './ui'
@@ -36,7 +36,7 @@ const EMPTY_ZONES: Zone[] = []
 
 function drawOverlay(
   ctx: CanvasRenderingContext2D, w: number, h: number, frame: DetectionFrame | null, zones: Zone[],
-  opts: { boxes: boolean; zones: boolean; ids: boolean },
+  opts: { boxes: boolean; zones: boolean; ids: boolean; thermal?: boolean },
 ) {
   ctx.clearRect(0, 0, w, h)
   const fs = Math.max(10, Math.min(13, w / 46))
@@ -72,6 +72,21 @@ function drawOverlay(
     }
   }
 
+  if (opts.thermal && frame) {
+    for (const d of frame.detections) {
+      const [x, y, bw, bh] = [d.bbox[0] * w, d.bbox[1] * h, d.bbox[2] * w, d.bbox[3] * h]
+      const g = ctx.createRadialGradient(x + bw / 2, y + bh / 2, 1, x + bw / 2, y + bh / 2, Math.max(bw, bh) / 1.6)
+      g.addColorStop(0, 'rgba(255,250,220,0.95)')
+      g.addColorStop(0.35, 'rgba(255,170,40,0.85)')
+      g.addColorStop(0.7, 'rgba(220,40,90,0.45)')
+      g.addColorStop(1, 'rgba(80,0,120,0)')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.ellipse(x + bw / 2, y + bh / 2, bw / 1.6, bh / 1.8, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+
   if (opts.boxes && frame) {
     for (const d of frame.detections) {
       const [x, y, bw, bh] = [d.bbox[0] * w, d.bbox[1] * h, d.bbox[2] * w, d.bbox[3] * h]
@@ -99,7 +114,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const frameRef = useRef<DetectionFrame | null>(null)
-  const optsRef = useRef({ boxes: showBoxes, zones: showZones, ids: showTrackIds })
+  const optsRef = useRef<{ boxes: boolean; zones: boolean; ids: boolean; thermal?: boolean }>({ boxes: showBoxes, zones: showZones, ids: showTrackIds })
   const zones = useData((s) => s.zones)
   const camZones = zones.filter((z) => z.cameraId === camera.id && z.id !== hideZoneId)
   const zonesRef = useRef(EMPTY_ZONES)
@@ -109,7 +124,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
   const offline = camera.status === 'offline'
   const streamUrl = service.getStreamUrl(camera)
 
-  optsRef.current = { boxes: showBoxes, zones: showZones, ids: showTrackIds }
+  optsRef.current = { boxes: showBoxes, zones: showZones, ids: showTrackIds, thermal: camera.cameraType === 'thermal' && !streamUrl }
   zonesRef.current = camZones
 
   const redraw = () => {
@@ -206,7 +221,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
       {streamUrl && !streamFailed ? (
         <img ref={imgRef} src={streamUrl} alt={camera.name} crossOrigin="anonymous" onError={() => setStreamFailed(true)} className="absolute inset-0 h-full w-full object-fill" />
       ) : (
-        <div className={`feed-mock absolute inset-0 ${camera.isNightMode ? 'night' : ''}`}>
+        <div className={`feed-mock absolute inset-0 ${camera.cameraType === 'thermal' ? 'thermal' : camera.isNightMode ? 'night' : ''}`}>
           <div className="feed-noise absolute inset-0" />
           <div className="feed-lines absolute inset-0" />
           <div className="feed-scan absolute inset-x-0 top-0" />
@@ -217,6 +232,16 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
       )}
       <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
       {!bare && <FeedChrome camera={camera} counts={counts} topBar={!hideTopBar} />}
+      {isLowVisibility(camera.visibility) && !camera.outOfService && (
+        <span className="pointer-events-none absolute top-7 left-1.5 rounded bg-med/90 px-1 font-mono text-[9px] font-bold text-black uppercase">
+          {t('feed.aiDegraded')} ({DEGRADED_REASON[camera.visibility]})
+        </span>
+      )}
+      {camera.cameraType !== 'visible' && (
+        <span className="pointer-events-none absolute top-7 right-1.5 rounded bg-black/70 px-1 font-mono text-[9px] font-bold tracking-wider text-orange-300 uppercase">
+          {t(camera.cameraType === 'thermal' ? 'cam.thermal' : 'cam.ir')}
+        </span>
+      )}
       {camera.outOfService && (
         <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 bg-black/70 py-1.5 text-center font-mono text-[11px] text-med">
           <div className="font-bold tracking-widest">{t('oos.tile')}</div>

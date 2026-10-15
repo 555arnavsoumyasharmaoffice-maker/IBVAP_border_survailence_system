@@ -43,6 +43,10 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
 - `minConfirmFrames`: a detection must persist for this many consecutive frames before an alert is raised.
 - `ignoreAnimals`: when true, the `animal` class never raises alerts on this camera.
 
+- `cameraType`: `visible | thermal | ir-night`. Thermal feeds are rendered in a thermal palette. When `visibility` is not
+  `clear` the tile shows "AI degraded (fog / low light / dust)" and alerts from it carry a verify-before-acting note.
+- `outOfService` (optional): `{ reason, by, since } | null`, see Cameras > Out of service.
+
 ### Alert
 ```json
 {

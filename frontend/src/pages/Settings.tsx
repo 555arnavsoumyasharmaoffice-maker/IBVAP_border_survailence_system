@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Loader2, Lock, Pencil, Play, PlugZap, Plus, Save, Send, Square, Volume2 } from 'lucide-react'
-import type { AppSettings, Camera, DetectionModules, Severity, User } from '@/types'
+import type { AppSettings, Camera, CameraType, DetectionModules, Severity, User } from '@/types'
 import { API_URL, WS_URL, service } from '@/services'
 import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
@@ -35,7 +35,7 @@ function ReadOnlyNote() {
 }
 
 // ---------------- Cameras ----------------
-type CameraForm = { id?: string; name: string; locationName: string; streamUrl: string; lat: string; lng: string }
+type CameraForm = { id?: string; name: string; locationName: string; streamUrl: string; lat: string; lng: string; cameraType: CameraType }
 
 function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () => void }) {
   const [form, setForm] = useState(initial)
@@ -60,7 +60,7 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
     e.preventDefault()
     setBusy(true)
     try {
-      await service.saveCamera({ id: form.id, name: form.name.trim(), locationName: form.locationName.trim(), streamUrl: form.streamUrl.trim(), lat, lng })
+      await service.saveCamera({ id: form.id, name: form.name.trim(), locationName: form.locationName.trim(), streamUrl: form.streamUrl.trim(), lat, lng, cameraType: form.cameraType })
       await useData.getState().refreshCameras()
       audit('SETTINGS', 'Camera saved', form.name.trim(), form.streamUrl.trim())
       onClose()
@@ -87,6 +87,13 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
           </div>
         </Field>
         {test && test !== 'testing' && <div className={`text-xs ${test.ok ? 'text-low' : 'text-crit'}`}>{test.ok ? '✓' : '✗'} {test.message}</div>}
+        <Field label="Camera type">
+          <select className="field" value={form.cameraType} onChange={(e) => set({ cameraType: e.target.value as CameraType })}>
+            <option value="visible">Visible (day / colour)</option>
+            <option value="ir-night">IR night</option>
+            <option value="thermal">Thermal</option>
+          </select>
+        </Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Latitude">
             <input type="number" step="any" className="field font-mono" value={form.lat} onChange={(e) => set({ lat: e.target.value })} placeholder="27.7904" required />
@@ -106,13 +113,13 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
 function CamerasTab({ canManage }: { canManage: boolean }) {
   const { cameras, loading } = useData()
   const [editing, setEditing] = useState<CameraForm | null>(null)
-  const toForm = (c: Camera): CameraForm => ({ id: c.id, name: c.name, locationName: c.locationName, streamUrl: c.streamUrl, lat: String(c.lat), lng: String(c.lng) })
+  const toForm = (c: Camera): CameraForm => ({ id: c.id, name: c.name, locationName: c.locationName, streamUrl: c.streamUrl, lat: String(c.lat), lng: String(c.lng), cameraType: c.cameraType })
   const statusStyle = { online: 'border-low/50 bg-low/15 text-low', degraded: 'border-med/50 bg-med/15 text-med', offline: 'border-crit/50 bg-crit/15 text-crit' }
   return (
     <>
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs text-ink-mute">Existing CCTV cameras are added by stream URL. No new hardware is required.</span>
-        <button className="btn btn-primary" disabled={!canManage} onClick={() => setEditing({ name: '', locationName: '', streamUrl: '', lat: '', lng: '' })}>
+        <button className="btn btn-primary" disabled={!canManage} onClick={() => setEditing({ name: '', locationName: '', streamUrl: '', lat: '', lng: '', cameraType: 'visible' })}>
           <Plus size={13} /> Add camera
         </button>
       </div>

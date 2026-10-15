@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowUpCircle, Check, RefreshCw, Siren, Video, X } from 'lucide-react'
 import { useData, type Toast } from '@/store/data'
-import { SEV, fmtDateTime, keyDetail } from '@/lib/format'
+import { DEGRADED_REASON, SEV, fmtDateTime, isLowVisibility, keyDetail } from '@/lib/format'
 import { useT } from '@/i18n'
 import { LikelihoodBadge, SeverityBadge, TYPE_ICON } from './ui'
 import { NotifyQrt, Playbook, ResponseTimer } from './Playbook'
@@ -136,6 +136,11 @@ export function CriticalModal() {
               <dt className="text-ink-mute">ID</dt>
               <dd className="font-mono">{alert.id}</dd>
             </dl>
+            {isLowVisibility(alert.visibility) && (
+              <div className="rounded border border-med/50 bg-med/10 px-2 py-1 text-[11px] text-med">
+                {t('feed.aiDegraded')} ({DEGRADED_REASON[alert.visibility!]}): {t('feed.degradedNote')}
+              </div>
+            )}
             <ResponseTimer alert={alert} large />
             <Playbook alert={alert} />
             <div className="mt-auto flex flex-col gap-2 pt-1">

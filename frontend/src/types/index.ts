@@ -14,8 +14,12 @@ export interface DetectionModules {
   fence: boolean
 }
 
+/** Sensor type. Thermal and IR-night cameras keep working in darkness; thermal also sees through light fog. */
+export type CameraType = 'visible' | 'thermal' | 'ir-night'
+
 export interface Camera {
   id: string
+  cameraType: CameraType
   name: string
   locationName: string
   lat: number

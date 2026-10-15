@@ -5,7 +5,7 @@ import type { Alert, AlertStatus, Incident } from '@/types'
 import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
 import { useCan } from '@/store/auth'
-import { SEV, isLowVisibility, isShelved, keyDetail, relTime, whyFired } from '@/lib/format'
+import { DEGRADED_REASON, SEV, isLowVisibility, isShelved, keyDetail, relTime, whyFired } from '@/lib/format'
 import { useT } from '@/i18n'
 import { LikelihoodBadge, StatusBadge, TYPE_ICON } from './ui'
 import { InWatchTag } from './DroneWatch'
@@ -100,7 +100,7 @@ export function AlertCard({ alert, incident, now, compact = false }: { alert: Al
             <div className="truncate font-mono text-ink">{detail || '-'}</div>
             <div className="truncate text-[10px] text-ink-mute" title="Why this alert fired">
               {alert.details.droneWatchId && <span className="mr-1"><InWatchTag alert={alert} compact /></span>}
-              {isLowVisibility(alert.visibility) && <span className="mr-1 rounded bg-med/20 px-1 font-semibold text-med">LOW VISIBILITY</span>}
+              {isLowVisibility(alert.visibility) && <span className="mr-1 rounded bg-med/20 px-1 font-semibold text-med uppercase">{t('feed.aiDegraded')} ({DEGRADED_REASON[alert.visibility!]})</span>}
               {whyFired(alert).join(' · ')}
             </div>
           </div>

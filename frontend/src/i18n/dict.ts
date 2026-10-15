@@ -175,6 +175,12 @@ export const en = {
   'lk.MEDIUM': "Medium likelihood",
   'lk.LOW': "Low likelihood",
   'lk.hint': "Likelihood the alert is real: detector confidence + consecutive frames confirmed, lowered one band in poor visibility. Low-likelihood alerts never make a sound.",
+  'feed.aiDegraded': "AI degraded",
+  'feed.degradedNote': "detection is less reliable, verify on the feed before acting",
+  'cam.thermal': "Thermal",
+  'cam.ir': "IR night",
+  'cam.visible': "Visible",
+  'cam.type': "Camera type",
 } as const
 
 export type DictKey = keyof typeof en
@@ -353,4 +359,10 @@ export const hi: Partial<Record<DictKey, string>> = {
   'lk.MEDIUM': "मध्यम संभावना",
   'lk.LOW': "कम संभावना",
   'lk.hint': "अलर्ट सही होने की संभावना: डिटेक्टर विश्वास + पुष्टि किए गए फ़्रेम। कम संभावना वाले अलर्ट ध्वनि नहीं करते।",
+  'feed.aiDegraded': "AI क्षमता कम",
+  'feed.degradedNote': "पहचान कम विश्वसनीय है, कार्रवाई से पहले फ़ीड पर जाँचें",
+  'cam.thermal': "थर्मल",
+  'cam.ir': "IR रात्रि",
+  'cam.visible': "सामान्य",
+  'cam.type': "कैमरा प्रकार",
 }

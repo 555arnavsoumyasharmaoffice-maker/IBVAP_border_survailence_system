@@ -48,12 +48,13 @@ function simObjects(alert: Alert): SimObject[] {
   return objs
 }
 
-function drawSim(ctx: CanvasRenderingContext2D, W: number, H: number, alert: Alert, objs: SimObject[], t: number, night: boolean, camName: string) {
+function drawSim(ctx: CanvasRenderingContext2D, W: number, H: number, alert: Alert, objs: SimObject[], t: number, night: boolean, camName: string, thermal = false) {
   const g = ctx.createLinearGradient(0, 0, 0, H)
-  g.addColorStop(0, night ? '#04130c' : '#101b2e')
-  g.addColorStop(0.46, night ? '#0a2416' : '#17263d')
-  g.addColorStop(0.47, night ? '#0d2e1b' : '#1d2a22')
-  g.addColorStop(1, night ? '#051209' : '#121a15')
+  const pal = thermal ? ['#0b0420', '#1a0b3a', '#2a0f45', '#13072a'] : night ? ['#04130c', '#0a2416', '#0d2e1b', '#051209'] : ['#101b2e', '#17263d', '#1d2a22', '#121a15']
+  g.addColorStop(0, pal[0])
+  g.addColorStop(0.46, pal[1])
+  g.addColorStop(0.47, pal[2])
+  g.addColorStop(1, pal[3])
   ctx.fillStyle = g
   ctx.fillRect(0, 0, W, H)
   // fence posts
@@ -74,7 +75,7 @@ function drawSim(ctx: CanvasRenderingContext2D, W: number, H: number, alert: Ale
   ctx.fillStyle = night ? 'rgba(200,255,220,0.07)' : 'rgba(255,255,255,0.05)'
   for (let i = 0; i < 140; i++) ctx.fillRect(rnd() * W, rnd() * H, 1.5, 1.5)
 
-  const fig = night ? '#c8ffd9' : '#0b0f16'
+  const fig = thermal ? '#ffd27a' : night ? '#c8ffd9' : '#0b0f16'
   const fs = Math.max(10, W / 48)
   ctx.font = `600 ${fs}px "JetBrains Mono", monospace`
   for (const o of objs) {
@@ -83,6 +84,14 @@ function drawSim(ctx: CanvasRenderingContext2D, W: number, H: number, alert: Ale
     const w = o.w * W
     const h = o.h * H
     if (x > W || x + w < 0) continue
+    if (thermal) {
+      const hg = ctx.createRadialGradient(x + w / 2, y + h / 2, 1, x + w / 2, y + h / 2, Math.max(w, h) / 1.5)
+      hg.addColorStop(0, 'rgba(255,250,220,0.9)')
+      hg.addColorStop(0.5, 'rgba(255,140,40,0.6)')
+      hg.addColorStop(1, 'rgba(120,0,120,0)')
+      ctx.fillStyle = hg
+      ctx.fillRect(x - w * 0.4, y - h * 0.2, w * 1.8, h * 1.4)
+    }
     ctx.fillStyle = fig
     if (o.person) {
       const bob = Math.sin(t * 7 + o.x * 10) * h * 0.01
@@ -179,8 +188,8 @@ export function ClipPlayer({ alert, compact = false, autoPlay = false, loop = fa
       c.height = Math.round(H * dpr)
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    drawSim(ctx, W, H, alert, objsRef.current, pos + start, night, camera?.name ?? alert.cameraId)
-  }, [real, pos, start, alert, night, camera?.name])
+    drawSim(ctx, W, H, alert, objsRef.current, pos + start, night, camera?.name ?? alert.cameraId, camera?.cameraType === 'thermal')
+  }, [real, pos, start, alert, night, camera?.name, camera?.cameraType])
 
   // Real video: mirror its state.
   useEffect(() => {

@@ -111,6 +111,7 @@ const cam = (
 ): Camera => ({
   id, name, locationName, lat, lng, streamUrl,
   status: 'online',
+  cameraType: 'visible',
   fps: randInt(22, 25),
   isNightMode: isNightHour(new Date()),
   lastSeen: new Date().toISOString(),
@@ -125,6 +126,7 @@ const cam = (
 export const seedCameras = (): Camera[] => [
   cam('cam-01', 'BOP Sundar - Gate Cam', 'BOP Sundar, Jaisalmer Sector (RJ)', 27.7904, 70.3521, 'rtsp://10.21.4.11:554/stream1'),
   cam('cam-02', 'BOP Sundar - Fence East', 'BOP Sundar, Jaisalmer Sector (RJ)', 27.7962, 70.3618, 'rtsp://10.21.4.12:554/stream1', {
+    cameraType: 'ir-night',
     isNightMode: true,
     visibility: 'low-light',
     sensitivity: 0.7,
@@ -137,9 +139,10 @@ export const seedCameras = (): Camera[] => [
     status: 'offline', fps: 0, lastSeen: new Date(Date.now() - 47 * 60_000).toISOString(),
   }),
   cam('cam-05', 'BOP Kishangarh - Watch Tower', 'Kishangarh, Jaisalmer (RJ)', 27.8721, 70.5634, 'rtsp://10.21.7.5:554/stream2', {
-    status: 'degraded', fps: 9, isNightMode: true, visibility: 'fog', minConfirmFrames: 8, modules: { ...ALL, anpr: false, face: false },
+    cameraType: 'ir-night', status: 'degraded', fps: 9, isNightMode: true, visibility: 'fog', minConfirmFrames: 8, modules: { ...ALL, anpr: false, face: false },
   }),
   cam('cam-06', 'BOP Ajnala - River Cam', 'BOP Ajnala, Ravi riverbank, Amritsar (PB)', 31.8662, 74.6311, 'rtsp://10.31.2.8:554/stream1', {
+    cameraType: 'thermal', isNightMode: true,
     modules: { ...ALL, anpr: false, face: false },
   }),
   cam('cam-07', 'ICP Attari - Lane 2', 'Attari, Amritsar (PB)', 31.6042, 74.5731, 'http://10.32.1.15:8080/video', {

@@ -5,7 +5,7 @@ import type { Alert, TrackPoint, WatchlistPerson } from '@/types'
 import { service } from '@/services'
 import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
-import { SEV, VISIBILITY, fmtDateTime, fmtDuration, fmtTime, isLowVisibility, keyDetail, pct, relTime } from '@/lib/format'
+import { DEGRADED_REASON, SEV, VISIBILITY, fmtDateTime, fmtDuration, fmtTime, isLowVisibility, keyDetail, pct, relTime } from '@/lib/format'
 import { groupIncidents } from '@/lib/incidents'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
@@ -363,7 +363,7 @@ export default function AlertDetail() {
               {alert.visibility && (
                 <Row label="Visibility">
                   <Chip className={VISIBILITY[alert.visibility].style}>{VISIBILITY[alert.visibility].label}</Chip>
-                  {isLowVisibility(alert.visibility) && <span className="ml-2 text-med">Low visibility: verify before acting</span>}
+                  {isLowVisibility(alert.visibility) && <span className="ml-2 text-med">{t('feed.aiDegraded')} ({DEGRADED_REASON[alert.visibility]}): {t('feed.degradedNote')}</span>}
                 </Row>
               )}
               <Row label="Track ID"><span className="font-mono">{alert.trackId ?? '-'}</span></Row>

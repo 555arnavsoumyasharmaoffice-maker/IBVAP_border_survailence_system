@@ -508,7 +508,7 @@ export function createMockService(): DataService {
       }
       const created = {
         id: `cam-${String(cameras.length + 1).padStart(2, '0')}`,
-        locationName: '', lat: 27.5, lng: 70.5, streamUrl: '', status: 'online' as const, fps: 25,
+        locationName: '', lat: 27.5, lng: 70.5, streamUrl: '', status: 'online' as const, fps: 25, cameraType: 'visible' as const,
         isNightMode: isNightHour(new Date()), lastSeen: new Date().toISOString(),
         visibility: 'clear' as const, sensitivity: 0.5, minConfirmFrames: 5, ignoreAnimals: true,
         modules: { human: true, vehicle: true, anpr: true, face: true, fence: true },

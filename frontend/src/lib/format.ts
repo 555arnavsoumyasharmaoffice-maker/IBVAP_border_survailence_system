@@ -123,6 +123,8 @@ export const VISIBILITY: Record<Visibility, { label: string; style: string }> = 
   dust: { label: 'Dust', style: 'border-high/50 bg-high/15 text-high' },
 }
 export const isLowVisibility = (v: Visibility | undefined) => !!v && v !== 'clear'
+/** Short reason shown as "AI degraded (fog)" on tiles and alerts. */
+export const DEGRADED_REASON: Record<Visibility, string> = { clear: '', 'low-light': 'low light', fog: 'fog', dust: 'dust' }
 
 export function downloadFile(name: string, content: string | Blob, mime = 'text/csv') {
   const blob = typeof content === 'string' ? new Blob([content], { type: mime }) : content

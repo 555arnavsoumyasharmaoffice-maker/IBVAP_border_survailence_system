@@ -126,6 +126,9 @@ textarea {
   background:
     linear-gradient(to bottom, #101b2e 0%, #17263d 46%, #1d2a22 47%, #121a15 100%);
 }
+.feed-mock.thermal {
+  background: linear-gradient(to bottom, #0b0420 0%, #1a0b3a 46%, #2a0f45 47%, #13072a 100%);
+}
 .feed-mock.night {
   background:
     linear-gradient(to bottom, #04130c 0%, #0a2416 46%, #0d2e1b 47%, #051209 100%);
