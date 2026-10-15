@@ -65,3 +65,59 @@ PARTIAL = works with a known gap; MISSING = not in code.
 | Every status change audited once | DONE | store/data.ts (setStatus, setStatusMany) |
 | SUSPICIOUS_ACTIVITY carries subtype; NIGHT_MOVEMENT only from night cameras | DONE | mockService.ts |
 | Real backend (apiService.ts) | MISSING | services/api/apiService.ts | Written to the contract but never run against a server. |
+
+## 4. Step 2: fixed
+
+| Item | Fix | File |
+|---|---|---|
+| "A" could acknowledge an alert after leaving its page | `selectedAlertId` cleared when the detail page closes | pages/AlertDetail.tsx |
+| Sector overview coloured every open BOP | Orange only when a NEW / ESCALATED incident exists, otherwise neutral | pages/CommandCenter.tsx |
+| C2 integration and event log not shown in the demo | Two demo steps: Audit Log, Settings > Integration (REST / WebSocket / webhook) | demo/useDemoRunner.ts |
+| Second demo run joined the first run's incident (no critical dialog) | Demo intruder gets a fresh track id every run | demo/useDemoRunner.ts |
+| Memory growth over long runs | Caps: mock alerts 800, plate reads 600, search records 1200; store alerts 1000 | services/mock/mockService.ts, store/data.ts |
+| Edge Nodes subtitle | "Edge Nodes - existing control-room PC or small AI box per BOP (no camera replacement)" | i18n/dict.ts, pages/SystemHealth.tsx |
+| AI-engine ingest missing from the contract | Section "AI engine -> backend (ingest)" added | docs/API_CONTRACT.md |
+
+## 5. Skipped (not needed for the demo or any PS 26187 requirement)
+
+| Item | Reason |
+|---|---|
+| Evidence ZIP has no clip file in mock mode | There is no video in mock mode; the ZIP holds the clip window + bookmarks. Real clips come from the backend (`clip.url`). |
+| Face blur / retention only stored as settings | Needs the backend to blur / delete files. |
+| Reminder set lives in memory (reload can give one extra reminder) | Low impact; the backend can own reminders later. |
+| Shelved-incident match is an approximation | Matches camera + (track or type) within 10 min, close to the incident rule; only affects whether a new alert notifies. |
+| Shift handover allows the same login on both sides | Single-user demo; enforce different users once real login exists. |
+| apiService.ts never run against a server | Backend does not exist yet. |
+
+## 6. Step 3: self test (headless Edge, production build)
+
+| Check | Result |
+|---|---|
+| Operator | No Audit Log in the nav, Resolve disabled ("Only Commander / Admin"), Zones read-only, Add camera disabled |
+| Commander / Admin | Audit Log visible, Resolve enabled when SOP complete, blocked with the missing steps otherwise, Zones + Settings editable |
+| Hindi | Sidebar, page titles, alert types, severities, statuses in Hindi (238 / 238 keys translated) |
+| 1366x768 and 1920x1080 | No page-level horizontal scroll or clipped nav text on any route; tables scroll inside their panel |
+| Loading / empty / error states | Every data page uses Skeleton / EmptyState / ErrorState from components/ui.tsx |
+| Long run | Bounded by the caps above (alert rate ~1.5/min, so 30 min adds about 45 alerts) |
+| Placeholder text | No "lorem" / "TODO" / test text in the UI |
+| Console errors | 0 across all runs |
+| Demo twice without reload | See section 7 |
+
+## 7. Demo step -> PS 26187 requirement
+
+| Demo step (seconds) | Requirement shown |
+|---|---|
+| 0 fog, 3x3 grid, thermal River Cam | Night-time movement / low-visibility operation, existing cameras (no new hardware) |
+| 10-24 drone sighting, drone watch on map | Real-time alerts, map, border-specific response |
+| 34 face watchlist match at Attari | Face detection / recognition |
+| 41 night movement + crawling (in drone watch, severity raised) | Human detection & tracking, night-time movement, suspicious activity |
+| 53 same track loiters (incident counter) | Tracking (one track id), suspicious activity (loitering) |
+| 61-70 riverbed zone crossed, critical dialog with clip, acknowledge | Virtual fence intrusion, real-time alerts |
+| 76 jeep, blacklisted plate at Road Gate | Vehicle detection & classification, ANPR |
+| 86 share with police naka | C2 / inter-agency hand-off |
+| 95-103 playbook, notify QRT, /qrt accepts | Real-time response, C2 integration |
+| 112 bookmark + evidence ZIP | Event logging / evidence |
+| 122 escalation | Real-time alerts workflow |
+| 128 Audit Log | Event logging |
+| 135 Settings > Integration | C2 integration (REST, WebSocket, webhook) |
+| 142 About IBVAP | Requirement coverage table |

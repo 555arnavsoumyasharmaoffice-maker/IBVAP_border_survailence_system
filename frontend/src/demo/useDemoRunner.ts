@@ -104,7 +104,8 @@ const STEPS: Step[] = [
     caption: 'Thermal camera: person crawling near the fence. Tagged "In drone watch area", severity raised one level',
     run: async (c) => {
       c.navigate('/')
-      const a = await emit({ type: 'NIGHT_MOVEMENT', cameraId: RIVER, severity: 'MEDIUM' })
+      // Fresh track id every run, so a second run starts a NEW incident (and gets its own critical dialog).
+      const a = await emit({ type: 'NIGHT_MOVEMENT', cameraId: RIVER, severity: 'MEDIUM', trackId: 9000 + Math.floor(Math.random() * 900) })
       c.firstId = a?.id
       c.trackId = a?.trackId ?? undefined
       setTimeout(() => void emit({ type: 'SUSPICIOUS_ACTIVITY', subtype: 'CRAWLING', cameraId: RIVER, trackId: c.trackId, severity: 'MEDIUM' }), 2500)

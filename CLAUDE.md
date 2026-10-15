@@ -14,6 +14,7 @@ movement, real-time alerts and event logging, integration with command and contr
 ## Repo layout
 
 ```
+docs/                  Research report, project guide, AI engine guide (PDF)
 legacy/                Old Streamlit prototype (app.py, alerts.db), superseded by frontend/, kept for reference
 frontend/              React Command Center (this is the active work)
   docs/API_CONTRACT.md Every endpoint, WebSocket message and JSON shape. The backend is built to match it.
