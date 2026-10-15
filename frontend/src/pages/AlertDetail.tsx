@@ -16,6 +16,7 @@ import { NotifyQrt, Playbook, ResponseTimer } from '@/components/Playbook'
 import { hasPlaybook } from '@/lib/playbooks'
 import { EvidencePanel } from '@/components/EvidencePanel'
 import { ClipPlayer } from '@/components/ClipPlayer'
+import { OwnerControl } from '@/components/Owner'
 import { InWatchTag, ShareNakaButton } from '@/components/DroneWatch'
 import { Chip, EmptyState, ErrorState, LikelihoodBadge, PlateTag, SkeletonRows, SeverityBadge, Skeleton, StatusBadge, TYPE_ICON, useNow } from '@/components/ui'
 
@@ -376,7 +377,7 @@ export default function AlertDetail() {
               {d.dwellTimeSec !== undefined && <Row label="Dwell time"><span className="font-mono">{fmtDuration(d.dwellTimeSec)}</span></Row>}
               {d.objectCount !== undefined && <Row label="Objects">{d.objectCount}</Row>}
               {d.description && <Row label="Description">{d.description}</Row>}
-              <Row label="Assigned to">{alert.assignedTo ?? 'Unassigned'}</Row>
+              <Row label={t('owner.label')}>{alert.assignedTo ?? t('owner.none')}</Row>
               {ack && <Row label="Response time"><span className="font-mono text-low">{fmtDuration((Date.parse(ack.at) - ts) / 1000)}</span></Row>}
             </dl>
             {camera && (
@@ -401,7 +402,8 @@ export default function AlertDetail() {
               <span className="panel-title">Workflow</span>
               <ResponseTimer alert={alert} />
             </div>
-            <AlertActions alert={alert} showResolve size="md" />
+            <div className="mb-2"><OwnerControl alerts={incident ? incident.alerts : [alert]} label={incident && incident.alerts.length > 1 ? `Incident ${incident.id}` : alert.id} /></div>
+            <AlertActions alert={alert} incident={incident && incident.alerts.length > 1 ? incident : undefined} showResolve size="md" />
             <ol className="mt-3 space-y-0 border-l border-base-600 pl-4 text-xs">
               {alert.history.map((h, i) => (
                 <li key={i} className="relative pb-2.5">

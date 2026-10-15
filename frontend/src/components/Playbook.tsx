@@ -37,6 +37,7 @@ export function ResponseTimer({ alert, large = false }: { alert: Alert; large?: 
 
 /** SOP checklist for the alert type. Each tick is saved to the alert history through the service. */
 export function Playbook({ alert }: { alert: Alert }) {
+  const t = useT()
   const user = useAuth((s) => s.user)
   const [busy, setBusy] = useState('')
   if (!hasPlaybook(alert)) return null
@@ -68,6 +69,7 @@ export function Playbook({ alert }: { alert: Alert }) {
               <input type="checkbox" checked={done.includes(s.id)} disabled={busy === s.id} onChange={() => void toggle(s.id, s.label)} />
               <span className="font-mono text-[10px] text-ink-mute">{i + 1}</span>
               {s.label}
+              {s.mandatory ? <span className="ml-auto text-[9px] font-semibold text-crit" title={t('sop.mandatoryHint')}>*</span> : <span className="ml-auto text-[9px] text-ink-mute">{t('sop.optional')}</span>}
             </label>
           </li>
         ))}

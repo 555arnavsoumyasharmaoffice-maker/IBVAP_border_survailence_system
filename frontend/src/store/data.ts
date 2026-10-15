@@ -7,6 +7,7 @@ import { SEV_RANK, eligibleFor, existingIncidentSeverity, groupIncidents } from 
 import { isShelved, likelihood } from '@/lib/format'
 import { useUi } from './ui'
 import { useAuth } from './auth'
+import { audit } from '@/lib/audit'
 
 // Global data + real-time alert system. `start()` is called once at app level
 // (after login); every page reads alerts/cameras/zones from here.
@@ -55,7 +56,7 @@ interface DataState {
   refreshWatches: () => Promise<void>
   refreshSettings: () => Promise<void>
   ingest: (alert: Alert) => void
-  setStatus: (id: string, status: AlertStatus, note?: string, opts?: { by?: string; kind?: AlertHistoryEntry['kind'] }) => Promise<void>
+  setStatus: (id: string, status: AlertStatus, note?: string, opts?: { by?: string; kind?: AlertHistoryEntry['kind']; audit?: boolean }) => Promise<void>
   saveNotes: (id: string, notes: string) => Promise<void>
   flushPending: () => Promise<void>
   /** Apply a status to every eligible alert in the list (incident-level action). */
@@ -189,7 +190,7 @@ export const useData = create<DataState>((set, get) => {
           if (age >= AUTO_ESCALATE_MS && !autoEscalated.has(key)) {
             autoEscalated.add(key)
             const note = `Escalated to supervisor: not acknowledged within ${AUTO_ESCALATE_MS / 60_000} min`
-            for (const x of inc.alerts.filter((y) => y.status === 'NEW')) void get().setStatus(x.id, 'ESCALATED', note, { by: 'System (auto-escalation)', kind: 'auto-escalation' })
+            for (const x of inc.alerts.filter((y) => y.status === 'NEW')) void get().setStatus(x.id, 'ESCALATED', note, { by: 'System (auto-escalation)', kind: 'auto-escalation', audit: false })
             const user = useAuth.getState().user
             if (user) void service.logAudit({ user: 'System', role: user.role, category: 'ALERT', action: 'Auto-escalated to supervisor', target: a.id, details: note }).catch(() => {})
             get().notice(`Auto-escalated to supervisor: ${a.id}`)
@@ -234,6 +235,7 @@ export const useData = create<DataState>((set, get) => {
     async setStatus(id, status, note, opts = {}) {
       const by = opts.by ?? useAuth.getState().user?.name ?? 'Operator'
       const kind = opts.kind
+      if (opts.audit !== false) audit('ALERT', `Status: ${status}`, id, note ?? '')
       const queue = () => {
         const at = new Date().toISOString()
         const a = get().alerts.find((x) => x.id === id)
@@ -288,7 +290,9 @@ export const useData = create<DataState>((set, get) => {
 
     async setStatusMany(ids, status, note) {
       const wanted = new Set(ids)
-      for (const a of eligibleFor(status, get().alerts.filter((x) => wanted.has(x.id)))) await get().setStatus(a.id, status, note)
+      const list = eligibleFor(status, get().alerts.filter((x) => wanted.has(x.id)))
+      if (list.length) audit('ALERT', `Status: ${status}`, list.length > 1 ? `${list.length} alerts (${list.map((a) => a.id).join(', ')})` : list[0].id, note ?? '')
+      for (const a of list) await get().setStatus(a.id, status, note, { audit: false })
     },
 
     async setIncidentStatus(alertId, status, note) {

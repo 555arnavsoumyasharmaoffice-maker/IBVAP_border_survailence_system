@@ -14,6 +14,7 @@ export const SEV_RANK: Record<Severity, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, 
 export function incidentStatus(alerts: Alert[]): AlertStatus {
   if (alerts.some((a) => a.status === 'NEW')) return 'NEW'
   if (alerts.some((a) => a.status === 'ESCALATED')) return 'ESCALATED'
+  if (alerts.some((a) => a.status === 'ON_HOLD')) return 'ON_HOLD'
   if (alerts.every((a) => a.status === 'FALSE_ALARM')) return 'FALSE_ALARM'
   if (alerts.every((a) => a.status === 'RESOLVED' || a.status === 'FALSE_ALARM')) return 'RESOLVED'
   return 'ACKNOWLEDGED'
@@ -78,5 +79,6 @@ export function eligibleFor(status: AlertStatus, alerts: Alert[]): Alert[] {
   const closed = (a: Alert) => a.status === 'RESOLVED' || a.status === 'FALSE_ALARM'
   if (status === 'ACKNOWLEDGED') return alerts.filter((a) => a.status === 'NEW')
   if (status === 'ESCALATED') return alerts.filter((a) => !closed(a) && a.status !== 'ESCALATED')
+  if (status === 'ON_HOLD') return alerts.filter((a) => !closed(a) && a.status !== 'ON_HOLD')
   return alerts.filter((a) => !closed(a))
 }

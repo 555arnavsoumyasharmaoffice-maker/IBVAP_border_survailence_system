@@ -60,7 +60,8 @@ export type SuspiciousSubtype = 'WALL_SCALING' | 'FAKE_PLATE' | 'UNATTENDED_OBJE
 /** Vehicle classification from the detector. */
 export type VehicleClass = 'car' | 'truck' | 'bus' | 'motorcycle' | 'tractor' | 'jeep'
 
-export type AlertStatus = 'NEW' | 'ACKNOWLEDGED' | 'ESCALATED' | 'RESOLVED' | 'FALSE_ALARM'
+/** ON_HOLD: parked by the owner (waiting for information / a patrol), still open. */
+export type AlertStatus = 'NEW' | 'ACKNOWLEDGED' | 'ESCALATED' | 'ON_HOLD' | 'RESOLVED' | 'FALSE_ALARM'
 
 /** [x, y, w, h], all normalized 0-1 relative to the frame, origin top-left. */
 export type BBox = [number, number, number, number]
@@ -103,7 +104,7 @@ export interface AlertHistoryEntry {
 
 export type QrtStatus = 'ASSIGNED' | 'ACCEPTED' | 'ON_SCENE' | 'CLEARED'
 
-export type HistoryKind = 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation' | 'bookmark' | 'shared' | 'shelve' | 'unshelve' | 'qrt'
+export type HistoryKind = 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation' | 'bookmark' | 'shared' | 'shelve' | 'unshelve' | 'qrt' | 'assign'
 
 /**
  * Video clip around the alert moment. Offsets are seconds relative to `Alert.timestamp`

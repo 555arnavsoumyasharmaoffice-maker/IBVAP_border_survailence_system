@@ -5,6 +5,8 @@ import type {
 import type { DataService, DemoAlertSpec } from '../types'
 import { fetchBytes, sha256Hex } from '@/lib/evidence'
 import { watchAt } from '@/lib/geo'
+import { missingSteps } from '@/lib/playbooks'
+import { groupIncidents } from '@/lib/incidents'
 import {
   CLOTHING_COLORS, SUSPICIOUS, VEHICLE_CLASSES, VEHICLE_COLORS, faceSvg, isNightHour, pick, plateSvg, rand, randInt,
   randomPlate, seedAudit, seedNakas, seedBlacklist, seedEdgeNodes, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
@@ -589,6 +591,12 @@ export function createMockService(): DataService {
     async updateAlertStatus(id, status, by, note, at, kind) {
       requireLink()
       const a = findAlert(id)
+      // SOP gate (backend rule): resolving needs every mandatory playbook step ticked.
+      if (status === 'RESOLVED') {
+        const group = groupIncidents(alerts).find((i) => i.alerts.some((x) => x.id === id))?.alerts ?? [a]
+        const missing = missingSteps(group)
+        if (missing.length) throw new Error(`SOP incomplete: ${missing.join(', ')}`)
+      }
       a.status = status
       a.history.push({ status, at: at ?? new Date().toISOString(), by, note, ...(kind ? { kind } : {}) })
       if (!a.assignedTo || status === 'ESCALATED') a.assignedTo = status === 'ESCALATED' ? 'Insp. A. Rathore' : by
@@ -624,6 +632,16 @@ export function createMockService(): DataService {
       return later(a, 700)
     },
 
+    async assignAlerts(ids, owner, by) {
+      requireLink()
+      const out = ids.map(findAlert).map((a) => {
+        a.assignedTo = owner
+        a.history.push({ kind: 'assign', status: a.status, at: new Date().toISOString(), by, note: `Owner: ${owner}` })
+        emit(a)
+        return clone(a)
+      })
+      return later(out, 80)
+    },
     async updateQrtStatus(ids, status, by) {
       requireLink()
       const label = { ASSIGNED: 'Assigned', ACCEPTED: 'Accepted', ON_SCENE: 'On scene', CLEARED: 'Cleared' }[status]

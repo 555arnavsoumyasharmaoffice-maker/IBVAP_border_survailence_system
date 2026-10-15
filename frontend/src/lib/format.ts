@@ -35,7 +35,7 @@ export function fmtPlate(plate: string) {
 export const pct = (v: number) => `${Math.round(v * 100)}%`
 
 export const SEVERITIES: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
-export const STATUSES: AlertStatus[] = ['NEW', 'ACKNOWLEDGED', 'ESCALATED', 'RESOLVED', 'FALSE_ALARM']
+export const STATUSES: AlertStatus[] = ['NEW', 'ACKNOWLEDGED', 'ESCALATED', 'ON_HOLD', 'RESOLVED', 'FALSE_ALARM']
 export const ALERT_TYPES: AlertType[] = [
   'FENCE_INTRUSION', 'HUMAN_DETECTED', 'VEHICLE_DETECTED', 'ANPR_MATCH', 'FACE_MATCH',
   'LOITERING', 'NIGHT_MOVEMENT', 'SUSPICIOUS_ACTIVITY', 'CAMERA_OFFLINE', 'DRONE_SIGHTING',
@@ -57,6 +57,7 @@ export const STATUS_STYLE: Record<AlertStatus, string> = {
   NEW: 'bg-accent/15 text-accent border-accent/50',
   ACKNOWLEDGED: 'bg-base-700 text-ink-dim border-base-600',
   ESCALATED: 'bg-high/15 text-high border-high/50',
+  ON_HOLD: 'bg-violet-500/15 text-violet-300 border-violet-400/50',
   RESOLVED: 'bg-low/15 text-low border-low/50',
   FALSE_ALARM: 'bg-base-800 text-ink-mute border-base-600',
 }

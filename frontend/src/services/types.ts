@@ -83,6 +83,8 @@ export interface DataService {
   /** Relay a message to the Quick Reaction Team (SMS = secure SMS gateway, WHATSAPP = radio relay; name kept for compatibility). Logged in the alert history. */
   notifyQrt(id: string, channel: 'SMS' | 'WHATSAPP', message: string, by: string): Promise<Alert>
 
+  /** Set the owner of alerts (incident ownership). History kind "assign". */
+  assignAlerts(ids: string[], owner: string, by: string): Promise<Alert[]>
   /** QRT mobile view: Accept -> On scene -> Cleared. History kind "qrt". */
   updateQrtStatus(ids: string[], status: QrtStatus, by: string): Promise<Alert[]>
   /** Shelve (snooze) alerts for `minutes` with a mandatory reason. History kind "shelve". */

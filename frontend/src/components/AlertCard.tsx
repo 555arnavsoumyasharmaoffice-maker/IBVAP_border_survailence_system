@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowUpCircle, Ban, Check, CheckCheck, Layers } from 'lucide-react'
+import { ArrowUpCircle, Ban, Check, CheckCheck, Layers, Lock, PauseCircle, PlayCircle } from 'lucide-react'
+import { missingSteps } from '@/lib/playbooks'
 import type { Alert, AlertStatus, Incident } from '@/types'
 import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
@@ -23,6 +24,7 @@ export function AlertActions({ alert, incident, showResolve = false, size = 'sm'
   const status = incident?.status ?? alert.status
   const closed = status === 'RESOLVED' || status === 'FALSE_ALARM'
   const cls = size === 'sm' ? 'btn btn-sm' : 'btn'
+  const missing = showResolve && !closed ? missingSteps(incident?.alerts ?? [alert]) : []
   const apply = (next: AlertStatus) => (e: MouseEvent) => {
     e.stopPropagation()
     void (incident ? setMany(incident.alerts.map((a) => a.id), next) : setStatus(alert.id, next))
@@ -41,15 +43,32 @@ export function AlertActions({ alert, incident, showResolve = false, size = 'sm'
       {!closed && !(incident?.alerts ?? [alert]).some((a) => isShelved(a)) && (
         <ShelveButton alerts={incident?.alerts ?? [alert]} label={incident && incident.alerts.length > 1 ? `Incident ${incident.id}` : alert.id} className={cls} />
       )}
+      {!closed && size === 'md' && (
+        status === 'ON_HOLD' ? (
+          <button className={cls} onClick={apply('ACKNOWLEDGED')}>
+            <PlayCircle size={12} /> {t('act.resume')}
+          </button>
+        ) : (
+          <button className={cls} onClick={apply('ON_HOLD')} title={t('act.holdHint')}>
+            <PauseCircle size={12} /> {t('act.hold')}
+          </button>
+        )
+      )}
       {showResolve && (
         <button
           className={`${cls} btn-primary`}
-          disabled={closed || !canResolve}
-          title={canResolve ? undefined : 'Only Commander / Admin can resolve alerts'}
+          disabled={closed || !canResolve || missing.length > 0}
+          title={!canResolve ? 'Only Commander / Admin can resolve alerts' : missing.length ? `${t('sop.missing')}: ${missing.join(', ')}` : undefined}
           onClick={apply('RESOLVED')}
         >
           <CheckCheck size={12} /> {t('act.resolve')}
         </button>
+      )}
+      {missing.length > 0 && (
+        <div className="w-full text-[11px] text-med">
+          <Lock size={11} className="mr-1 inline" />
+          {t('sop.missing')}: {missing.join(' · ')}
+        </div>
       )}
     </div>
   )

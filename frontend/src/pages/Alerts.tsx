@@ -94,6 +94,7 @@ export default function Alerts() {
         <td className="max-w-52 truncate px-2 font-mono">{keyDetail(latest)}</td>
         <td className="px-2"><SeverityBadge severity={i.severity} /></td>
         <td className="px-2"><StatusBadge status={i.status} /></td>
+        <td className="max-w-28 truncate px-2 text-ink-dim">{latest.assignedTo ?? '-'}</td>
         <td className="px-2 py-1">{i.status === 'NEW' || i.status === 'ACKNOWLEDGED' ? <AlertActions alert={latest} incident={i} /> : <span className="text-ink-mute">-</span>}</td>
       </tr>
     )
@@ -234,6 +235,7 @@ export default function Alerts() {
                 <th className="px-2">Latest detail</th>
                 <th className="px-2">Severity</th>
                 <th className="px-2">Status</th>
+                <th className="px-2">{t('owner.label')}</th>
                 <th className="px-2">Actions (whole incident)</th>
               </tr>
             </thead>

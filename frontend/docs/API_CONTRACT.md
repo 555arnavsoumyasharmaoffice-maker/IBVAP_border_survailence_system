@@ -69,7 +69,9 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
 ```
 - `type`: `FENCE_INTRUSION | HUMAN_DETECTED | VEHICLE_DETECTED | ANPR_MATCH | FACE_MATCH | LOITERING | NIGHT_MOVEMENT | SUSPICIOUS_ACTIVITY | CAMERA_OFFLINE | DRONE_SIGHTING`
 - `severity`: `CRITICAL | HIGH | MEDIUM | LOW`
-- `status`: `NEW | ACKNOWLEDGED | ESCALATED | RESOLVED | FALSE_ALARM`
+- `status`: `NEW | ACKNOWLEDGED | ESCALATED | ON_HOLD | RESOLVED | FALSE_ALARM` (`ON_HOLD` = parked by its owner, still open;
+  resuming sets `ACKNOWLEDGED`).
+- `assignedTo` is the **owner** of the alert / incident. Set it explicitly with `POST /alerts/assign`.
 - `confirmFrames` (optional number): how many consecutive frames the detection was confirmed over ("why it fired").
   The UI derives a **likelihood band** from it: High = confidence >= 0.85 and >= 10 frames; Low = confidence < 0.7 or
   < 6 frames; otherwise Medium; poor `visibility` lowers it one band. Low-likelihood alerts never make a sound.
@@ -83,7 +85,7 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
   (first `ACKNOWLEDGED` entry `at`) - (`timestamp`), so always append, never overwrite.
 - `history[].note` is optional.
 - `history[].kind` is optional: absent / `"status"` = a status change; `"playbook"`, `"notify"`, `"evidence"`, `"bookmark"`,
-  `"shared"`, `"shelve"`, `"unshelve"`, `"qrt"`, `"auto-escalation"` log an operator / system action and carry the alert's current status unchanged.
+  `"shared"`, `"shelve"`, `"unshelve"`, `"qrt"`, `"assign"`, `"auto-escalation"` log an operator / system action and carry the alert's current status unchanged.
 - `history[].offsetSec` (only for `kind: "bookmark"`): clip position in seconds relative to `timestamp`.
 - `shelvedUntil` / `shelveReason` (optional): alarm-management shelving. While `shelvedUntil` is in the future the alert
   is hidden from the live feed and does not notify. When it passes, the dashboard calls `/alerts/unshelve` with
@@ -284,6 +286,7 @@ zones itself from the `detections` WebSocket channel, so operators can toggle th
 | GET | `/alerts/{id}` | | `Alert` |
 | PATCH | `/alerts/{id}/status` | `{ "status": "ACKNOWLEDGED", "by": "Ct. S. Meena", "note": "optional", "at": "optional ISO time", "kind": "optional" }` | updated `Alert` |
 | GET | `/cameras/{id}/tracks/{trackId}` | `?around=ISO` | `TrackPoint[]` `{ at, bbox, confidence, class }`, oldest first, sightings of that track within a few minutes of `around` (Alert Detail > Tracking) |
+| POST | `/alerts/assign` | `{ "ids": ["ALT-1"], "owner": "Ct. P. Gill", "by": "Insp. A. Rathore" }` | `Alert[]`: set `assignedTo`, history `kind: "assign"` |
 | POST | `/alerts/shelve` | `{ "ids": ["ALT-1"], "minutes": 30, "reason": "known patrol", "by": "..." }` (minutes 15/30/60, reason required) | `Alert[]`: set `shelvedUntil`, `shelveReason`, append history `kind: "shelve"` |
 | POST | `/alerts/unshelve` | `{ "ids": [...], "by": "...", "note": "optional" }` | `Alert[]`: `shelvedUntil: null`, history `kind: "unshelve"` |
 | GET | `/alerts/{id}/clip` | | `AlertClip` (`{ url, startOffsetSec, endOffsetSec }`), 404 if none |
@@ -320,6 +323,11 @@ On a status change the backend must: set `status`, append `{status, at: now, by,
   `evidence/export` only records that it happened: append a history entry with `kind: "evidence"`.
 - When `AppSettings.blurFacesInExports` is true, `snapshotUrl` / `clipUrl` requested with `?blur=1` should return a copy
   with non-watchlist faces blurred. (The mock cannot blur; the custody log records `faceBlurApplied: false`.)
+
+**SOP gate:** `PATCH /alerts/{id}/status` with `RESOLVED` must be rejected (`409`, message listing the missing steps)
+while any **mandatory** playbook step of the alert's incident is not ticked. Mandatory / optional steps are defined in
+`src/lib/playbooks.ts` (steps marked optional there may stay unticked). A step ticked on any alert of the incident counts.
+The dashboard disables Resolve and shows the missing steps.
 
 **Playbook:** add / remove `stepId` in `playbookDone` and append a history entry
 `{ kind: "playbook", status: <current>, at, by, note: "Done: Inform QRT" }`. The step lists live in the frontend
