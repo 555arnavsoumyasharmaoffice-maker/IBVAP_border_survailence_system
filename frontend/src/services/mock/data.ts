@@ -1,5 +1,5 @@
 import type {
-  AuditCategory, AuditEntry, BBox, BlacklistVehicle, Camera, DetectionModules, EdgeNode, Role, User, WatchlistPerson, Zone,
+  AuditCategory, AuditEntry, BBox, BlacklistVehicle, Camera, DetectionModules, EdgeNode, Naka, Role, User, WatchlistPerson, Zone,
 } from '@/types'
 
 // ---------- random helpers ----------
@@ -24,7 +24,7 @@ const svgUrl = (w: number, h: number, body: string) =>
 
 export function snapshotSvg(o: {
   night: boolean
-  kind: 'person' | 'vehicle' | 'none'
+  kind: 'person' | 'vehicle' | 'drone' | 'none'
   bbox?: BBox
   camName: string
   time: string
@@ -40,7 +40,11 @@ export function snapshotSvg(o: {
   for (let x = 10; x < W; x += 34) body += `<path d='M${x} 66V92' stroke='${o.night ? '#2c7a4b' : '#9ca3af'}' stroke-width='2'/>`
   if (o.bbox && o.kind !== 'none') {
     const [x, y, w, h] = [o.bbox[0] * W, o.bbox[1] * H, o.bbox[2] * W, o.bbox[3] * H]
-    if (o.kind === 'person') {
+    if (o.kind === 'drone') {
+      const cx = x + w / 2
+      const cy = y + h / 2
+      body += `<path d='M${cx - w} ${cy - h}L${cx + w} ${cy + h}M${cx + w} ${cy - h}L${cx - w} ${cy + h}' stroke='${fig === '#11161f' ? '#e5e7eb' : fig}' stroke-width='1.5'/><circle cx='${cx}' cy='${cy}' r='1.5' fill='#ef4444'/>`
+    } else if (o.kind === 'person') {
       body += `<circle cx='${x + w / 2}' cy='${y + h * 0.12}' r='${Math.min(w, h) * 0.3}' fill='${fig}'/>
 <rect x='${x + w * 0.2}' y='${y + h * 0.24}' width='${w * 0.6}' height='${h * 0.76}' rx='${w * 0.2}' fill='${fig}'/>`
     } else {
@@ -130,16 +134,19 @@ export const seedCameras = (): Camera[] => [
   cam('cam-04', 'Border Road KM 42', 'Jaisalmer-Tanot Road (RJ)', 27.4215, 70.5183, 'rtsp://10.21.9.42:554/stream1', {
     modules: { ...ALL, face: false, fence: false },
     visibility: 'dust',
+    status: 'offline', fps: 0, lastSeen: new Date(Date.now() - 47 * 60_000).toISOString(),
   }),
   cam('cam-05', 'BOP Kishangarh - Watch Tower', 'Kishangarh, Jaisalmer (RJ)', 27.8721, 70.5634, 'rtsp://10.21.7.5:554/stream2', {
     status: 'degraded', fps: 9, isNightMode: true, visibility: 'fog', minConfirmFrames: 8, modules: { ...ALL, anpr: false, face: false },
   }),
-  cam('cam-06', 'Check Post Hussainiwala', 'Hussainiwala, Ferozepur (PB)', 30.9981, 74.5472, 'rtsp://10.31.2.8:554/stream1'),
+  cam('cam-06', 'BOP Ajnala - River Cam', 'BOP Ajnala, Ravi riverbank, Amritsar (PB)', 31.8662, 74.6311, 'rtsp://10.31.2.8:554/stream1', {
+    modules: { ...ALL, anpr: false, face: false },
+  }),
   cam('cam-07', 'ICP Attari - Lane 2', 'Attari, Amritsar (PB)', 31.6042, 74.5731, 'http://10.32.1.15:8080/video', {
     modules: { ...ALL, fence: false },
   }),
-  cam('cam-08', 'BOP Hindumalkot - Fence North', 'Hindumalkot, Sri Ganganagar (RJ)', 30.1152, 73.9305, 'rtsp://10.23.3.3:554/stream1', {
-    status: 'offline', fps: 0, lastSeen: new Date(Date.now() - 47 * 60_000).toISOString(),
+  cam('cam-08', 'BOP Ajnala - Road Gate', 'BOP Ajnala, Ajnala-Ramdas road, Amritsar (PB)', 31.8571, 74.6478, 'rtsp://10.31.2.9:554/stream1', {
+    modules: { ...ALL, face: false },
   }),
 ]
 
@@ -160,7 +167,7 @@ export const seedZones = (): Zone[] => [
   zone({ id: 'zone-04', cameraId: 'cam-03', name: 'Check Post Barrier', type: 'line', points: [[0.3, 0.9], [0.72, 0.5]], severity: 'HIGH', classes: ['vehicle'] }),
   zone({ id: 'zone-05', cameraId: 'cam-05', name: 'Tower Perimeter', type: 'polygon', points: [[0.2, 0.5], [0.8, 0.5], [0.92, 0.92], [0.08, 0.92]], schedule: 'night-only', minDwellSec: 15 }),
   zone({ id: 'zone-06', cameraId: 'cam-06', name: 'Riverbed Crossing', type: 'polygon', points: [[0.5, 0.45], [0.95, 0.45], [0.95, 0.9], [0.55, 0.9]], severity: 'CRITICAL', classes: ['person'] }),
-  zone({ id: 'zone-07', cameraId: 'cam-08', name: 'Fence Line North', type: 'line', points: [[0.05, 0.55], [0.95, 0.5]], direction: 'forward' }),
+  zone({ id: 'zone-07', cameraId: 'cam-08', name: 'Gate Barrier Line', type: 'line', points: [[0.05, 0.55], [0.95, 0.5]], direction: 'forward' }),
 ]
 
 const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString()
@@ -235,7 +242,19 @@ const node = (n: Pick<EdgeNode, 'id' | 'name' | 'locationName' | 'cameraIds'> & 
 export const seedEdgeNodes = (): EdgeNode[] => [
   node({ id: 'edge-01', name: 'BOP Sundar Edge Node', locationName: 'BOP Sundar, Jaisalmer Sector (RJ)', cameraIds: ['cam-01', 'cam-02'], uptimeSec: 21 * 86_400 + 5 * 3600 }),
   node({ id: 'edge-02', name: 'Munabao Check Post Node', locationName: 'Munabao, Barmer (RJ)', cameraIds: ['cam-03'], cpuPct: 36, gpuPct: 44, ramPct: 47, diskPct: 63, tempC: 54, latencyMs: 110, bandwidthMbps: 1.8, uptimeSec: 6 * 86_400 }),
-  node({ id: 'edge-03', name: 'Kishangarh Tower Node', locationName: 'Kishangarh, Jaisalmer (RJ)', cameraIds: ['cam-04', 'cam-05'], status: 'degraded', cpuPct: 93, gpuPct: 97, ramPct: 81, diskPct: 58, tempC: 84, processingFps: 9.4, latencyMs: 310, bandwidthMbps: 0.9, uptimeSec: 37 * 3600, modelVersion: 'yolo11s-ibvap-1.4.1' }),
-  node({ id: 'edge-04', name: 'Ferozepur Sector Node', locationName: 'Hussainiwala / Attari (PB)', cameraIds: ['cam-06', 'cam-07'], cpuPct: 57, gpuPct: 71, ramPct: 66, diskPct: 92, tempC: 63, latencyMs: 55, bandwidthMbps: 4.6, uptimeSec: 48 * 86_400 }),
-  node({ id: 'edge-05', name: 'Hindumalkot Node', locationName: 'Hindumalkot, Sri Ganganagar (RJ)', cameraIds: ['cam-08'], status: 'offline', cpuPct: 0, gpuPct: 0, ramPct: 0, tempC: 0, processingFps: 0, latencyMs: 0, bandwidthMbps: 0, uptimeSec: 0, lastHeartbeat: new Date(Date.now() - 47 * 60_000).toISOString() }),
+  node({ id: 'edge-03', name: 'Kishangarh Tower Node', locationName: 'Kishangarh, Jaisalmer (RJ)', cameraIds: ['cam-05'], status: 'degraded', cpuPct: 93, gpuPct: 97, ramPct: 81, diskPct: 58, tempC: 84, processingFps: 9.4, latencyMs: 310, bandwidthMbps: 0.9, uptimeSec: 37 * 3600, modelVersion: 'yolo11s-ibvap-1.4.1' }),
+  node({ id: 'edge-04', name: 'ICP Attari Node', locationName: 'Attari, Amritsar (PB)', cameraIds: ['cam-07'], cpuPct: 57, gpuPct: 71, ramPct: 66, diskPct: 92, tempC: 63, latencyMs: 55, bandwidthMbps: 4.6, uptimeSec: 48 * 86_400 }),
+  node({ id: 'edge-06', name: 'BOP Ajnala Edge Node', locationName: 'BOP Ajnala, Amritsar (PB)', cameraIds: ['cam-06', 'cam-08'], cpuPct: 48, gpuPct: 62, ramPct: 55, diskPct: 41, tempC: 58, latencyMs: 70, bandwidthMbps: 3.2, uptimeSec: 12 * 86_400 }),
+  node({ id: 'edge-05', name: 'Border Road KM 42 Relay', locationName: 'Jaisalmer-Tanot Road (RJ)', cameraIds: ['cam-04'], status: 'offline', cpuPct: 0, gpuPct: 0, ramPct: 0, tempC: 0, processingFps: 0, latencyMs: 0, bandwidthMbps: 0, uptimeSec: 0, lastHeartbeat: new Date(Date.now() - 47 * 60_000).toISOString() }),
+]
+
+export const seedNakas = (): Naka[] => [
+  { id: 'nk-01', name: 'Joint Naka - Ajnala Road', lat: 31.8489, lng: 74.6702, agency: 'Punjab Police + BSF' },
+  { id: 'nk-02', name: 'Joint Naka - Bhindi Aulakh', lat: 31.8302, lng: 74.6155, agency: 'Punjab Police' },
+  { id: 'nk-03', name: 'Joint Naka - Sahowal Bridge', lat: 31.8851, lng: 74.6604, agency: 'Punjab Police + BSF' },
+  { id: 'nk-04', name: 'Joint Naka - Chogawan Chowk', lat: 31.7349, lng: 74.6236, agency: 'Punjab Police' },
+  { id: 'nk-05', name: 'Joint Naka - Ramdas Road', lat: 31.9312, lng: 74.7398, agency: 'Punjab Police' },
+  { id: 'nk-06', name: 'Joint Naka - Attari Village', lat: 31.5998, lng: 74.6016, agency: 'Punjab Police + BSF' },
+  { id: 'nk-07', name: 'Joint Naka - Gharinda', lat: 31.6352, lng: 74.6637, agency: 'Punjab Police' },
+  { id: 'nk-08', name: 'Joint Naka - Fatehgarh Churian Road', lat: 31.8609, lng: 74.9421, agency: 'Punjab Police' },
 ]

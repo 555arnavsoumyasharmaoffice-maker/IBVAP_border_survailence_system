@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Map as MapIcon, Save, Video } from 'lucide-react'
+import { ArrowLeft, Drone, Map as MapIcon, Save, Video } from 'lucide-react'
 import type { Alert, WatchlistPerson } from '@/types'
 import { service } from '@/services'
 import { useData } from '@/store/data'
@@ -16,6 +16,7 @@ import { NotifyQrt, Playbook, ResponseTimer } from '@/components/Playbook'
 import { hasPlaybook } from '@/lib/playbooks'
 import { EvidencePanel } from '@/components/EvidencePanel'
 import { ClipPlayer } from '@/components/ClipPlayer'
+import { InWatchTag, ShareNakaButton } from '@/components/DroneWatch'
 import { Chip, EmptyState, PlateTag, SeverityBadge, Skeleton, StatusBadge, TYPE_ICON, useNow } from '@/components/ui'
 
 const DAY = 86_400_000
@@ -121,7 +122,23 @@ export default function AlertDetail() {
         <span className="font-mono text-xs text-ink-mute">{alert.id}</span>
         <SeverityBadge severity={alert.severity} />
         <StatusBadge status={alert.status} />
+        <InWatchTag alert={alert} />
         <div className="ml-auto flex gap-2">
+          {alert.type === 'DRONE_SIGHTING' && (
+            <Link className="btn btn-sm btn-primary" to={`/map?drone=${alert.id}`}>
+              <Drone size={12} /> {t('drone.start')}
+            </Link>
+          )}
+          {alert.details.droneWatchId && camera && (
+            <ShareNakaButton
+              target={{ alertIds: incident ? incident.alerts.map((a) => a.id) : [alert.id] }}
+              label={incident && incident.alerts.length > 1 ? `Incident ${incident.id}` : alert.id}
+              lat={camera.lat}
+              lng={camera.lng}
+              watchId={alert.details.droneWatchId}
+              sharedAt={[...alert.history].reverse().find((h) => h.kind === 'shared')?.at}
+            />
+          )}
           <Link className="btn btn-sm" to={`/cameras?cam=${alert.cameraId}`}>
             <Video size={12} /> {t('act.viewCamera')}
           </Link>

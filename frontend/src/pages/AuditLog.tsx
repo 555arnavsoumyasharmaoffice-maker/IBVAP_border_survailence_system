@@ -20,6 +20,7 @@ const CATEGORY: Record<AuditCategory, { label: string; style: string }> = {
   EVIDENCE: { label: 'Evidence', style: 'border-low/50 bg-low/15 text-low' },
   SETTINGS: { label: 'Settings', style: 'border-high/50 bg-high/15 text-high' },
   ALERT: { label: 'Alert', style: 'border-crit/50 bg-crit/15 text-crit' },
+  DRONE: { label: 'Drone watch', style: 'border-accent/50 bg-accent/15 text-accent' },
 }
 
 export default function AuditLog() {

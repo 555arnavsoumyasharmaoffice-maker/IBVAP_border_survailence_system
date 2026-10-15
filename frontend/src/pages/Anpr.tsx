@@ -10,6 +10,7 @@ import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
 import { MiniMap } from '@/components/MiniMap'
 import { Chip, EmptyState, ErrorState, Field, InlineWarning, Modal, PageHeader, PlateTag, SkeletonRows, Tabs } from '@/components/ui'
+import { InWatchTag, ShareNakaButton } from '@/components/DroneWatch'
 
 const REASON_LABEL: Record<BlacklistReason, string> = { STOLEN: 'Stolen', SMUGGLING: 'Suspected smuggling', WANTED: 'Wanted', OTHER: 'Other' }
 const LEVEL_STYLE: Record<Level, string> = {
@@ -93,6 +94,7 @@ function ReadsTab() {
   const [history, setHistory] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null)
   const camName = useMemo(() => Object.fromEntries(cameras.map((c) => [c.id, c.name])), [cameras])
+  const camAt = useMemo(() => Object.fromEntries(cameras.map((c) => [c.id, c])), [cameras])
   const fromIso = from ? new Date(`${from}T00:00:00`).toISOString() : undefined
   const toIso = to ? new Date(`${to}T23:59:59`).toISOString() : undefined
 
@@ -224,6 +226,19 @@ function ReadsTab() {
                           <button className="btn btn-sm" onClick={() => setEditing({ id: r.id, value: r.plate })}>
                             <Pencil size={11} /> Correct
                           </button>
+                        </>
+                      )}
+                      {r.droneWatchId && camAt[r.cameraId] && (
+                        <>
+                          <InWatchTag alert={{ details: { droneWatchId: r.droneWatchId } }} compact />
+                          <ShareNakaButton
+                            target={{ plateReadId: r.id }}
+                            label={`${r.plate} @ ${camName[r.cameraId]}`}
+                            lat={camAt[r.cameraId].lat}
+                            lng={camAt[r.cameraId].lng}
+                            watchId={r.droneWatchId}
+                            sharedAt={r.sharedAt}
+                          />
                         </>
                       )}
                     </div>

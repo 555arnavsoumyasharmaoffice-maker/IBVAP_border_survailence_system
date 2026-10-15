@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { Circle, CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import L, { type LatLngTuple, type Marker as LeafletMarker } from 'leaflet'
-import { Flame, Maximize2, WifiOff, X } from 'lucide-react'
-import type { Alert, AlertType, Camera } from '@/types'
+import { Drone, Flame, Maximize2, ScanLine, WifiOff, X } from 'lucide-react'
+import type { Alert, AlertType, Camera, DroneWatch } from '@/types'
+import { service } from '@/services'
+import { useAuth } from '@/store/auth'
+import { audit } from '@/lib/audit'
+import { distanceKm } from '@/lib/geo'
+import { fmtLeft, nearbyNakas, useActiveWatches } from '@/components/DroneWatch'
 import { useData } from '@/store/data'
 import { ALERT_TYPES, SEV, SEVERITIES, fmtTime, keyDetail, relTime } from '@/lib/format'
 import { BORDER_LINE } from '@/lib/border'
@@ -24,13 +29,13 @@ const PULSE_MS = 45_000
 
 // Icons are cached so Leaflet does not rebuild the marker element on every render.
 const iconCache = new Map<string, L.DivIcon>()
-function pinIcon(color: string, pulse?: string) {
-  const key = `${color}|${pulse ?? ''}`
+function pinIcon(color: string, pulse?: string, inWatch = false) {
+  const key = `${color}|${pulse ?? ''}|${inWatch}`
   let icon = iconCache.get(key)
   if (!icon) {
     icon = L.divIcon({
       className: '',
-      html: `<div class="cam-pin ${pulse ? 'alerting' : ''}" style="background:${pulse ?? color};--pulse:${pulse ?? 'transparent'}"></div>`,
+      html: `<div class="cam-pin ${pulse ? 'alerting' : ''} ${inWatch ? 'in-watch' : ''}" style="background:${pulse ?? color};--pulse:${pulse ?? 'transparent'}"></div>`,
       iconSize: [16, 16],
       iconAnchor: [8, 8],
       popupAnchor: [0, -10],
@@ -38,6 +43,172 @@ function pinIcon(color: string, pulse?: string) {
     iconCache.set(key, icon)
   }
   return icon
+}
+
+function nakaIcon(inside: boolean) {
+  const key = `naka|${inside}`
+  let icon = iconCache.get(key)
+  if (!icon) {
+    icon = L.divIcon({ className: '', html: `<div class="naka-pin ${inside ? 'inside' : ''}"></div>`, iconSize: [11, 11], iconAnchor: [6, 6] })
+    iconCache.set(key, icon)
+  }
+  return icon
+}
+
+function MapClick({ onClick }: { onClick: (lat: number, lng: number) => void }) {
+  useMapEvents({ click: (e) => onClick(e.latlng.lat, e.latlng.lng) })
+  return null
+}
+
+function FlyToPoint({ point }: { point?: { lat: number; lng: number; key: string } }) {
+  const map = useMap()
+  useEffect(() => {
+    if (point) map.flyTo([point.lat, point.lng], 12, { duration: 1.2 })
+  }, [point?.key]) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
+}
+
+const RADII = [1, 2, 5] as const
+const DURATIONS = [2, 4, 6] as const
+
+/** Drone-sighting tool: place a point, pick radius + duration, start a watch. */
+function DronePanel({ draft, linkedAlertId, onCancel, onDone }: {
+  draft: { lat: number; lng: number } | null
+  linkedAlertId: string | null
+  onCancel: () => void
+  onDone: (w: DroneWatch) => void
+}) {
+  const t = useT()
+  const user = useAuth((s) => s.user)
+  const [radiusKm, setRadius] = useState<DroneWatch['radiusKm']>(2)
+  const [durationH, setDuration] = useState<number>(4)
+  const [reason, setReason] = useState(linkedAlertId ? `Drone sighting ${linkedAlertId}` : 'Drone sighting reported by post')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const start = async () => {
+    if (!draft) return
+    setBusy(true)
+    setErr('')
+    try {
+      const w = await service.createDroneWatch({ lat: draft.lat, lng: draft.lng, radiusKm, durationH, reason, linkedAlertId, createdBy: user?.name ?? 'Operator' })
+      audit('DRONE', 'Drone watch started', w.id, `${radiusKm} km for ${durationH} h at ${draft.lat.toFixed(4)}, ${draft.lng.toFixed(4)}${linkedAlertId ? `, alert ${linkedAlertId}` : ''}`)
+      await useData.getState().refreshWatches()
+      onDone(w)
+    } catch {
+      setErr('Not started: backend not reachable')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="space-y-2 border-b border-accent/40 bg-accent/5 p-2 text-xs">
+      <div className="flex items-center gap-1.5">
+        <Drone size={14} className="text-accent" />
+        <span className="panel-title text-accent">{t('drone.mark')}</span>
+        <button className="ml-auto text-ink-mute hover:text-ink" aria-label="Cancel" onClick={onCancel}>
+          <X size={14} />
+        </button>
+      </div>
+      {!draft ? (
+        <div className="text-ink-dim">{t('drone.clickMap')}</div>
+      ) : (
+        <>
+          <div className="font-mono text-[10px] text-ink-dim">
+            {draft.lat.toFixed(4)}, {draft.lng.toFixed(4)}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-16 text-ink-mute">{t('drone.radius')}</span>
+            {RADII.map((r) => (
+              <button key={r} className={`btn btn-sm font-mono ${radiusKm === r ? 'btn-primary' : ''}`} onClick={() => setRadius(r)}>
+                {r} km
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-16 text-ink-mute">{t('drone.duration')}</span>
+            {DURATIONS.map((d) => (
+              <button key={d} className={`btn btn-sm font-mono ${durationH === d ? 'btn-primary' : ''}`} onClick={() => setDuration(d)}>
+                {d} h
+              </button>
+            ))}
+          </div>
+          <input className="field w-full" value={reason} onChange={(e) => setReason(e.target.value)} aria-label={t('drone.reason')} />
+          <button className="btn btn-primary w-full" disabled={busy || !reason.trim()} onClick={() => void start()}>
+            <Drone size={13} /> {t('drone.start')}
+          </button>
+          {err && <div className="text-crit">{err}</div>}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Active watch: countdown, cameras / ANPR points inside, nearby nakas. */
+function WatchInfo({ watch, cameras, now }: { watch: DroneWatch; cameras: Camera[]; now: number }) {
+  const t = useT()
+  const user = useAuth((s) => s.user)
+  const nakas = useData((s) => s.nakas)
+  const inside = cameras.filter((c) => distanceKm(c.lat, c.lng, watch.lat, watch.lng) <= watch.radiusKm)
+  const near = nearbyNakas(nakas, watch.lat, watch.lng, watch)
+  const end = async () => {
+    try {
+      await service.endDroneWatch(watch.id, user?.name ?? 'Operator')
+      audit('DRONE', 'Drone watch ended', watch.id, 'ended early by operator')
+      await useData.getState().refreshWatches()
+    } catch {
+      /* link down: the watch stays active */
+    }
+  }
+  return (
+    <div className="space-y-1.5 border-b border-accent/40 bg-accent/5 p-2 text-xs">
+      <div className="flex items-center gap-1.5">
+        <Drone size={14} className="animate-pulse text-accent" />
+        <span className="font-semibold text-accent">
+          {t('drone.active')} {watch.radiusKm} km
+        </span>
+        <span className="font-mono text-[11px]">
+          {fmtLeft(Date.parse(watch.expiresAt) - now)} {t('drone.left')}
+        </span>
+        <button className="btn btn-sm ml-auto" onClick={() => void end()}>
+          {t('drone.end')}
+        </button>
+      </div>
+      <div className="truncate text-[11px] text-ink-dim" title={watch.reason}>
+        {watch.reason}
+        {watch.linkedAlertId && (
+          <>
+            {' · '}
+            <Link to={`/alerts/${watch.linkedAlertId}`}>{watch.linkedAlertId}</Link>
+          </>
+        )}
+      </div>
+      <div>
+        <div className="text-[10px] tracking-wide text-ink-mute uppercase">{t('drone.camsInside')}</div>
+        {inside.length ? (
+          inside.map((c) => (
+            <div key={c.id} className="flex items-center gap-1.5 truncate">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-accent" />
+              <span className="truncate">{c.name}</span>
+              {c.modules.anpr && <ScanLine size={11} className="shrink-0 text-accent" aria-label="ANPR" />}
+            </div>
+          ))
+        ) : (
+          <div className="text-ink-mute">-</div>
+        )}
+      </div>
+      <div>
+        <div className="text-[10px] tracking-wide text-ink-mute uppercase">{t('drone.nakas')}</div>
+        {near.map((n) => (
+          <div key={n.id} className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 shrink-0 rotate-45 ${n.inside ? 'bg-accent' : 'bg-blue-900 ring-1 ring-blue-300'}`} />
+            <span className="min-w-0 flex-1 truncate">{n.name}</span>
+            {n.inside && <span className="text-[9px] font-semibold text-accent uppercase">{t('drone.inside')}</span>}
+            <span className="font-mono text-[10px] text-ink-mute">{n.km.toFixed(1)} km</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function FitCameras({ cameras }: { cameras: Camera[] }) {
@@ -109,6 +280,19 @@ export default function MapView() {
   const now = useNow(2000)
   const [params, setParams] = useSearchParams()
   const { cameras, alerts, loading } = useData()
+  const nakas = useData((s) => s.nakas)
+  const activeWatches = useActiveWatches()
+  const linkedAlertId = params.get('drone')
+  const watchParam = params.get('watch')
+  const [marking, setMarking] = useState(!!linkedAlertId)
+  const [draft, setDraft] = useState<{ lat: number; lng: number } | null>(null)
+  const [flyPoint, setFlyPoint] = useState<{ lat: number; lng: number; key: string }>()
+  const focusWatch = activeWatches.find((w) => w.id === watchParam) ?? activeWatches[0]
+  useEffect(() => {
+    const w = activeWatches.find((x) => x.id === watchParam)
+    if (w) setFlyPoint({ lat: w.lat, lng: w.lng, key: w.id })
+  }, [watchParam, activeWatches])
+  const inWatch = (lat: number, lng: number) => activeWatches.some((w) => distanceKm(lat, lng, w.lat, w.lng) <= w.radiusKm)
   const [type, setType] = useState<AlertType | ''>('')
   const [win, setWin] = useState<WindowId>('24h')
   const [heat, setHeat] = useState(false)
@@ -165,7 +349,7 @@ export default function MapView() {
 
   return (
     <div className="flex h-full gap-2 p-2">
-      <div className="panel relative min-w-0 flex-1 overflow-hidden">
+      <div className={`panel relative min-w-0 flex-1 overflow-hidden ${marking ? 'map-marking' : ''}`}>
         <MapContainer center={[28.6, 72.3]} zoom={6} className="h-full w-full">
           <TileLayer
             url={TILE_URL}
@@ -177,6 +361,24 @@ export default function MapView() {
           />
           <FitCameras cameras={cameras} />
           <FlyTo camera={selected} />
+          <FlyToPoint point={flyPoint} />
+          {marking && <MapClick onClick={(lat, lng) => setDraft({ lat, lng })} />}
+
+          {activeWatches.map((w) => (
+            <Circle key={w.id} center={[w.lat, w.lng]} radius={w.radiusKm * 1000} pathOptions={{ color: '#06b6d4', weight: 2, dashArray: '6 4', fillColor: '#06b6d4', fillOpacity: 0.12 }}>
+              <Tooltip sticky>
+                {t('drone.active')} {w.radiusKm} km · {fmtLeft(Date.parse(w.expiresAt) - now)} {t('drone.left')}
+              </Tooltip>
+            </Circle>
+          ))}
+          {draft && <Circle center={[draft.lat, draft.lng]} radius={2000} interactive={false} pathOptions={{ color: '#06b6d4', weight: 1.5, fillOpacity: 0.06 }} />}
+          {nakas.map((n) => (
+            <Marker key={n.id} position={[n.lat, n.lng]} icon={nakaIcon(inWatch(n.lat, n.lng))}>
+              <Tooltip direction="top" offset={[0, -6]}>
+                {n.name} · {n.agency}
+              </Tooltip>
+            </Marker>
+          ))}
 
           <Polyline positions={BORDER_LINE} pathOptions={{ color: '#f5b40b', weight: 2.5, dashArray: '10 8', opacity: 0.9 }}>
             <Tooltip sticky>{t('map.border')}</Tooltip>
@@ -202,7 +404,7 @@ export default function MapView() {
             <Marker
               key={c.id}
               position={[c.lat, c.lng]}
-              icon={pinIcon(STATUS_COLOR[c.status], pulse[c.id])}
+              icon={pinIcon(STATUS_COLOR[c.status], pulse[c.id], inWatch(c.lat, c.lng))}
               zIndexOffset={pulse[c.id] ? 1000 : 0}
               ref={(m) => {
                 if (m) markers.current[c.id] = m
@@ -237,6 +439,9 @@ export default function MapView() {
             <span className="h-0 w-4 border-t-2 border-dashed border-med" /> {t('map.border')}
           </span>
           <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rotate-45 bg-blue-900 ring-1 ring-blue-300" /> Police naka
+          </span>
+          <span className="flex items-center gap-1">
             Pulse = new alert:
             {SEVERITIES.map((s) => (
               <span key={s} className={`h-2 w-2 rounded-full ${SEV[s].bg}`} title={t(`sev.${s}`)} />
@@ -249,6 +454,17 @@ export default function MapView() {
         <div className="space-y-2 border-b border-base-700 p-2">
           <div className="flex items-center justify-between">
             <span className="panel-title">{t('map.sites')}</span>
+            <button
+              className={`btn btn-sm ml-auto mr-1 ${marking ? 'btn-primary' : ''}`}
+              aria-pressed={marking}
+              onClick={() => {
+                setMarking((m) => !m)
+                setDraft(null)
+              }}
+              title={t('drone.mark')}
+            >
+              <Drone size={12} /> {t('drone.mark')}
+            </button>
             <button
               className={`btn btn-sm ${heat ? 'btn-primary' : ''}`}
               aria-pressed={heat}
@@ -274,6 +490,23 @@ export default function MapView() {
             </div>
           </div>
         </div>
+
+        {marking && (
+          <DronePanel
+            draft={draft}
+            linkedAlertId={linkedAlertId}
+            onCancel={() => {
+              setMarking(false)
+              setDraft(null)
+            }}
+            onDone={(w) => {
+              setMarking(false)
+              setDraft(null)
+              setParams({ watch: w.id })
+            }}
+          />
+        )}
+        {!marking && focusWatch && <WatchInfo watch={focusWatch} cameras={cameras} now={now} />}
 
         {selected && (
           <div className="border-b border-base-700 p-2">

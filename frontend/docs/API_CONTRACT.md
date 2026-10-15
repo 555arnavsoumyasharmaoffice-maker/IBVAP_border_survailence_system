@@ -63,7 +63,7 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
   "history": [{ "status": "NEW", "at": "2026-10-13T18:04:56.000Z", "by": "AI Engine" }]
 }
 ```
-- `type`: `FENCE_INTRUSION | HUMAN_DETECTED | VEHICLE_DETECTED | ANPR_MATCH | FACE_MATCH | LOITERING | NIGHT_MOVEMENT | SUSPICIOUS_ACTIVITY | CAMERA_OFFLINE`
+- `type`: `FENCE_INTRUSION | HUMAN_DETECTED | VEHICLE_DETECTED | ANPR_MATCH | FACE_MATCH | LOITERING | NIGHT_MOVEMENT | SUSPICIOUS_ACTIVITY | CAMERA_OFFLINE | DRONE_SIGHTING`
 - `severity`: `CRITICAL | HIGH | MEDIUM | LOW`
 - `status`: `NEW | ACKNOWLEDGED | ESCALATED | RESOLVED | FALSE_ALARM`
 - `confirmFrames` (optional number): how many consecutive frames the detection was confirmed over ("why it fired").
@@ -77,7 +77,7 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
   (first `ACKNOWLEDGED` entry `at`) - (`timestamp`), so always append, never overwrite.
 - `history[].note` is optional.
 - `history[].kind` is optional: absent / `"status"` = a status change; `"playbook"`, `"notify"`, `"evidence"`, `"bookmark"`,
-  `"auto-escalation"` log an operator / system action and carry the alert's current status unchanged.
+  `"shared"`, `"auto-escalation"` log an operator / system action and carry the alert's current status unchanged.
 - `history[].offsetSec` (only for `kind: "bookmark"`): clip position in seconds relative to `timestamp`.
 - `playbookDone` (optional string array): ids of ticked response-playbook steps (`s1`, `s2`, ...).
 - `qrtNotifiedAt` (optional): when the Quick Reaction Team was last notified.
@@ -93,6 +93,7 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
 | `dwellTimeSec` | LOITERING |
 | `objectCount` | HUMAN_DETECTED, NIGHT_MOVEMENT, FENCE_INTRUSION |
 | `description` | any |
+| `droneWatchId`, `severityRaisedFrom` | any person / vehicle type inside an active drone watch (see Drone watch) |
 
 Plates are stored **without spaces, uppercase** (`RJ14AB1234`); the UI formats them.
 
@@ -351,6 +352,29 @@ correction turns a read into a blacklisted plate.
 
 Every watchlist match (except category `AUTHORISED`) should also create a `FACE_MATCH` alert and link it via `alertId`.
 
+### Drone watch and police nakas
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/drone-watches` | | `DroneWatch[]` (active and recently expired, newest first) |
+| POST | `/drone-watches` | `{ "lat": 31.866, "lng": 74.631, "radiusKm": 2, "durationH": 4, "reason": "text", "linkedAlertId": "ALT-00921", "createdBy": "Ct. S. Meena" }` | `DroneWatch` |
+| POST | `/drone-watches/{id}/end` | `{ "by": "Insp. A. Rathore" }` | `DroneWatch` with `endedAt` |
+| GET | `/nakas` | | `Naka[]` |
+| POST | `/nakas/share` | `{ "alertIds": ["ALT-1"], "plateReadId": "pr-9", "nakaIds": ["nk-01"], "by": "..." }` (either target) | 204 |
+
+```json
+{ "id": "dw-12", "lat": 31.8662, "lng": 74.6311, "radiusKm": 2, "startedAt": "2026-10-15T21:02:00Z", "expiresAt": "2026-10-16T01:02:00Z",
+  "reason": "Drone sighting ALT-00921", "linkedAlertId": "ALT-00921", "createdBy": "Ct. S. Meena", "endedAt": null }
+{ "id": "nk-01", "name": "Joint Naka - Ajnala Road", "lat": 31.8489, "lng": 74.6702, "agency": "Punjab Police + BSF" }
+```
+- `radiusKm` is 1, 2 or 5; `durationH` 2, 4 or 6. A watch is active while `endedAt` is null and `expiresAt` is in the future.
+- **Backend rule:** while a watch is active, every person / vehicle alert (`HUMAN_DETECTED, VEHICLE_DETECTED, NIGHT_MOVEMENT,
+  LOITERING, SUSPICIOUS_ACTIVITY, FENCE_INTRUSION, ANPR_MATCH`) from a camera within `radiusKm` (great-circle distance)
+  gets `details.droneWatchId` and is raised one severity level (`severityRaisedFrom` = the original). Plate reads from
+  such cameras get `droneWatchId`. The UI shows these as "In drone watch area".
+- `nakas/share`: hand-off to police (SMS / radio gateway). For each alert append a history entry `kind: "shared"`;
+  for a plate read set `sharedAt`. Broadcast updated alerts on the WebSocket.
+- `PlateRead` gains optional `droneWatchId` and `sharedAt`.
+
 ### Edge node health
 | Method | Path | Body | Returns |
 |---|---|---|---|
@@ -383,7 +407,7 @@ latency > 250 ms, CPU >= 90 %.
   "category": "EVIDENCE", "action": "Evidence exported", "target": "ALT-00733", "details": "1 alert(s), 3 files"
 }
 ```
-`category`: `AUTH | CAMERA_VIEW | ZONE | WATCHLIST | BLACKLIST | ANPR | EXPORT | EVIDENCE | SETTINGS | ALERT`.
+`category`: `AUTH | CAMERA_VIEW | ZONE | WATCHLIST | BLACKLIST | ANPR | EXPORT | EVIDENCE | SETTINGS | ALERT | DRONE`.
 
 The dashboard POSTs an entry for: sign-in / sign-out (incl. auto-logout), opening a camera's live view, zone
 create / update / delete, watchlist and blacklist edits, face-match review, plate correction, CSV / report / evidence

@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertClip, AlertHistoryEntry, HistoryKind, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
+  Alert, AlertClip, AlertHistoryEntry, DroneWatch, HistoryKind, Naka, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -66,6 +66,15 @@ export interface DataService {
   getAlertClip(id: string): Promise<AlertClip>
   /** Append a non-status entry to the alert history (bookmark, shared, ...). */
   addAlertHistory(id: string, entry: { kind: HistoryKind; note: string; by: string; offsetSec?: number }): Promise<Alert>
+
+  /** Drone drop watches (active and recent). */
+  getDroneWatches(): Promise<DroneWatch[]>
+  createDroneWatch(w: Omit<DroneWatch, 'id' | 'startedAt' | 'expiresAt' | 'endedAt'> & { durationH: number }): Promise<DroneWatch>
+  endDroneWatch(id: string, by: string): Promise<DroneWatch>
+  /** Police / joint nakas that can receive shared alerts. */
+  getNakas(): Promise<Naka[]>
+  /** Share alerts or a plate read with nakas (alerts get a history entry with kind "shared"). */
+  shareWithNaka(target: { alertIds?: string[]; plateReadId?: string }, nakaIds: string[], by: string): Promise<void>
 
   /** Hashes recorded at capture time, used to verify evidence integrity. */
   getEvidenceRecord(id: string): Promise<EvidenceRecord>

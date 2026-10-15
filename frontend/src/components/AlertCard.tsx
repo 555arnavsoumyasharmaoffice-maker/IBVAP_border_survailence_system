@@ -8,6 +8,7 @@ import { useCan } from '@/store/auth'
 import { SEV, isLowVisibility, keyDetail, relTime, whyFired } from '@/lib/format'
 import { useT } from '@/i18n'
 import { StatusBadge, TYPE_ICON } from './ui'
+import { InWatchTag } from './DroneWatch'
 
 /**
  * Workflow buttons. Operators: acknowledge / escalate / false alarm. Commander+: resolve.
@@ -92,6 +93,7 @@ export function AlertCard({ alert, incident, now, compact = false }: { alert: Al
             <div className="truncate text-ink-dim">{camera?.name ?? alert.cameraId}</div>
             <div className="truncate font-mono text-ink">{detail || '-'}</div>
             <div className="truncate text-[10px] text-ink-mute" title="Why this alert fired">
+              {alert.details.droneWatchId && <span className="mr-1"><InWatchTag alert={alert} compact /></span>}
               {isLowVisibility(alert.visibility) && <span className="mr-1 rounded bg-med/20 px-1 font-semibold text-med">LOW VISIBILITY</span>}
               {whyFired(alert).join(' · ')}
             </div>

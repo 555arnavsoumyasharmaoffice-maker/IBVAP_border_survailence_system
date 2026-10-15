@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
-  Car, Fence, Inbox, Moon, ScanFace, ScanLine, Timer, TriangleAlert, User, VideoOff, X, Activity, WifiOff,
+  Car, Fence, Inbox, Moon, ScanFace, ScanLine, Timer, TriangleAlert, User, Drone, VideoOff, X, Activity, WifiOff,
   type LucideIcon,
 } from 'lucide-react'
 import type { AlertStatus, AlertType, Severity, Visibility } from '@/types'
@@ -27,6 +27,7 @@ export const TYPE_ICON: Record<AlertType, LucideIcon> = {
   NIGHT_MOVEMENT: Moon,
   SUSPICIOUS_ACTIVITY: Activity,
   CAMERA_OFFLINE: VideoOff,
+  DRONE_SIGHTING: Drone,
 }
 
 const chip = 'inline-flex items-center rounded border px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap'

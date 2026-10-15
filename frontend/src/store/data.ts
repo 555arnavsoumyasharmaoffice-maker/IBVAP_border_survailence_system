@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { create } from 'zustand'
-import type { Alert, AlertHistoryEntry, AlertStatus, AlertType, AppSettings, Camera, ConnectionState, PendingAction, Zone } from '@/types'
+import type { Alert, AlertHistoryEntry, AlertStatus, AlertType, AppSettings, Camera, ConnectionState, DroneWatch, Naka, PendingAction, Zone } from '@/types'
 import { service } from '@/services'
 import { beep } from '@/lib/sound'
 import { SEV_RANK, eligibleFor, existingIncidentSeverity, groupIncidents } from '@/lib/incidents'
@@ -33,6 +33,8 @@ interface DataState {
   cameras: Camera[]
   zones: Zone[]
   alerts: Alert[]
+  droneWatches: DroneWatch[]
+  nakas: Naka[]
   settings: AppSettings | null
   loading: boolean
   error: string | null
@@ -49,6 +51,7 @@ interface DataState {
   start: () => () => void
   refreshCameras: () => Promise<void>
   refreshZones: () => Promise<void>
+  refreshWatches: () => Promise<void>
   refreshSettings: () => Promise<void>
   ingest: (alert: Alert) => void
   setStatus: (id: string, status: AlertStatus, note?: string, opts?: { by?: string; kind?: AlertHistoryEntry['kind'] }) => Promise<void>
@@ -122,6 +125,8 @@ export const useData = create<DataState>((set, get) => {
     cameras: [],
     zones: [],
     alerts: [],
+    droneWatches: [],
+    nakas: [],
     settings: null,
     loading: true,
     error: null,
@@ -136,12 +141,14 @@ export const useData = create<DataState>((set, get) => {
       set({ loading: true, error: null })
       try {
         const from = new Date(Date.now() - HISTORY_DAYS * 86_400_000).toISOString()
-        const [cameras, zones, alerts, settings] = await Promise.all([service.getCameras(), service.getZones(), service.getAlerts({ from }), service.getSettings()])
+        const [cameras, zones, alerts, settings, droneWatches, nakas] = await Promise.all([
+          service.getCameras(), service.getZones(), service.getAlerts({ from }), service.getSettings(), service.getDroneWatches(), service.getNakas(),
+        ])
         // Keep anything that arrived over the live stream while the request was in flight.
         const ids = new Set(alerts.map((a) => a.id))
         const merged = [...get().alerts.filter((a) => !ids.has(a.id)), ...alerts]
         merged.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-        set({ cameras, zones, alerts: merged, settings, loading: false })
+        set({ cameras, zones, alerts: merged, settings, droneWatches, nakas, loading: false })
       } catch (e) {
         set({ loading: false, error: e instanceof Error ? e.message : 'Failed to load data' })
       }
@@ -191,6 +198,7 @@ export const useData = create<DataState>((set, get) => {
 
     refreshCameras: async () => set({ cameras: await service.getCameras() }),
     refreshZones: async () => set({ zones: await service.getZones() }),
+    refreshWatches: async () => set({ droneWatches: await service.getDroneWatches() }),
     refreshSettings: async () => set({ settings: await service.getSettings() }),
 
     ingest(a) {

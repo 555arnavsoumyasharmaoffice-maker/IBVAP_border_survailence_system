@@ -117,6 +117,11 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
 
     getAlertClip: (id) => request(`/alerts/${id}/clip`),
     addAlertHistory: (id, entry) => send('POST', `/alerts/${id}/history`, entry) as never,
+    getDroneWatches: () => request('/drone-watches'),
+    createDroneWatch: (w) => send('POST', '/drone-watches', w) as never,
+    endDroneWatch: (id, by) => send('POST', `/drone-watches/${id}/end`, { by }) as never,
+    getNakas: () => request('/nakas'),
+    shareWithNaka: (target, nakaIds, by) => send('POST', '/nakas/share', { ...target, nakaIds, by }) as never,
     getEvidenceRecord: (id) => request(`/alerts/${id}/evidence`),
     logEvidenceExport: (id, by, packageSha256, files) => send('POST', `/alerts/${id}/evidence/export`, { by, packageSha256, files }) as never,
 

@@ -13,6 +13,7 @@ import { isActive } from '@/lib/format'
 import { useDemoRunner } from '@/demo/useDemoRunner'
 import { AlertToasts, CriticalModal } from '../AlertOverlays'
 import { Modal, useNow } from '../ui'
+import { WatchBanner } from '../DroneWatch'
 
 const NAV: { to: string; key: DictKey; icon: LucideIcon; manageOnly?: boolean }[] = [
   { to: '/', key: 'nav.command', icon: LayoutDashboard },
@@ -92,7 +93,7 @@ function TopBar() {
 
   return (
     <header className="no-print flex h-12 shrink-0 items-center gap-3 border-b border-base-700 bg-base-900 px-3">
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex min-w-0 items-center gap-2 text-xs whitespace-nowrap">
         <span className={`h-2 w-2 rounded-full ${connTone} ${connection === 'online' ? '' : 'animate-pulse'}`} />
         <span className="text-ink-mute">{t('top.link')}:</span>
         <span className="font-semibold">{t(`top.${connection}`)}</span>
@@ -102,8 +103,9 @@ function TopBar() {
         <span className="font-mono font-semibold">
           {online}/{cameras.length}
         </span>
+        <WatchBanner />
         {service.mode === 'mock' && (
-          <span className="ml-1 rounded-full border border-med/50 bg-med/10 px-2 py-0.5 text-[10px] font-semibold text-med" title="Simulated data: no backend or real cameras connected">
+          <span className="ml-1 rounded-full border border-med/50 bg-med/10 px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap text-med" title="Simulated data: no backend or real cameras connected">
             {t('top.mockData')}
           </span>
         )}

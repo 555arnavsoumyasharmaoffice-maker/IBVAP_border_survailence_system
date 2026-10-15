@@ -44,6 +44,7 @@ export type AlertType =
   | 'NIGHT_MOVEMENT'
   | 'SUSPICIOUS_ACTIVITY'
   | 'CAMERA_OFFLINE'
+  | 'DRONE_SIGHTING'
 
 export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
 
@@ -68,6 +69,10 @@ export interface AlertDetails {
   description?: string
   /** Class of the object that triggered the alert (person, truck, ...). */
   objectClass?: string
+  /** Set when the camera was inside an active drone watch: the alert was raised one severity level. */
+  droneWatchId?: string
+  /** Severity before the drone-watch raise. */
+  severityRaisedFrom?: Severity
 }
 
 export interface AlertHistoryEntry {
@@ -82,7 +87,7 @@ export interface AlertHistoryEntry {
   offsetSec?: number
 }
 
-export type HistoryKind = 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation' | 'bookmark'
+export type HistoryKind = 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation' | 'bookmark' | 'shared'
 
 /**
  * Video clip around the alert moment. Offsets are seconds relative to `Alert.timestamp`
@@ -235,6 +240,38 @@ export interface PlateRead {
   blacklisted: boolean
   needsVerification: boolean
   correctedFrom?: string
+  /** Camera was inside an active drone watch when the plate was read. */
+  droneWatchId?: string
+  /** When this read was shared with a police naka. */
+  sharedAt?: string
+}
+
+/**
+ * Drone drop watch: area around a reported drone sighting. While active, person / vehicle alerts and plate reads
+ * from cameras inside the circle are tagged and raised one severity level.
+ */
+export interface DroneWatch {
+  id: string
+  lat: number
+  lng: number
+  radiusKm: 1 | 2 | 5
+  startedAt: string
+  expiresAt: string
+  reason: string
+  linkedAlertId: string | null
+  createdBy: string
+  /** Set when ended early by an operator. */
+  endedAt?: string
+}
+
+/** Police / joint check point (naka) that can receive shared alerts. */
+export interface Naka {
+  id: string
+  name: string
+  lat: number
+  lng: number
+  /** e.g. "Punjab Police + BSF" */
+  agency: string
 }
 
 export type ReviewState = 'PENDING' | 'CONFIRMED' | 'REJECTED'
@@ -262,7 +299,7 @@ export interface User {
   lastLogin?: string
 }
 
-export type AuditCategory = 'AUTH' | 'CAMERA_VIEW' | 'ZONE' | 'WATCHLIST' | 'BLACKLIST' | 'ANPR' | 'EXPORT' | 'EVIDENCE' | 'SETTINGS' | 'ALERT'
+export type AuditCategory = 'AUTH' | 'CAMERA_VIEW' | 'ZONE' | 'WATCHLIST' | 'BLACKLIST' | 'ANPR' | 'EXPORT' | 'EVIDENCE' | 'SETTINGS' | 'ALERT' | 'DRONE'
 
 export interface AuditEntry {
   id: string

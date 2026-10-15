@@ -18,6 +18,7 @@ export const PLAYBOOKS: Record<AlertType, PlaybookStep[]> = {
   LOITERING: steps('Verify on live camera', 'Check dwell time and zone', 'Send patrol to check', 'Log outcome'),
   HUMAN_DETECTED: steps('Verify on live camera', 'Identify: staff / civilian / unknown', 'Log outcome'),
   VEHICLE_DETECTED: steps('Verify vehicle class', 'Check plate against blacklist', 'Log outcome'),
+  DRONE_SIGHTING: steps('Verify sighting on camera / with post', 'Start drone watch on the map', 'Alert nakas in the watch area', 'Search the drop area', 'Log outcome'),
   CAMERA_OFFLINE: steps('Check network link to the outpost', 'Inform technical team', 'Deploy manual watch if needed', 'Log restoration'),
 }
 

@@ -38,7 +38,7 @@ export const SEVERITIES: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 export const STATUSES: AlertStatus[] = ['NEW', 'ACKNOWLEDGED', 'ESCALATED', 'RESOLVED', 'FALSE_ALARM']
 export const ALERT_TYPES: AlertType[] = [
   'FENCE_INTRUSION', 'HUMAN_DETECTED', 'VEHICLE_DETECTED', 'ANPR_MATCH', 'FACE_MATCH',
-  'LOITERING', 'NIGHT_MOVEMENT', 'SUSPICIOUS_ACTIVITY', 'CAMERA_OFFLINE',
+  'LOITERING', 'NIGHT_MOVEMENT', 'SUSPICIOUS_ACTIVITY', 'CAMERA_OFFLINE', 'DRONE_SIGHTING',
 ]
 
 export const SEV: Record<Severity, { hex: string; text: string; bg: string; soft: string; border: string }> = {
@@ -66,6 +66,7 @@ export const TYPE_COLOR: Record<AlertType, string> = {
   HUMAN_DETECTED: '#38bdf8',
   VEHICLE_DETECTED: '#22c55e',
   CAMERA_OFFLINE: '#64748b',
+  DRONE_SIGHTING: '#06b6d4',
 }
 
 export const isActive = (a: Alert) => a.status === 'NEW' || a.status === 'ESCALATED'

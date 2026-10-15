@@ -1,12 +1,13 @@
 import type {
-  Alert, AlertStatus, AlertType, AppSettings, BBox, ConnectionState, Detection, DetectionClass,
+  Alert, AlertStatus, AlertType, AppSettings, BBox, ConnectionState, Detection, DetectionClass, DroneWatch,
   DetectionFrame, EvidenceRecord, FaceMatch, PlateRead, Severity, Zone, ZoneAuditEntry,
 } from '@/types'
 import type { DataService, DemoAlertSpec } from '../types'
 import { fetchBytes, sha256Hex } from '@/lib/evidence'
+import { watchAt } from '@/lib/geo'
 import {
   SUSPICIOUS, VEHICLE_CLASSES, VEHICLE_COLORS, faceSvg, isNightHour, pick, plateSvg, rand, randInt,
-  randomPlate, seedAudit, seedBlacklist, seedEdgeNodes, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
+  randomPlate, seedAudit, seedNakas, seedBlacklist, seedEdgeNodes, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
 } from './data'
 
 // In-memory fake backend + simulator. Emits a random alert about every MOCK_ALERT_INTERVAL_MS (1-2 per minute,
@@ -26,6 +27,7 @@ const TYPE_WEIGHTS: Record<AlertType, number> = {
   ANPR_MATCH: 6,
   FACE_MATCH: 4,
   CAMERA_OFFLINE: 3,
+  DRONE_SIGHTING: 2,
 }
 const OPERATORS = ['Ct. S. Meena', 'Ct. P. Gill', 'Insp. A. Rathore']
 const VEHICLE_KINDS: DetectionClass[] = ['car', 'truck', 'motorcycle', 'tractor', 'bus']
@@ -58,6 +60,15 @@ export function createMockService(): DataService {
     sessionTimeoutMin: 15,
   }
   const evidenceRecords = new Map<string, EvidenceRecord>()
+  const nakas = seedNakas()
+  const droneWatches: DroneWatch[] = []
+  /** Alert types raised one level inside an active drone watch (person / vehicle activity). */
+  const WATCH_RAISE: AlertType[] = ['HUMAN_DETECTED', 'VEHICLE_DETECTED', 'NIGHT_MOVEMENT', 'LOITERING', 'SUSPICIOUS_ACTIVITY', 'FENCE_INTRUSION', 'ANPR_MATCH']
+  const RAISE: Record<Severity, Severity> = { LOW: 'MEDIUM', MEDIUM: 'HIGH', HIGH: 'CRITICAL', CRITICAL: 'CRITICAL' }
+  const watchFor = (cameraId: string, ts: Date) => {
+    const c = camById(cameraId)
+    return c ? watchAt(c.lat, c.lng, droneWatches, ts.getTime()) : undefined
+  }
 
   const alerts: Alert[] = []
   const plateReads: PlateRead[] = []
@@ -156,6 +167,7 @@ export function createMockService(): DataService {
       cropUrl: plateSvg(plate),
       blacklisted: isBlacklisted(plate),
       needsVerification: lowConf,
+      droneWatchId: watchFor(cameraId, ts)?.id,
     }
     plateReads.unshift(read)
     return read
@@ -168,11 +180,14 @@ export function createMockService(): DataService {
     const camZones = zones.filter((z) => z.cameraId === cameraId && z.active)
     const zone = camZones.length ? pick(camZones) : undefined
     const isVehicleType = type === 'VEHICLE_DETECTED' || type === 'ANPR_MATCH'
-    const kind = type === 'CAMERA_OFFLINE' ? 'none' : isVehicleType ? 'vehicle' : 'person'
+    const kind = type === 'CAMERA_OFFLINE' ? 'none' : type === 'DRONE_SIGHTING' ? 'drone' : isVehicleType ? 'vehicle' : 'person'
 
     let bbox: BBox | undefined
     let trackId: number | null = null
-    if (kind !== 'none') {
+    if (kind === 'drone') {
+      bbox = [rand(0.2, 0.7), rand(0.08, 0.22), 0.035, 0.025]
+      trackId = trackSeq++
+    } else if (kind !== 'none') {
       const live = opts.live
         ? tracks.get(cameraId)?.find((t) => (kind === 'vehicle' ? VEHICLE_KINDS.includes(t.class) : t.class === 'person') && t.bbox[0] > 0 && t.bbox[0] + t.bbox[2] < 1)
         : undefined
@@ -186,7 +201,7 @@ export function createMockService(): DataService {
       }
     }
 
-    if (opts.trackId !== undefined && kind !== 'none') trackId = opts.trackId
+    if (opts.trackId !== undefined && kind !== 'none' && kind !== 'drone') trackId = opts.trackId
 
     const liveClass = trackId !== null ? tracks.get(cameraId)?.find((t) => t.trackId === trackId)?.class : undefined
 
@@ -252,11 +267,29 @@ export function createMockService(): DataService {
         severity = Math.random() < 0.5 ? 'HIGH' : 'MEDIUM'
         Object.assign(details, { description: pick(SUSPICIOUS), zoneName: zone?.name })
         break
+      case 'DRONE_SIGHTING':
+        severity = night ? 'CRITICAL' : 'HIGH'
+        confidence = rand(0.7, 0.93)
+        Object.assign(details, {
+          objectClass: 'drone', objectCount: 1,
+          description: pick(['Small UAV, low altitude, heading towards BOP', 'Quadcopter hovering over riverbed', 'UAV with blinking light crossing from across the border']),
+        })
+        break
       case 'CAMERA_OFFLINE':
         severity = 'MEDIUM'
         confidence = 1
         Object.assign(details, { description: 'No frames received for 60 s (link degraded)' })
         break
+    }
+
+    // Inside an active drone watch: person / vehicle activity is raised one severity level.
+    const watch = WATCH_RAISE.includes(type) ? watchFor(cameraId, ts) : undefined
+    if (watch) {
+      details.droneWatchId = watch.id
+      if (RAISE[severity] !== severity) {
+        details.severityRaisedFrom = severity
+        severity = RAISE[severity]
+      }
     }
 
     const alert: Alert = {
@@ -280,7 +313,7 @@ export function createMockService(): DataService {
       history: [{ status: 'NEW', at: ts.toISOString(), by: 'AI Engine' }],
     }
 
-    if (kind !== 'none') details.objectClass = kind === 'person' ? 'person' : (details.vehicleClass?.toLowerCase() ?? liveClass ?? 'vehicle')
+    if (kind === 'person' || kind === 'vehicle') details.objectClass = kind === 'person' ? 'person' : (details.vehicleClass?.toLowerCase() ?? liveClass ?? 'vehicle')
 
     if (type === 'FACE_MATCH') {
       faceMatches.unshift({
@@ -334,6 +367,7 @@ export function createMockService(): DataService {
       type === 'FENCE_INTRUSION' ? c.modules.fence && zones.some((z) => z.cameraId === c.id && z.active)
         : type === 'ANPR_MATCH' ? c.modules.anpr
           : type === 'FACE_MATCH' ? c.modules.face
+            : type === 'DRONE_SIGHTING' ? c.lat > 30.5 // drone drops are a Punjab-sector problem
             : true,
     )
     return pick(pool.length ? pool : liveCams()).id
@@ -537,6 +571,36 @@ export function createMockService(): DataService {
       a.history.push({ ...entry, status: a.status, at: new Date().toISOString() })
       emit(a)
       return later(a, 60)
+    },
+
+    getDroneWatches: () => later(droneWatches),
+    async createDroneWatch(input) {
+      requireLink()
+      const { durationH, ...w } = input
+      const now = Date.now()
+      const created: DroneWatch = { ...w, id: `dw-${seq++}`, startedAt: new Date(now).toISOString(), expiresAt: new Date(now + durationH * 3_600_000).toISOString() }
+      droneWatches.unshift(created)
+      return later(created, 120)
+    },
+    async endDroneWatch(id) {
+      requireLink()
+      const w = droneWatches.find((x) => x.id === id)
+      if (!w) throw new Error('Watch not found')
+      w.endedAt = new Date().toISOString()
+      return later(w, 80)
+    },
+    getNakas: () => later(nakas),
+    async shareWithNaka(target, nakaIds, by) {
+      requireLink()
+      const names = nakas.filter((n) => nakaIds.includes(n.id)).map((n) => n.name).join(', ')
+      for (const id of target.alertIds ?? []) {
+        const a = findAlert(id)
+        a.history.push({ kind: 'shared', status: a.status, at: new Date().toISOString(), by, note: `Shared with ${names} (simulated)` })
+        emit(a)
+      }
+      const r = target.plateReadId ? plateReads.find((x) => x.id === target.plateReadId) : undefined
+      if (r) r.sharedAt = new Date().toISOString()
+      return later(undefined, 500)
     },
 
     async getEvidenceRecord(id) {
