@@ -14,7 +14,7 @@ movement, real-time alerts and event logging, integration with command and contr
 ## Repo layout
 
 ```
-app.py, alerts.db      Old Streamlit prototype (superseded by frontend/, kept for reference)
+legacy/                Old Streamlit prototype (app.py, alerts.db), superseded by frontend/, kept for reference
 frontend/              React Command Center (this is the active work)
   docs/API_CONTRACT.md Every endpoint, WebSocket message and JSON shape. The backend is built to match it.
   .env.example         VITE_USE_MOCK, VITE_API_URL, VITE_WS_URL
@@ -26,14 +26,14 @@ frontend/              React Command Center (this is the active work)
       mock/            mockService.ts (in-memory backend + simulator), data.ts (seed data, SVG imagery)
       api/             apiService.ts (REST + WebSocket, localStorage cache fallback)
     store/             Zustand: data.ts (cameras, zones, alerts, toasts, critical-modal queue),
-                       ui.ts (language, mute, layout, demo state), auth.ts (user, role permissions)
+                       ui.ts (language, mute, camera layout 1-3, selectedAlertId, demo state), auth.ts (user, role permissions)
     i18n/              dict.ts (en + hi dictionaries), index.ts (useT hook)
     lib/               format.ts (formatters, severity/type colours, CSV), sound.ts (Web Audio beeps)
     components/        ui.tsx (badges, PlateTag, Skeleton, Empty/Error states, Modal, Tabs),
                        CameraFeed.tsx, AlertCard.tsx, AlertOverlays.tsx (toasts + critical modal),
                        MiniMap.tsx, ZoneShapes.tsx (zones on still snapshots),
                        layout/Layout.tsx (sidebar, top bar, shortcuts, banners)
-    demo/              useDemoRunner.ts (scripted 2-minute judge scenario)
+    demo/              useDemoRunner.ts (scripted ~2.5 min story "Punjab sector, foggy night, drone drop"; mounted in App.tsx)
     pages/             One file per route (incl. AuditLog, SystemHealth, About)
     lib/incidents.ts   Incident grouping rule (client-derived from alerts)
     lib/playbooks.ts   SOP checklists per alert type, QRT message text
@@ -66,12 +66,14 @@ Leaflet + react-leaflet with OpenStreetMap tiles, Recharts, lucide-react, Zustan
    implemented in BOTH `mockService.ts` and `apiService.ts`.
 2. **Contract stays in sync.** Shared types live only in `src/types/index.ts`. When a type, endpoint or WebSocket
    message changes, update `docs/API_CONTRACT.md` in the same change. The teammate builds the backend from it.
-3. **One live subscription.** `useData.getState().start()` is called once in the layout. It loads data, subscribes
+3. **One live subscription.** `useData.getState().start()` is called once in the layout (and by `/qrt`, which sits
+   outside the layout; only one of them is mounted at a time). It loads data, subscribes
    to the alert stream and drives toasts, sound, bell pulse, camera flash and the critical-modal queue. Pages read
    alerts/cameras/zones from the store; they do not subscribe to alerts themselves.
 4. **Mock realism.** Mock data is Indian-border specific: names like "BOP Sundar - Gate Cam", "Border Road KM 42",
-   "Check Post Munabao"; RJ/PB/JK/GJ plates; real lat/lng along the Rajasthan and Punjab border. The simulator emits
-   an alert every 5-10 s. A plate read that matches the blacklist always creates an `ANPR_MATCH` alert.
+   "Check Post Munabao", "BOP Ajnala - River Cam"; RJ/PB/JK/GJ plates; real lat/lng along the Rajasthan and Punjab
+   border. The simulator emits a random alert about every `MOCK_ALERT_INTERVAL_MS` (~1-2 per minute); plate reads are
+   more frequent but never toast unless blacklisted. A plate read that matches the blacklist always creates an `ANPR_MATCH` alert.
 5. **Video feeds.** Mock mode: dark placeholder with scanline/noise and boxes drawn on a canvas from `Detection`
    data. Real mode: `<img src>` of the backend MJPEG URL, with the same canvas overlay on top.
 6. **Offline first.** Everything works without internet except map tiles. Fonts come from `@fontsource/*` npm

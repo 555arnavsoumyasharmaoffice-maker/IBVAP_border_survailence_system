@@ -75,7 +75,7 @@ Open http://localhost:5173, pick a role and press **Enter Command Center**. Ther
 VITE_USE_MOCK=true
 ```
 
-The simulator raises a new alert every 5-10 seconds. Data lives in memory and resets on page reload.
+The simulator raises a random alert about every 40 s (`MOCK_ALERT_INTERVAL_MS`, ~1-2 per minute). Data lives in memory and resets on page reload.
 
 ## Run with the real backend
 

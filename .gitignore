@@ -5,3 +5,10 @@ alerts.db
 node_modules/
 dist/
 .env
+demo_videos/
+ai_engine/models/
+ai_engine/output/
+*.pt
+*.onnx
+*.mp4
+frontend/.env

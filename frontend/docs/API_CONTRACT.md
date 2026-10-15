@@ -32,7 +32,10 @@ This is what the frontend expects when `VITE_USE_MOCK=false`. The TypeScript sou
   "visibility": "clear",
   "sensitivity": 0.5,
   "minConfirmFrames": 5,
-  "ignoreAnimals": true
+  "ignoreAnimals": true,
+  "cameraType": "visible",
+  "bopId": "bop-sundar",
+  "outOfService": null
 }
 ```
 `status`: `online | offline | degraded`
