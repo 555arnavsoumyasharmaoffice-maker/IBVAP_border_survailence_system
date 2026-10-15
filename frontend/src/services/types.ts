@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertClip, AlertHistoryEntry, DroneWatch, HistoryKind, Naka, SuspiciousSubtype, TrackPoint, VehicleClass, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
+  Alert, AlertClip, AlertHistoryEntry, DroneWatch, HistoryKind, Naka, QrtStatus, SuspiciousSubtype, TrackPoint, VehicleClass, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -66,6 +66,8 @@ export interface DataService {
   /** Relay a message to the Quick Reaction Team (SMS = secure SMS gateway, WHATSAPP = radio relay; name kept for compatibility). Logged in the alert history. */
   notifyQrt(id: string, channel: 'SMS' | 'WHATSAPP', message: string, by: string): Promise<Alert>
 
+  /** QRT mobile view: Accept -> On scene -> Cleared. History kind "qrt". */
+  updateQrtStatus(ids: string[], status: QrtStatus, by: string): Promise<Alert[]>
   /** Shelve (snooze) alerts for `minutes` with a mandatory reason. History kind "shelve". */
   shelveAlerts(ids: string[], minutes: number, reason: string, by: string): Promise<Alert[]>
   /** Return shelved alerts to the live feed. History kind "unshelve". */

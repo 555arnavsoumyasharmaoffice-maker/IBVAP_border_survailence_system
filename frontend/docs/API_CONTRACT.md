@@ -83,13 +83,15 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
   (first `ACKNOWLEDGED` entry `at`) - (`timestamp`), so always append, never overwrite.
 - `history[].note` is optional.
 - `history[].kind` is optional: absent / `"status"` = a status change; `"playbook"`, `"notify"`, `"evidence"`, `"bookmark"`,
-  `"shared"`, `"shelve"`, `"unshelve"`, `"auto-escalation"` log an operator / system action and carry the alert's current status unchanged.
+  `"shared"`, `"shelve"`, `"unshelve"`, `"qrt"`, `"auto-escalation"` log an operator / system action and carry the alert's current status unchanged.
 - `history[].offsetSec` (only for `kind: "bookmark"`): clip position in seconds relative to `timestamp`.
 - `shelvedUntil` / `shelveReason` (optional): alarm-management shelving. While `shelvedUntil` is in the future the alert
   is hidden from the live feed and does not notify. When it passes, the dashboard calls `/alerts/unshelve` with
   `by: "System (shelve expired)"` (a backend may do this itself). Only Commander / Admin may unshelve early.
 - `playbookDone` (optional string array): ids of ticked response-playbook steps (`s1`, `s2`, ...).
 - `qrtNotifiedAt` (optional): when the Quick Reaction Team was last notified.
+- `qrtStatus` (optional): `ASSIGNED | ACCEPTED | ON_SCENE | CLEARED`. `notify-qrt` sets ASSIGNED; the QRT mobile view (`/qrt`)
+  moves it on with `POST /qrt/status { ids, status, by }` (returns `Alert[]`, appends history `kind: "qrt"`, broadcasts on WS).
 
 `details` (all optional; send what applies to the type):
 

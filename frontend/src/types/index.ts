@@ -101,7 +101,9 @@ export interface AlertHistoryEntry {
   offsetSec?: number
 }
 
-export type HistoryKind = 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation' | 'bookmark' | 'shared' | 'shelve' | 'unshelve'
+export type QrtStatus = 'ASSIGNED' | 'ACCEPTED' | 'ON_SCENE' | 'CLEARED'
+
+export type HistoryKind = 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation' | 'bookmark' | 'shared' | 'shelve' | 'unshelve' | 'qrt'
 
 /**
  * Video clip around the alert moment. Offsets are seconds relative to `Alert.timestamp`
@@ -139,6 +141,8 @@ export interface Alert {
   playbookDone?: string[]
   /** Set when the Quick Reaction Team was notified. */
   qrtNotifiedAt?: string
+  /** QRT task state, set by the QRT mobile view: ASSIGNED on notify, then ACCEPTED -> ON_SCENE -> CLEARED. */
+  qrtStatus?: QrtStatus
   /** Shelved (snoozed) by an operator until this time: hidden from the live feed, no notifications. */
   shelvedUntil?: string | null
   shelveReason?: string

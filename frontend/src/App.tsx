@@ -15,11 +15,13 @@ import SettingsPage from '@/pages/Settings'
 import AuditLog from '@/pages/AuditLog'
 import SystemHealth from '@/pages/SystemHealth'
 import About from '@/pages/About'
+import QrtView from '@/pages/QrtView'
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/qrt" element={<QrtView />} />
       <Route element={<Layout />}>
         <Route index element={<CommandCenter />} />
         <Route path="cameras" element={<LiveCameras />} />

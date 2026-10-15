@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { CheckCheck, ClipboardCheck, Loader2, Send, Timer } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { CheckCheck, ClipboardCheck, Loader2, Send, Smartphone, Timer } from 'lucide-react'
 import type { Alert } from '@/types'
 import { service } from '@/services'
 import { useData } from '@/store/data'
@@ -105,6 +106,7 @@ export function NotifyQrt({ alert, className = 'btn' }: { alert: Alert; classNam
       <button className={className} onClick={show}>
         <Send size={13} /> Notify QRT
         {alert.qrtNotifiedAt && <span className="font-mono text-[10px] text-low">sent {fmtTime(alert.qrtNotifiedAt)}</span>}
+        {alert.qrtStatus && <span className="rounded bg-accent/20 px-1 text-[9px] font-semibold text-accent uppercase">QRT {t(`qrt.s.${alert.qrtStatus}`)}</span>}
       </button>
       {open && (
         <Modal title="Notify Quick Reaction Team" onClose={() => setOpen(false)}>
@@ -137,9 +139,14 @@ export function NotifyQrt({ alert, className = 'btn' }: { alert: Alert; classNam
             </div>
             {service.mode === 'mock' && <div className="text-[10px] text-ink-mute">Mock mode: no real message leaves this computer. With the real backend this calls POST /alerts/{'{id}'}/notify-qrt.</div>}
             {state === 'sent' ? (
-              <button className="btn w-full" onClick={() => setOpen(false)}>
-                Close
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <Link className="btn btn-primary" to="/qrt" onClick={() => setOpen(false)}>
+                  <Smartphone size={13} /> {t('qrt.open')}
+                </Link>
+                <button className="btn" onClick={() => setOpen(false)}>
+                  Close
+                </button>
+              </div>
             ) : (
               <button className="btn btn-danger w-full py-2" disabled={state === 'sending' || !message.trim()} onClick={() => void send()}>
                 {state === 'sending' ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send to QRT

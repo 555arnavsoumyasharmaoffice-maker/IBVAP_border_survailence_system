@@ -115,6 +115,7 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
     setPlaybookStep: (id, stepId, label, done, by) => send('PATCH', `/alerts/${id}/playbook`, { stepId, label, done, by }) as never,
     notifyQrt: (id, channel, message, by) => send('POST', `/alerts/${id}/notify-qrt`, { channel, message, by }) as never,
 
+    updateQrtStatus: (ids, status, by) => send('POST', '/qrt/status', { ids, status, by }) as never,
     shelveAlerts: (ids, minutes, reason, by) => send('POST', '/alerts/shelve', { ids, minutes, reason, by }) as never,
     unshelveAlerts: (ids, by, note) => send('POST', '/alerts/unshelve', { ids, by, note }) as never,
     setCameraOutOfService: (id, reason, by) => send('PUT', `/cameras/${id}/out-of-service`, { reason, by }) as never,

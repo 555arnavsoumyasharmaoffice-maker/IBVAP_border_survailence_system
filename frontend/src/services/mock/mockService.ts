@@ -566,11 +566,23 @@ export function createMockService(): DataService {
       requireLink()
       const a = findAlert(id)
       a.qrtNotifiedAt = new Date().toISOString()
+      if (!a.qrtStatus || a.qrtStatus === 'CLEARED') a.qrtStatus = 'ASSIGNED'
       a.history.push({ kind: 'notify', status: a.status, at: a.qrtNotifiedAt, by, note: `QRT notified via ${channel === 'SMS' ? 'secure SMS' : 'radio relay'} (simulated): ${message}` })
       emit(a)
       return later(a, 700)
     },
 
+    async updateQrtStatus(ids, status, by) {
+      requireLink()
+      const label = { ASSIGNED: 'Assigned', ACCEPTED: 'Accepted', ON_SCENE: 'On scene', CLEARED: 'Cleared' }[status]
+      const out = ids.map(findAlert).map((a) => {
+        a.qrtStatus = status
+        a.history.push({ kind: 'qrt', status: a.status, at: new Date().toISOString(), by, note: `QRT: ${label}` })
+        emit(a)
+        return clone(a)
+      })
+      return later(out, 120)
+    },
     async shelveAlerts(ids, minutes, reason, by) {
       requireLink()
       const until = new Date(Date.now() + minutes * 60_000).toISOString()
