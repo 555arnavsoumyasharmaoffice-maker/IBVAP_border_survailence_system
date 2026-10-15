@@ -151,7 +151,7 @@ export default function SystemHealth() {
 
   return (
     <Page>
-      <PageHeader title={t('nav.health')} subtitle="Edge AI nodes at each outpost: load, temperature, storage, link quality and model version">
+      <PageHeader title={t('health.title')} subtitle={t('health.subtitle')}>
         {updated > 0 && <span className="font-mono text-[11px] text-ink-mute">updated {new Date(updated).toLocaleTimeString('en-GB')} · refresh every {POLL_MS / 1000}s</span>}
       </PageHeader>
 

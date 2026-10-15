@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BellRing, Car, Fence, ScanFace, Siren, Video, type LucideIcon } from 'lucide-react'
-import type { Alert } from '@/types'
+import { BellRing, Siren, Timer, Video, type LucideIcon } from 'lucide-react'
+import type { Alert, Severity } from '@/types'
 import { useData, useIncidents } from '@/store/data'
-import { SEV, SEVERITIES, fmtTime, isActive, keyDetail } from '@/lib/format'
+import { SEV, SEVERITIES, fmtDuration, fmtTime, keyDetail } from '@/lib/format'
 import { useT } from '@/i18n'
 import { CameraFeed } from '@/components/CameraFeed'
 import { AlertCard } from '@/components/AlertCard'
@@ -11,39 +11,20 @@ import { EmptyState, Skeleton, useNow } from '@/components/ui'
 
 const HOUR = 3_600_000
 
-/** Count of matching alerts in each of the last 24 hours (oldest first). */
-function hourly(alerts: Alert[], now: number, pred: (a: Alert) => boolean) {
-  const buckets = new Array<number>(24).fill(0)
-  for (const a of alerts) {
-    const age = now - Date.parse(a.timestamp)
-    if (age > 24 * HOUR) break
-    if (age >= 0 && pred(a)) buckets[23 - Math.floor(age / HOUR)]++
-  }
-  return buckets
-}
-
-function Sparkline({ data, color }: { data: number[]; color: string }) {
-  const max = Math.max(1, ...data)
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * 100},${22 - (v / max) * 20}`).join(' ')
+/**
+ * High-performance HMI tile: neutral grey when normal, severity-coloured only when abnormal,
+ * so colour itself means "look here".
+ */
+function Kpi({ label, value, icon: Icon, tone, hint }: { label: string; value: string | number; icon: LucideIcon; tone: Severity | null; hint: string }) {
+  const sev = tone ? SEV[tone] : null
   return (
-    <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="h-6 w-full">
-      <polygon points={`0,24 ${pts} 100,24`} fill={color} opacity="0.15" />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-    </svg>
-  )
-}
-
-function Kpi({ label, value, icon: Icon, color, data }: { label: string; value: string | number; icon: LucideIcon; color: string; data: number[] }) {
-  return (
-    <div className="panel min-w-0 px-2.5 pt-2 pb-1">
+    <div className={`panel min-w-0 px-3 py-2 ${sev ? sev.border : ''}`} title={hint}>
       <div className="flex items-center gap-1.5">
-        <Icon size={13} style={{ color }} className="shrink-0" />
+        <Icon size={13} className={`shrink-0 ${sev ? sev.text : 'text-ink-mute'}`} />
         <span className="panel-title truncate">{label}</span>
       </div>
-      <div className="font-mono text-2xl leading-tight font-semibold" style={{ color }}>
-        {value}
-      </div>
-      <Sparkline data={data} color={color} />
+      <div className={`font-mono text-2xl leading-tight font-semibold ${sev ? sev.text : 'text-ink'}`}>{value}</div>
+      <div className="truncate text-[10px] text-ink-mute">{hint}</div>
     </div>
   )
 }
@@ -98,36 +79,33 @@ export default function CommandCenter() {
   const incidents = useIncidents()
 
   const kpis = useMemo(() => {
-    const ts = Date.now()
+    const ts = now
     const midnight = new Date().setHours(0, 0, 0, 0)
     const today = alerts.filter((a) => Date.parse(a.timestamp) >= midnight)
-    const count = (list: Alert[], pred: (a: Alert) => boolean) => list.reduce((n, a) => n + (pred(a) ? 1 : 0), 0)
-    const isVehicle = (a: Alert) => a.type === 'VEHICLE_DETECTED' || a.type === 'ANPR_MATCH'
+    const open = (st: string) => st === 'NEW' || st === 'ACKNOWLEDGED' || st === 'ESCALATED'
+    const openCrit = incidents.filter((i) => i.severity === 'CRITICAL' && open(i.status) && ts - Date.parse(i.lastSeen) < 24 * HOUR).length
+    const unack = incidents.filter((i) => i.status === 'NEW' && ts - Date.parse(i.firstSeen) > 60_000).length
+    const times = today.flatMap((a) => {
+      const ack = a.history.find((h) => h.status === 'ACKNOWLEDGED')
+      return ack ? [(Date.parse(ack.at) - Date.parse(a.timestamp)) / 1000] : []
+    })
+    const avg = times.length ? times.reduce((x, y) => x + y, 0) / times.length : null
+    const online = cameras.filter((c) => c.status !== 'offline').length
     return [
-      { label: 'Active alerts', value: count(alerts, isActive), icon: BellRing, color: '#38bdf8', data: hourly(alerts, ts, () => true) },
-      {
-        label: 'Critical (24h)', icon: Siren, color: SEV.CRITICAL.hex,
-        value: count(alerts, (a) => a.severity === 'CRITICAL' && ts - Date.parse(a.timestamp) < 24 * HOUR),
-        data: hourly(alerts, ts, (a) => a.severity === 'CRITICAL'),
-      },
-      { label: 'Intrusions today', value: count(today, (a) => a.type === 'FENCE_INTRUSION'), icon: Fence, color: SEV.HIGH.hex, data: hourly(alerts, ts, (a) => a.type === 'FENCE_INTRUSION') },
-      { label: 'Vehicles today', value: count(today, isVehicle), icon: Car, color: SEV.LOW.hex, data: hourly(alerts, ts, isVehicle) },
-      { label: 'Faces today', value: count(today, (a) => a.type === 'FACE_MATCH'), icon: ScanFace, color: '#ec4899', data: hourly(alerts, ts, (a) => a.type === 'FACE_MATCH') },
-      {
-        label: 'Cameras online', icon: Video, color: '#a3b3cb',
-        value: `${cameras.filter((c) => c.status !== 'offline').length}/${cameras.length}`,
-        data: hourly(alerts, ts, (a) => a.type === 'CAMERA_OFFLINE'),
-      },
+      { label: t('kpi.openCrit'), value: openCrit, icon: Siren, tone: openCrit ? ('CRITICAL' as const) : null, hint: openCrit ? t('kpi.openCritHint') : t('kpi.normal') },
+      { label: t('kpi.unack'), value: unack, icon: BellRing, tone: unack ? ('HIGH' as const) : null, hint: unack ? t('kpi.unackHint') : t('kpi.normal') },
+      { label: t('kpi.avgResp'), value: avg === null ? '-' : fmtDuration(avg), icon: Timer, tone: avg !== null && avg > 60 ? ('MEDIUM' as const) : null, hint: `${times.length} ${t('kpi.acked')}` },
+      { label: t('cc.camerasOnline'), value: `${online}/${cameras.length}`, icon: Video, tone: online < cameras.length ? ('HIGH' as const) : null, hint: online < cameras.length ? `${cameras.length - online} ${t('kpi.offline')}` : t('kpi.normal') },
     ]
-  }, [alerts, cameras])
+  }, [alerts, cameras, incidents, t, now])
 
   const tiles = useMemo(() => cameras.filter((c) => c.status !== 'offline').slice(0, 4), [cameras])
 
   return (
     <div className="flex h-full flex-col gap-2 p-2">
-      <div className="grid shrink-0 grid-cols-6 gap-2">
+      <div className="grid shrink-0 grid-cols-4 gap-2">
         {loading && !alerts.length
-          ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[84px]" />)
+          ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[84px]" />)
           : kpis.map((k) => <Kpi key={k.label} {...k} />)}
       </div>
 

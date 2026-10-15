@@ -77,7 +77,7 @@ export interface AlertHistoryEntry {
   by: string
   note?: string
   /** Absent or "status" = a status change. Other kinds log operator actions without changing status. */
-  kind?: 'status' | 'playbook' | 'notify' | 'evidence'
+  kind?: 'status' | 'playbook' | 'notify' | 'evidence' | 'auto-escalation'
 }
 
 export interface Alert {
@@ -246,7 +246,7 @@ export interface User {
   lastLogin?: string
 }
 
-export type AuditCategory = 'AUTH' | 'CAMERA_VIEW' | 'ZONE' | 'WATCHLIST' | 'BLACKLIST' | 'ANPR' | 'EXPORT' | 'EVIDENCE' | 'SETTINGS'
+export type AuditCategory = 'AUTH' | 'CAMERA_VIEW' | 'ZONE' | 'WATCHLIST' | 'BLACKLIST' | 'ANPR' | 'EXPORT' | 'EVIDENCE' | 'SETTINGS' | 'ALERT'
 
 export interface AuditEntry {
   id: string
@@ -319,6 +319,8 @@ export interface PendingAction {
   note?: string
   notes?: string
   by: string
+  /** History kind for system-made status changes (e.g. "auto-escalation"). */
+  historyKind?: AlertHistoryEntry['kind']
   /** When the operator actually did it (sent to the backend so response times stay correct). */
   at: string
 }

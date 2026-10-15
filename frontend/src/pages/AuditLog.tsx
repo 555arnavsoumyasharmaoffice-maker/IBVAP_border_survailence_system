@@ -19,6 +19,7 @@ const CATEGORY: Record<AuditCategory, { label: string; style: string }> = {
   EXPORT: { label: 'Data export', style: 'border-low/50 bg-low/15 text-low' },
   EVIDENCE: { label: 'Evidence', style: 'border-low/50 bg-low/15 text-low' },
   SETTINGS: { label: 'Settings', style: 'border-high/50 bg-high/15 text-high' },
+  ALERT: { label: 'Alert', style: 'border-crit/50 bg-crit/15 text-crit' },
 }
 
 export default function AuditLog() {

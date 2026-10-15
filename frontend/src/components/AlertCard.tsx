@@ -55,7 +55,7 @@ export function AlertCard({ alert, incident, now, compact = false }: { alert: Al
   const t = useT()
   const navigate = useNavigate()
   const camera = useData((s) => s.cameras.find((c) => c.id === alert.cameraId))
-  const focused = useUi((s) => s.focusedAlertId === alert.id)
+  const selected = useUi((s) => s.selectedAlertId === alert.id)
   const type = incident?.type ?? alert.type
   const severity = incident?.severity ?? alert.severity
   const status = incident?.status ?? alert.status
@@ -67,10 +67,12 @@ export function AlertCard({ alert, incident, now, compact = false }: { alert: Al
     <div
       role="button"
       tabIndex={0}
-      onClick={() => navigate(`/alerts/${alert.id}`)}
+      onClick={() => {
+        useUi.getState().set({ selectedAlertId: alert.id })
+        navigate(`/alerts/${alert.id}`)
+      }}
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/alerts/${alert.id}`)}
-      onMouseEnter={() => useUi.getState().set({ focusedAlertId: alert.id })}
-      className={`flex overflow-hidden rounded border bg-base-850 text-left hover:bg-base-800 ${focused ? 'border-accent/70' : 'border-base-700'} ${status === 'NEW' ? '' : 'opacity-75'}`}
+      className={`flex overflow-hidden rounded border bg-base-850 text-left hover:bg-base-800 ${selected ? 'border-accent/70' : 'border-base-700'} ${status === 'NEW' ? '' : 'opacity-75'}`}
     >
       <div className={`w-1 shrink-0 ${sev.bg}`} />
       <div className="min-w-0 flex-1 p-2">

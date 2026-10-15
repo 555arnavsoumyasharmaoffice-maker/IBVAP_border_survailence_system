@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { create } from 'zustand'
-import type { Alert, AlertStatus, AlertType, AppSettings, Camera, ConnectionState, PendingAction, Zone } from '@/types'
+import type { Alert, AlertHistoryEntry, AlertStatus, AlertType, AppSettings, Camera, ConnectionState, PendingAction, Zone } from '@/types'
 import { service } from '@/services'
 import { beep } from '@/lib/sound'
 import { SEV_RANK, eligibleFor, existingIncidentSeverity, groupIncidents } from '@/lib/incidents'
@@ -12,13 +12,21 @@ import { useAuth } from './auth'
 
 export interface Toast {
   key: number
-  alertId: string
-  repeat: boolean
+  /** Alert toast. Absent for plain info notices (e.g. "Acknowledged: ..."). */
+  alertId?: string
+  /** HIGH alerts: shown without sound or slide-in animation. */
+  quiet?: boolean
+  /** The single 60 s reminder for an unacknowledged critical incident. */
+  reminder?: boolean
+  text?: string
 }
 
 /** Alert types that open the full-screen CRITICAL ALERT modal. */
 const MODAL_TYPES: AlertType[] = ['FENCE_INTRUSION', 'FACE_MATCH']
-const RENOTIFY_MS = 30_000
+/** One reminder after this long without acknowledgement... */
+const REMIND_MS = 60_000
+/** ...then the incident is escalated to the supervisor automatically. */
+const AUTO_ESCALATE_MS = 180_000
 const HISTORY_DAYS = 14
 
 interface DataState {
@@ -43,7 +51,7 @@ interface DataState {
   refreshZones: () => Promise<void>
   refreshSettings: () => Promise<void>
   ingest: (alert: Alert) => void
-  setStatus: (id: string, status: AlertStatus, note?: string) => Promise<void>
+  setStatus: (id: string, status: AlertStatus, note?: string, opts?: { by?: string; kind?: AlertHistoryEntry['kind'] }) => Promise<void>
   saveNotes: (id: string, notes: string) => Promise<void>
   flushPending: () => Promise<void>
   /** Apply a status to every eligible alert in the list (incident-level action). */
@@ -51,6 +59,8 @@ interface DataState {
   /** Apply a status to the whole incident that contains this alert. */
   setIncidentStatus: (alertId: string, status: AlertStatus, note?: string) => Promise<void>
   dismissToast: (key: number) => void
+  /** Short info toast (no sound). */
+  notice: (text: string) => void
   dismissModal: (id: string) => void
   clearBell: () => void
 }
@@ -66,7 +76,19 @@ function readPending(): PendingAction[] {
 let flushing = false
 
 let toastKey = 1
-const lastNotified = new Map<string, number>()
+/** Incident ids (first alert id) that already got their one reminder / auto-escalation. */
+const reminded = new Set<string>()
+const autoEscalated = new Set<string>()
+
+/**
+ * Notification policy (ISA-18.2 / EEMUA 191 style): only NEW CRITICAL incidents get sound, an animated toast
+ * and the bell pulse. HIGH gets a quiet toast. MEDIUM / LOW only appear in the feed.
+ */
+export function notifyLevel(a: Alert): 'loud' | 'quiet' | 'none' {
+  if (a.severity === 'CRITICAL') return 'loud'
+  if (a.severity === 'HIGH') return 'quiet'
+  return 'none'
+}
 
 export const useData = create<DataState>((set, get) => {
   function setPending(pending: PendingAction[]) {
@@ -80,20 +102,20 @@ export const useData = create<DataState>((set, get) => {
   // A newer notes edit for the same alert replaces the older queued one.
   const enqueue = (p: PendingAction) => setPending([...get().pending.filter((x) => x.key !== p.key), p])
 
-  function notify(a: Alert, repeat: boolean) {
+  const pushToast = (t: Omit<Toast, 'key'>) =>
+    set((s) => ({ toasts: [{ ...t, key: toastKey++ }, ...s.toasts.filter((x) => !t.alertId || x.alertId !== t.alertId)].slice(0, 4) }))
+
+  function notify(a: Alert, reminder: boolean) {
     const ui = useUi.getState()
-    lastNotified.set(a.id, Date.now())
-    const patch: Partial<DataState> = {}
-    if (!repeat) patch.flash = { ...get().flash, [a.cameraId]: Date.now() }
-    if (ui.popupSeverities.includes(a.severity)) {
-      patch.toasts = [{ key: toastKey++, alertId: a.id, repeat }, ...get().toasts.filter((t) => t.alertId !== a.id)].slice(0, 4)
-      patch.bellPulse = true
+    const level = notifyLevel(a)
+    if (!reminder) set({ flash: { ...get().flash, [a.cameraId]: Date.now() } })
+    if (level === 'none') return
+    pushToast({ alertId: a.id, quiet: level === 'quiet', reminder })
+    if (level === 'loud' && !reminder) {
+      set({ bellPulse: true })
       if (ui.soundEnabled && !ui.muted) beep(a.severity)
+      if (MODAL_TYPES.includes(a.type) && !get().modalQueue.includes(a.id)) set({ modalQueue: [...get().modalQueue, a.id].slice(-8) })
     }
-    if (!repeat && MODAL_TYPES.includes(a.type) && !get().modalQueue.includes(a.id)) {
-      patch.modalQueue = [...get().modalQueue, a.id].slice(-8)
-    }
-    set(patch)
   }
 
   return {
@@ -137,16 +159,27 @@ export const useData = create<DataState>((set, get) => {
           .flushPending()
           .then(() => (was === 'offline' ? get().load() : undefined))
       })
-      // Unacknowledged CRITICAL alerts keep re-notifying every 30 s.
+      // Unacknowledged CRITICAL incident: ONE silent reminder after 60 s, then automatic escalation
+      // to the supervisor after 3 min. No repeated beeping.
       const timer = setInterval(() => {
         const now = Date.now()
         const recent = get().alerts.filter((a) => now - Date.parse(a.timestamp) <= 3_600_000)
-        // One reminder per incident, not per alert.
         for (const inc of groupIncidents(recent)) {
           const a = inc.alerts.find((x) => x.severity === 'CRITICAL' && x.status === 'NEW')
           if (!a) continue
-          const last = Math.max(...inc.alerts.map((x) => lastNotified.get(x.id) ?? 0)) || Date.parse(a.timestamp)
-          if (now - last >= RENOTIFY_MS) notify(a, true)
+          const key = inc.alerts[inc.alerts.length - 1].id
+          const age = now - Date.parse(inc.firstSeen)
+          if (age >= AUTO_ESCALATE_MS && !autoEscalated.has(key)) {
+            autoEscalated.add(key)
+            const note = `Escalated to supervisor: not acknowledged within ${AUTO_ESCALATE_MS / 60_000} min`
+            for (const x of inc.alerts.filter((y) => y.status === 'NEW')) void get().setStatus(x.id, 'ESCALATED', note, { by: 'System (auto-escalation)', kind: 'auto-escalation' })
+            const user = useAuth.getState().user
+            if (user) void service.logAudit({ user: 'System', role: user.role, category: 'ALERT', action: 'Auto-escalated to supervisor', target: a.id, details: note }).catch(() => {})
+            get().notice(`Auto-escalated to supervisor: ${a.id}`)
+          } else if (age >= REMIND_MS && !reminded.has(key)) {
+            reminded.add(key)
+            notify(a, true)
+          }
         }
       }, 5000)
       return () => {
@@ -178,18 +211,19 @@ export const useData = create<DataState>((set, get) => {
       }
     },
 
-    async setStatus(id, status, note) {
-      const by = useAuth.getState().user?.name ?? 'Operator'
+    async setStatus(id, status, note, opts = {}) {
+      const by = opts.by ?? useAuth.getState().user?.name ?? 'Operator'
+      const kind = opts.kind
       const queue = () => {
         const at = new Date().toISOString()
         const a = get().alerts.find((x) => x.id === id)
         // Optimistic local update so the operator sees the result immediately.
-        if (a) get().ingest({ ...a, status, assignedTo: a.assignedTo ?? by, history: [...a.history, { status, at, by, note: note ? `${note} (pending sync)` : 'pending sync' }] })
-        enqueue({ key: `${id}-${at}`, kind: 'status', alertId: id, status, note, by, at })
+        if (a) get().ingest({ ...a, status, assignedTo: a.assignedTo ?? by, history: [...a.history, { status, at, by, note: note ? `${note} (pending sync)` : 'pending sync', ...(kind ? { kind } : {}) }] })
+        enqueue({ key: `${id}-${at}`, kind: 'status', alertId: id, status, note, by, at, historyKind: kind })
       }
       if (get().connection !== 'online') return queue()
       try {
-        get().ingest(await service.updateAlertStatus(id, status, by, note))
+        get().ingest(await service.updateAlertStatus(id, status, by, note, undefined, kind))
       } catch (e) {
         if (!(e instanceof TypeError)) throw e
         queue() // network failure
@@ -219,7 +253,7 @@ export const useData = create<DataState>((set, get) => {
         while (get().pending.length && get().connection === 'online') {
           const p = get().pending[0]
           try {
-            const updated = p.kind === 'status' ? await service.updateAlertStatus(p.alertId, p.status!, p.by, p.note, p.at) : await service.updateAlertNotes(p.alertId, p.notes ?? '')
+            const updated = p.kind === 'status' ? await service.updateAlertStatus(p.alertId, p.status!, p.by, p.note, p.at, p.historyKind) : await service.updateAlertNotes(p.alertId, p.notes ?? '')
             get().ingest(updated)
           } catch (e) {
             if (e instanceof TypeError) break // still offline: keep the queue and try again later
@@ -242,6 +276,7 @@ export const useData = create<DataState>((set, get) => {
       await get().setStatusMany(inc ? inc.alerts.map((a) => a.id) : [alertId], status, note)
     },
 
+    notice: (text) => pushToast({ text, quiet: true }),
     dismissToast: (key) => set((s) => ({ toasts: s.toasts.filter((t) => t.key !== key) })),
     dismissModal: (id) => set((s) => ({ modalQueue: s.modalQueue.filter((x) => x !== id) })),
     clearBell: () => set({ bellPulse: false }),

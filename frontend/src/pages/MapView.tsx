@@ -234,7 +234,7 @@ export default function MapView() {
             </span>
           ))}
           <span className="flex items-center gap-1">
-            <span className="h-0 w-4 border-t-2 border-dashed border-med" /> Border (approx.)
+            <span className="h-0 w-4 border-t-2 border-dashed border-med" /> {t('map.border')}
           </span>
           <span className="flex items-center gap-1">
             Pulse = new alert:

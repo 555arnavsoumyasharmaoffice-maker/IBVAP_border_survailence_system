@@ -75,7 +75,7 @@ export function Playbook({ alert }: { alert: Alert }) {
   )
 }
 
-/** Sends (mock) or requests (real backend) an SMS / WhatsApp message to the Quick Reaction Team. */
+/** Sends (mock) or requests (real backend) a message to the Quick Reaction Team over secure SMS / radio relay. */
 export function NotifyQrt({ alert, className = 'btn' }: { alert: Alert; className?: string }) {
   const t = useT()
   const user = useAuth((s) => s.user)
@@ -112,10 +112,11 @@ export function NotifyQrt({ alert, className = 'btn' }: { alert: Alert; classNam
             <div className="flex gap-2">
               {(['WHATSAPP', 'SMS'] as const).map((c) => (
                 <button key={c} className={`btn flex-1 ${channel === c ? 'btn-primary' : ''}`} disabled={state === 'sent'} onClick={() => setChannel(c)}>
-                  {c === 'SMS' ? 'SMS' : 'WhatsApp'}
+                  {t(c === 'SMS' ? 'qrt.sms' : 'qrt.radio')}
                 </button>
               ))}
             </div>
+            <div className="text-[10px] text-ink-mute">{t('qrt.channels')}</div>
             <Field label="Message preview (editable)">
               <textarea className="field h-28 resize-none normal-case" value={message} disabled={state === 'sent'} onChange={(e) => setMessage(e.target.value)} />
             </Field>

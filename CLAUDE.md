@@ -94,6 +94,20 @@ Leaflet + react-leaflet with OpenStreetMap tiles, Recharts, lucide-react, Zustan
 - Operator actions that do not change status (playbook ticks, QRT notify, evidence export) are appended to
   `alert.history` with a `kind`.
 
+## Notification policy (ISA-18.2 / EEMUA 191, high-performance HMI)
+
+- Only a NEW CRITICAL incident gets sound, the animated toast and the bell pulse (`notifyLevel` in `store/data.ts`).
+  HIGH: quiet toast, no sound. MEDIUM / LOW: no toast, feed only. Notifications fire once per incident.
+- Unacknowledged critical: ONE reminder after 60 s, auto-escalation to supervisor after 3 min (status ESCALATED,
+  history `kind: "auto-escalation"`, audit category ALERT). Never repeated beeping.
+- Mock alert rate is `MOCK_ALERT_INTERVAL_MS` (~1-2 per minute). Plate reads never toast unless blacklisted.
+- KPI tiles are neutral grey/ink when normal and only take a severity colour when abnormal. No decorative colour.
+- Live Cameras max 3x3 (9 feeds per operator), default 2x2.
+- The "A" key acknowledges only the alert in the open critical dialog or the one explicitly clicked
+  (`selectedAlertId`), never the card under the mouse, and confirms with an info toast.
+- Honest labels: "SHA-256 hash computed" (not "verified"), QRT channels are "Secure SMS / radio relay (simulated)",
+  mock mode shows "SIMULATED FEED" on tiles and a "Mock data" pill, the border line is "Indicative ... not official".
+
 ## Status
 
 Built: login with roles, Command Center, Live Cameras, Map View, Alerts + Alert Detail, ANPR, Face Watchlist,

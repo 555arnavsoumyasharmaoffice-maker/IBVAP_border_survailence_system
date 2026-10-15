@@ -85,7 +85,7 @@ const STEPS: Step[] = [
   },
   {
     at: 74,
-    caption: 'Notify QRT: WhatsApp message sent to the Quick Reaction Team and logged',
+    caption: 'Notify QRT: message relayed over secure SMS / radio relay (simulated) and logged',
     run: async (c) => {
       const a = intrusion(c)
       if (!a) return

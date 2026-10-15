@@ -217,6 +217,9 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
       )}
       <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
       {!bare && <FeedChrome camera={camera} counts={counts} topBar={!hideTopBar} />}
+      {!streamUrl && (
+        <span className="pointer-events-none absolute right-1.5 bottom-6 rounded bg-black/60 px-1 font-mono text-[8px] font-bold tracking-wider text-med">{t('feed.simulated')}</span>
+      )}
       {/* keyed so the flash animation restarts for every new alert on this camera */}
       {flashing && <div key={flashAt} className="feed-flash pointer-events-none absolute inset-0" />}
     </div>

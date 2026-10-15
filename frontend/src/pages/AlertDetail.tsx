@@ -58,7 +58,7 @@ export default function AlertDetail() {
 
   useEffect(() => {
     if (!id) return
-    useUi.getState().set({ focusedAlertId: id })
+    useUi.getState().set({ selectedAlertId: id })
   }, [id])
 
   useEffect(() => setNotes(alert?.notes ?? ''), [alert?.id, alert?.notes])

@@ -23,7 +23,7 @@ export const PLAYBOOKS: Record<AlertType, PlaybookStep[]> = {
 
 export const hasPlaybook = (a: Alert) => a.severity === 'CRITICAL' || a.severity === 'HIGH'
 
-/** Default SMS / WhatsApp text sent to the Quick Reaction Team. */
+/** Default message relayed to the Quick Reaction Team (secure SMS / radio relay). */
 export function qrtMessage(a: Alert, camera: Camera | undefined, typeLabel: string) {
   const where = camera ? `${camera.name} (${camera.lat.toFixed(4)}, ${camera.lng.toFixed(4)})` : a.cameraId
   return `IBVAP ${a.severity} ALERT: ${typeLabel} at ${where}, ${fmtTime(a.timestamp)} hrs. ${keyDetail(a)}. Ref ${a.id}. QRT to respond and report.`

@@ -142,9 +142,10 @@ function Focused({ camera, onBack }: { camera: Camera; onBack: () => void }) {
   )
 }
 
-const LAYOUTS: CameraLayout[] = [1, 2, 3, 4]
+const LAYOUTS: CameraLayout[] = [1, 2, 3]
 
 export default function LiveCameras() {
+  const t = useT()
   const [params, setParams] = useSearchParams()
   const { cameras, loading } = useData()
   const layout = useUi((s) => s.cameraLayout)
@@ -167,6 +168,7 @@ export default function LiveCameras() {
           {cameras.filter((c) => c.status !== 'offline').length}/{cameras.length} online
         </span>
         <div className="ml-auto flex items-center gap-1">
+          <span className="mr-1 text-[10px] text-ink-mute">{t('cams.maxNote')}</span>
           {LAYOUTS.map((n) => (
             <button
               key={n}

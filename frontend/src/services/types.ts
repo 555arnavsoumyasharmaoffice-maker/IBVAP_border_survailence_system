@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
+  Alert, AlertHistoryEntry, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -54,11 +54,12 @@ export interface DataService {
   getAlerts(query?: AlertQuery): Promise<Alert[]>
   getAlert(id: string): Promise<Alert>
   /** `at` is only passed for actions queued while offline: the time the operator really acted. */
-  updateAlertStatus(id: string, status: AlertStatus, by: string, note?: string, at?: string): Promise<Alert>
+  /** `kind` marks system-made changes in the history (e.g. "auto-escalation"). */
+  updateAlertStatus(id: string, status: AlertStatus, by: string, note?: string, at?: string, kind?: AlertHistoryEntry['kind']): Promise<Alert>
   updateAlertNotes(id: string, notes: string): Promise<Alert>
   /** Tick / untick one response-playbook step. Logged in the alert history. */
   setPlaybookStep(id: string, stepId: string, label: string, done: boolean, by: string): Promise<Alert>
-  /** Send an SMS / WhatsApp-style message to the Quick Reaction Team. Logged in the alert history. */
+  /** Relay a message to the Quick Reaction Team (SMS = secure SMS gateway, WHATSAPP = radio relay; name kept for compatibility). Logged in the alert history. */
   notifyQrt(id: string, channel: 'SMS' | 'WHATSAPP', message: string, by: string): Promise<Alert>
 
   /** Hashes recorded at capture time, used to verify evidence integrity. */

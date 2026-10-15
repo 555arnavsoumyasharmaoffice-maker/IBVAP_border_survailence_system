@@ -7,6 +7,7 @@ import { useAuth } from '@/store/auth'
 import { audit } from '@/lib/audit'
 import { buildEvidencePackage, fetchBytes, sha256Hex } from '@/lib/evidence'
 import { downloadFile } from '@/lib/format'
+import { useT } from '@/i18n'
 
 type Check = { state: 'checking' } | { state: 'ok' | 'mismatch'; record: EvidenceRecord; actual: string } | { state: 'error'; message: string }
 
@@ -26,6 +27,7 @@ export async function exportEvidence(caseRef: string, alerts: Alert[]) {
 }
 
 export function EvidencePanel({ alert, incident }: { alert: Alert; incident?: Incident }) {
+  const t = useT()
   const [check, setCheck] = useState<Check>({ state: 'checking' })
   const [busy, setBusy] = useState<'alert' | 'incident' | null>(null)
   const [result, setResult] = useState('')
@@ -63,7 +65,7 @@ export function EvidencePanel({ alert, incident }: { alert: Alert; incident?: In
         <span className="panel-title">Evidence</span>
         {check.state === 'ok' && (
           <span className="flex items-center gap-1 rounded border border-low/50 bg-low/15 px-1.5 py-px text-[10px] font-semibold text-low uppercase">
-            <ShieldCheck size={11} /> Integrity verified
+            <ShieldCheck size={11} /> {t('ev.hashComputed')}
           </span>
         )}
         {check.state === 'mismatch' && (

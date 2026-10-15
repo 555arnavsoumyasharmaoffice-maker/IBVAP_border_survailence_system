@@ -260,7 +260,7 @@ zones itself from the `detections` WebSocket channel, so operators can toggle th
 |---|---|---|---|
 | GET | `/alerts` | `?from=ISO&to=ISO&cameraId=cam-01&limit=100` (all optional) | `Alert[]`, **newest first** |
 | GET | `/alerts/{id}` | | `Alert` |
-| PATCH | `/alerts/{id}/status` | `{ "status": "ACKNOWLEDGED", "by": "Ct. S. Meena", "note": "optional", "at": "optional ISO time" }` | updated `Alert` |
+| PATCH | `/alerts/{id}/status` | `{ "status": "ACKNOWLEDGED", "by": "Ct. S. Meena", "note": "optional", "at": "optional ISO time", "kind": "optional" }` | updated `Alert` |
 | PATCH | `/alerts/{id}/notes` | `{ "notes": "text" }` | updated `Alert` |
 | PATCH | `/alerts/{id}/playbook` | `{ "stepId": "s2", "label": "Inform QRT", "done": true, "by": "Ct. S. Meena" }` | updated `Alert` |
 | POST | `/alerts/{id}/notify-qrt` | `{ "channel": "WHATSAPP", "message": "text", "by": "Ct. S. Meena" }` | updated `Alert` |
@@ -271,7 +271,9 @@ operator really clicked. When `at` is present the backend must use it (not the r
 time, so response-time analytics stay correct. Replays can arrive late or twice: applying the same status again must
 be harmless, and an unknown alert id should return 404 (the dashboard then drops that action).
 
-On a status change the backend must: set `status`, append `{status, at: now, by, note}` to `history`, set
+`kind` is only sent for system-made changes, currently `"auto-escalation"` (see section 4); store it on the history entry.
+
+On a status change the backend must: set `status`, append `{status, at: now, by, note, kind?}` to `history`, set
 `assignedTo`, and **broadcast the updated alert on the WebSocket** (so other operator screens update).
 **Evidence:**
 
@@ -284,7 +286,7 @@ On a status change the backend must: set `status`, append `{status, at: now, by,
 { "alertId": "ALT-00733", "algorithm": "SHA-256", "snapshotSha256": "9f2c...64 hex chars", "clipSha256": "optional", "recordedAt": "2026-10-13T18:04:56.000Z" }
 ```
 - The backend must compute `snapshotSha256` (and `clipSha256`) **when it writes the file** and never change it. The
-  dashboard downloads the file, hashes it in the browser and shows "Integrity verified" only if both match.
+  dashboard downloads the file, hashes it in the browser and shows "SHA-256 hash computed" (with a mismatch warning if they differ). This is a hash, not a signature: it proves the file is unchanged since the hash was recorded, nothing more.
 - `snapshotUrl` / `clipUrl` must allow CORS `GET` from the dashboard origin, otherwise the browser cannot hash or zip them.
 - The ZIP itself is built in the browser (snapshot, clip, `metadata.json`, `SHA256SUMS.txt`, `chain_of_custody.json`).
   `evidence/export` only records that it happened: append a history entry with `kind: "evidence"`.
@@ -295,7 +297,8 @@ On a status change the backend must: set `status`, append `{status, at: now, by,
 `{ kind: "playbook", status: <current>, at, by, note: "Done: Inform QRT" }`. The step lists live in the frontend
 (`src/lib/playbooks.ts`); the backend only stores ids.
 
-**Notify QRT:** `channel` is `SMS` or `WHATSAPP`. Send `message` through the SMS / WhatsApp gateway to the QRT
+**Notify QRT:** `channel` is `SMS` (secure SMS gateway) or `WHATSAPP` (kept as the enum value for compatibility; the UI
+labels it "radio relay"). Send `message` through the matching gateway to the QRT
 contacts of that camera's sector, set `qrtNotifiedAt`, append a history entry with `kind: "notify"`. Return a
 non-2xx status if the gateway rejects it, so the UI can show "not sent".
 
@@ -373,7 +376,7 @@ latency > 250 ms, CPU >= 90 %.
   "category": "EVIDENCE", "action": "Evidence exported", "target": "ALT-00733", "details": "1 alert(s), 3 files"
 }
 ```
-`category`: `AUTH | CAMERA_VIEW | ZONE | WATCHLIST | BLACKLIST | ANPR | EXPORT | EVIDENCE | SETTINGS`.
+`category`: `AUTH | CAMERA_VIEW | ZONE | WATCHLIST | BLACKLIST | ANPR | EXPORT | EVIDENCE | SETTINGS | ALERT`.
 
 The dashboard POSTs an entry for: sign-in / sign-out (incl. auto-logout), opening a camera's live view, zone
 create / update / delete, watchlist and blacklist edits, face-match review, plate correction, CSV / report / evidence
@@ -421,7 +424,12 @@ re-sends its `subscribe` messages.
 
 ## 4. Behaviour the UI relies on
 
-- A new `alert` with status `NEW` triggers the toast / sound / critical modal. Do not re-send old alerts as new ids.
+- Notification policy (ISA-18.2 / EEMUA 191): a new `NEW` alert that starts a CRITICAL incident gets sound, an animated
+  toast and the bell pulse; HIGH gets a quiet toast; MEDIUM / LOW only appear in the feed. Do not re-send old alerts as new ids.
+- Unacknowledged CRITICAL incident: one silent reminder after 60 s. After 3 min the dashboard sets every NEW alert of
+  the incident to `ESCALATED` with `by: "System (auto-escalation)"`, `kind: "auto-escalation"`, and POSTs an
+  audit entry (`category: "ALERT"`). A backend may do this itself instead; repeating the same status must be harmless.
+- Target alert volume is about 6-12 operator-facing alarms per hour; tune AI thresholds towards that.
 - `FENCE_INTRUSION` and `FACE_MATCH` open the full-screen critical dialog on every operator screen.
 - When a camera stops sending frames: set its `status` to `offline`, keep `lastSeen`, and raise a `CAMERA_OFFLINE` alert.
 - If the backend is unreachable the frontend shows cached GET responses and a "Backend not reachable" banner.

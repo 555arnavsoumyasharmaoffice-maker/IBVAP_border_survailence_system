@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Severity } from '@/types'
 
-export type CameraLayout = 1 | 2 | 3 | 4
+/** Max 3x3: more than 9 feeds per operator hurts detection (CCTV operator studies). */
+export type CameraLayout = 1 | 2 | 3
 
 interface DemoState {
   running: boolean
@@ -15,11 +15,10 @@ interface UiState {
   lang: 'en' | 'hi'
   muted: boolean
   soundEnabled: boolean
-  popupSeverities: Severity[]
   cameraLayout: CameraLayout
   shortcutsOpen: boolean
-  /** Alert targeted by the "A" shortcut (hovered card or open detail page). */
-  focusedAlertId: string | null
+  /** Alert targeted by the "A" shortcut: clicked in a list or open on the detail page (never mouse hover). */
+  selectedAlertId: string | null
   demo: DemoState
   /** Bumped to ask the demo runner (mounted in the layout) to start/stop. */
   demoRequest: number
@@ -35,10 +34,9 @@ export const useUi = create<UiState>()(
       lang: 'en',
       muted: false,
       soundEnabled: true,
-      popupSeverities: ['CRITICAL', 'HIGH'],
       cameraLayout: 2,
       shortcutsOpen: false,
-      focusedAlertId: null,
+      selectedAlertId: null,
       demo: { running: false, caption: '', step: 0, total: 0 },
       demoRequest: 0,
       set: (patch) => set(patch),
@@ -48,9 +46,15 @@ export const useUi = create<UiState>()(
     }),
     {
       name: 'ibvap.ui',
+      version: 1,
+      // v0 allowed a 4x4 layout and per-severity popups; both were removed.
+      migrate: (old) => {
+        const o = (old ?? {}) as { cameraLayout?: number }
+        return { ...o, cameraLayout: o.cameraLayout && o.cameraLayout <= 3 ? o.cameraLayout : 2 } as never
+      },
       partialize: (s) => ({
         lang: s.lang, muted: s.muted, soundEnabled: s.soundEnabled,
-        popupSeverities: s.popupSeverities, cameraLayout: s.cameraLayout,
+        cameraLayout: s.cameraLayout,
       }),
     },
   ),

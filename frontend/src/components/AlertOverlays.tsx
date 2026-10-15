@@ -19,6 +19,17 @@ function ToastItem({ toast }: { toast: Toast }) {
     const timer = setTimeout(() => dismiss(toast.key), TOAST_MS)
     return () => clearTimeout(timer)
   }, [toast.key, dismiss])
+  if (toast.text) {
+    return (
+      <div role="status" className="pointer-events-auto flex w-80 items-center gap-2 rounded border border-base-600 bg-base-850 px-3 py-2 text-xs shadow-xl shadow-black/60">
+        <Check size={14} className="shrink-0 text-low" />
+        <span className="min-w-0 flex-1 truncate">{toast.text}</span>
+        <button aria-label="Dismiss" className="text-ink-mute hover:text-ink" onClick={() => dismiss(toast.key)}>
+          <X size={14} />
+        </button>
+      </div>
+    )
+  }
   if (!alert) return null
   const Icon = TYPE_ICON[alert.type]
   return (
@@ -28,16 +39,16 @@ function ToastItem({ toast }: { toast: Toast }) {
         dismiss(toast.key)
         navigate(`/alerts/${alert.id}`)
       }}
-      className={`toast-in pointer-events-auto flex w-80 cursor-pointer overflow-hidden rounded border bg-base-850 shadow-xl shadow-black/60 ${SEV[alert.severity].border}`}
+      className={`${toast.quiet ? '' : 'toast-in'} pointer-events-auto flex w-80 cursor-pointer overflow-hidden rounded border bg-base-850 shadow-xl shadow-black/60 ${SEV[alert.severity].border}`}
     >
       <div className={`w-1.5 ${SEV[alert.severity].bg}`} />
       <div className="min-w-0 flex-1 p-2.5">
         <div className="flex items-center gap-1.5">
           <Icon size={14} className={SEV[alert.severity].text} />
           <span className="truncate text-xs font-semibold">{t(`type.${alert.type}`)}</span>
-          {toast.repeat && (
+          {toast.reminder && (
             <span className="flex items-center gap-0.5 rounded bg-crit/20 px-1 text-[9px] font-bold text-crit">
-              <RefreshCw size={9} /> UNACKNOWLEDGED
+              <RefreshCw size={9} /> REMINDER: NOT ACKNOWLEDGED
             </span>
           )}
           <button
@@ -94,7 +105,7 @@ export function CriticalModal() {
           <Siren size={22} className="animate-pulse" />
           <div className="text-lg font-bold tracking-widest">{t('critical.title')}</div>
           {queue.length > 1 && <span className="rounded bg-black/30 px-2 py-0.5 font-mono text-xs">+{queue.length - 1} queued</span>}
-          <button className="ml-auto opacity-80 hover:opacity-100" aria-label="Dismiss" title="Dismiss (alert stays NEW and will re-notify)" onClick={() => dismissModal(alert.id)}>
+          <button className="ml-auto opacity-80 hover:opacity-100" aria-label="Dismiss" title="Dismiss (alert stays NEW: one reminder after 60 s, auto-escalated to supervisor after 3 min)" onClick={() => dismissModal(alert.id)}>
             <X size={18} />
           </button>
         </div>

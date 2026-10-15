@@ -6,7 +6,7 @@ import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
 import { useCan } from '@/store/auth'
 import { beep } from '@/lib/sound'
-import { SEVERITIES } from '@/lib/format'
+import { SEV, SEVERITIES } from '@/lib/format'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
 import { audit } from '@/lib/audit'
@@ -273,8 +273,7 @@ function DetectionTab({ canManage }: { canManage: boolean }) {
 // ---------------- Notifications ----------------
 function NotificationsTab() {
   const t = useT()
-  const { soundEnabled, popupSeverities, muted, set } = useUi()
-  const toggleSeverity = (s: Severity) => set({ popupSeverities: popupSeverities.includes(s) ? popupSeverities.filter((x) => x !== s) : [...popupSeverities, s] })
+  const { soundEnabled, muted, set } = useUi()
   return (
     <div className="panel max-w-xl space-y-4 p-3">
       <div className="panel-title">This workstation</div>
@@ -287,19 +286,19 @@ function NotificationsTab() {
       </label>
       {muted && <div className="text-[11px] text-med">Sound is currently muted from the top bar (press M to unmute).</div>}
       <div>
-        <div className="mb-1 text-[11px] font-medium tracking-wide text-ink-mute uppercase">Severities that pop up a toast + sound</div>
-        <div className="flex flex-wrap gap-4">
-          {SEVERITIES.map((s) => (
-            <label key={s} className="flex items-center gap-1.5 text-xs">
-              <input type="checkbox" checked={popupSeverities.includes(s)} onChange={() => toggleSeverity(s)} />
-              {t(`sev.${s}`)}
-            </label>
-          ))}
-        </div>
+        <div className="mb-1 text-[11px] font-medium tracking-wide text-ink-mute uppercase">{t('notif.policy')}</div>
+        <table className="w-full text-xs">
+          <tbody>
+            {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const).map((sev) => (
+              <tr key={sev} className="border-b border-base-700 last:border-0">
+                <td className={`w-24 py-1.5 font-semibold ${SEV[sev].text}`}>{t(`sev.${sev}`)}</td>
+                <td className="py-1.5 text-ink-dim">{t(sev === 'CRITICAL' ? 'notif.crit' : sev === 'HIGH' ? 'notif.high' : 'notif.low')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <div className="text-[11px] text-ink-mute">
-        Fence intrusions and watchlist face matches always open the full-screen CRITICAL ALERT dialog. Unacknowledged critical alerts re-notify every 30 seconds.
-      </div>
+      <div className="text-[11px] text-ink-mute">{t('notif.renotify')}</div>
     </div>
   )
 }

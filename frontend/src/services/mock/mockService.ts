@@ -9,8 +9,12 @@ import {
   randomPlate, seedAudit, seedBlacklist, seedEdgeNodes, seedCameras, seedUsers, seedWatchlist, seedZones, snapshotSvg, weighted,
 } from './data'
 
-// In-memory fake backend + simulator. Emits a new random alert every 5-10 s,
+// In-memory fake backend + simulator. Emits a random alert about every MOCK_ALERT_INTERVAL_MS (1-2 per minute,
+// in line with the ~6-12 alarms per operator per hour that ISA-18.2 / EEMUA 191 treat as manageable),
 // a plate read every 4-9 s, and detection frames at 10 Hz for subscribed cameras.
+
+/** Mean gap between simulated alerts. Each gap is randomised +/- 25 %. */
+export const MOCK_ALERT_INTERVAL_MS = 40_000
 
 const TYPE_WEIGHTS: Record<AlertType, number> = {
   VEHICLE_DETECTED: 26,
@@ -300,11 +304,11 @@ export function createMockService(): DataService {
       ageMin > 120
         ? weighted({ RESOLVED: 64, FALSE_ALARM: 14, ACKNOWLEDGED: 22 } as Record<AlertStatus, number>)
         : ageMin > 15 || serious
-          ? weighted({ ACKNOWLEDGED: 60, RESOLVED: 24, ESCALATED: 4, FALSE_ALARM: 7, NEW: serious ? 0 : 5 } as Record<AlertStatus, number>)
+          ? weighted({ ACKNOWLEDGED: 30, RESOLVED: 54, ESCALATED: 4, FALSE_ALARM: 7, NEW: serious ? 0 : 5 } as Record<AlertStatus, number>)
           : weighted({ NEW: 45, ACKNOWLEDGED: 55 } as Record<AlertStatus, number>)
     if (outcome === 'NEW') return
     const t0 = Date.parse(a.timestamp)
-    const ackAt = t0 + (serious ? rand(8, 70) : rand(25, 260)) * 1000
+    const ackAt = t0 + (serious ? rand(8, 50) : rand(15, 90)) * 1000
     a.history.push({ status: 'ACKNOWLEDGED', at: new Date(ackAt).toISOString(), by })
     if (outcome !== 'ACKNOWLEDGED') {
       a.history.push({ status: outcome, at: new Date(ackAt + rand(60, 1500) * 1000).toISOString(), by: outcome === 'RESOLVED' ? 'Insp. A. Rathore' : by })
@@ -414,7 +418,7 @@ export function createMockService(): DataService {
     simStarted = true
     const alertLoop = () => {
       if (autoSim && !linkDown) simulateOnce()
-      setTimeout(alertLoop, rand(5000, 10000))
+      setTimeout(alertLoop, rand(0.75, 1.25) * MOCK_ALERT_INTERVAL_MS)
     }
     const plateLoop = () => {
       if (autoSim && !linkDown) {
@@ -423,7 +427,7 @@ export function createMockService(): DataService {
       }
       setTimeout(plateLoop, rand(4000, 9000))
     }
-    setTimeout(alertLoop, 4000)
+    setTimeout(alertLoop, 8000)
     setTimeout(plateLoop, 2500)
   }
 
@@ -483,11 +487,11 @@ export function createMockService(): DataService {
       return later(list, 450)
     },
     getAlert: async (id) => later(findAlert(id)),
-    async updateAlertStatus(id, status, by, note, at) {
+    async updateAlertStatus(id, status, by, note, at, kind) {
       requireLink()
       const a = findAlert(id)
       a.status = status
-      a.history.push({ status, at: at ?? new Date().toISOString(), by, note })
+      a.history.push({ status, at: at ?? new Date().toISOString(), by, note, ...(kind ? { kind } : {}) })
       if (!a.assignedTo || status === 'ESCALATED') a.assignedTo = status === 'ESCALATED' ? 'Insp. A. Rathore' : by
       emit(a)
       return later(a, 60)
@@ -515,7 +519,7 @@ export function createMockService(): DataService {
       requireLink()
       const a = findAlert(id)
       a.qrtNotifiedAt = new Date().toISOString()
-      a.history.push({ kind: 'notify', status: a.status, at: a.qrtNotifiedAt, by, note: `QRT notified via ${channel === 'SMS' ? 'SMS' : 'WhatsApp'}: ${message}` })
+      a.history.push({ kind: 'notify', status: a.status, at: a.qrtNotifiedAt, by, note: `QRT notified via ${channel === 'SMS' ? 'secure SMS' : 'radio relay'} (simulated): ${message}` })
       emit(a)
       return later(a, 700)
     },

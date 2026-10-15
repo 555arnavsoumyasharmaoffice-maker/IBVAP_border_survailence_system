@@ -102,6 +102,11 @@ function TopBar() {
         <span className="font-mono font-semibold">
           {online}/{cameras.length}
         </span>
+        {service.mode === 'mock' && (
+          <span className="ml-1 rounded-full border border-med/50 bg-med/10 px-2 py-0.5 text-[10px] font-semibold text-med" title="Simulated data: no backend or real cameras connected">
+            {t('top.mockData')}
+          </span>
+        )}
         {pending > 0 && (
           <span className="ml-1 flex items-center gap-1 rounded border border-med/50 bg-med/15 px-1.5 py-0.5 font-mono text-[11px] text-med" title="Actions made while offline. They sync automatically when the link returns.">
             <CloudUpload size={12} /> {pending} {t('top.pending')}
@@ -161,9 +166,9 @@ function TopBar() {
 }
 
 const SHORTCUTS: [string, string][] = [
-  ['A', 'Acknowledge the focused alert (critical modal, or the alert card under the mouse)'],
+  ['A', 'Acknowledge the alert in the open critical dialog, or the alert you clicked (never the card under the mouse)'],
   ['M', 'Mute / unmute alert sound'],
-  ['1 2 3 4', 'Live Cameras layout: 1x1, 2x2, 3x3, 4x4'],
+  ['1 2 3', 'Live Cameras layout: 1x1, 2x2, 3x3 (max 9 feeds per operator)'],
   ['?', 'Show this help'],
   ['Esc', 'Close dialogs'],
   ['Ctrl+Shift+D', 'Start / stop Demo Mode (scripted scenario, about 2 minutes)'],
@@ -192,6 +197,9 @@ function ShortcutsModal() {
 
 function useShortcuts() {
   const navigate = useNavigate()
+  const translate = useT()
+  const tRef = useRef(translate)
+  tRef.current = translate
   const location = useLocation()
   const pathRef = useRef(location.pathname)
   pathRef.current = location.pathname
@@ -209,9 +217,13 @@ function useShortcuts() {
       switch (e.key) {
         case 'a':
         case 'A': {
-          const id = data.modalQueue[0] ?? ui.focusedAlertId
+          // Only the alert in the open critical dialog, or the one the operator explicitly selected.
+          const id = data.modalQueue[0] ?? ui.selectedAlertId
           const alert = data.alerts.find((x) => x.id === id)
-          if (alert?.status === 'NEW') void data.setIncidentStatus(alert.id, 'ACKNOWLEDGED')
+          if (alert?.status !== 'NEW') break
+          void data.setIncidentStatus(alert.id, 'ACKNOWLEDGED')
+          const cam = data.cameras.find((c) => c.id === alert.cameraId)
+          data.notice(`Acknowledged: ${tRef.current(`type.${alert.type}` as DictKey)} - ${cam?.name ?? alert.cameraId}`)
           break
         }
         case 'm':
@@ -221,7 +233,6 @@ function useShortcuts() {
         case '1':
         case '2':
         case '3':
-        case '4':
           ui.set({ cameraLayout: Number(e.key) as CameraLayout })
           if (pathRef.current !== '/cameras') navigate('/cameras')
           break

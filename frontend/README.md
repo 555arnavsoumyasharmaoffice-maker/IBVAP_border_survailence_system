@@ -120,7 +120,7 @@ Random alerts are paused while it runs. Press Ctrl+Shift+D again to stop.
 |---|---|
 | `A` | Acknowledge the focused alert (the critical modal, or the alert card under the mouse) |
 | `M` | Mute / unmute alert sound |
-| `1` `2` `3` `4` | Live Cameras layout 1x1 / 2x2 / 3x3 / 4x4 |
+| `1` `2` `3` | Live Cameras layout 1x1 / 2x2 / 3x3 (max 9 feeds per operator) |
 | `?` | Show shortcuts |
 | `Ctrl+Shift+D` | Start / stop Demo Mode |
 

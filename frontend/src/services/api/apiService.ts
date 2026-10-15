@@ -110,7 +110,7 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
 
     getAlerts: (q = {}) => request(`/alerts${qs(q)}`),
     getAlert: (id) => request(`/alerts/${id}`),
-    updateAlertStatus: (id, status, by, note, at) => send('PATCH', `/alerts/${id}/status`, { status, by, note, at }) as never,
+    updateAlertStatus: (id, status, by, note, at, kind) => send('PATCH', `/alerts/${id}/status`, { status, by, note, at, kind }) as never,
     updateAlertNotes: (id, notes) => send('PATCH', `/alerts/${id}/notes`, { notes }) as never,
     setPlaybookStep: (id, stepId, label, done, by) => send('PATCH', `/alerts/${id}/playbook`, { stepId, label, done, by }) as never,
     notifyQrt: (id, channel, message, by) => send('POST', `/alerts/${id}/notify-qrt`, { channel, message, by }) as never,
