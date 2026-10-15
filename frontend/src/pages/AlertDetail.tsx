@@ -131,6 +131,8 @@ export default function AlertDetail() {
   useEffect(() => {
     if (!id) return
     useUi.getState().set({ selectedAlertId: id })
+    // Leaving the detail page clears the selection, so "A" never acknowledges an alert that is no longer on screen.
+    return () => useUi.getState().set({ selectedAlertId: null })
   }, [id])
 
   useEffect(() => setNotes(alert?.notes ?? ''), [alert?.id, alert?.notes])

@@ -486,6 +486,25 @@ append-only. In production the backend should take `user` / `role` from the auth
 **Webhook (Command & Control integration):** when `webhookUrl` is set, POST every new alert to it as
 `{ "event": "alert.created", "data": Alert }`. The test endpoint sends one sample event and reports the result.
 
+### AI engine -> backend (ingest)
+
+The dashboard never calls these; they are how the Python AI engine (one per edge node) feeds the backend. The backend
+turns them into the shapes above and broadcasts them on the WebSocket. Authenticate with a per-node token header
+`X-Node-Token`.
+
+| Method | Path | Body | Backend does |
+|---|---|---|---|
+| POST | `/ingest/alert` | `Alert` without `id`, `status`, `history`, `assignedTo`, `notes` (+ `clip` once the ring buffer is written) | assigns `id`, sets `status: NEW`, `history: [{ status: NEW, by: "AI Engine" }]`, applies the drone-watch raise, drops it if the camera is `outOfService`, stores the snapshot / clip hashes (`EvidenceRecord`), broadcasts `{ type: "alert" }` |
+| PATCH | `/ingest/alert/{id}/clip` | `{ "url": "...", "startOffsetSec": -10, "endOffsetSec": 20 }` | sets `alert.clip` when the post-event part of the clip is ready, records `clipSha256`, re-broadcasts the alert |
+| POST | `/ingest/detections` | `DetectionFrame` (2-10 per second per camera) | forwards to WebSocket subscribers of that camera only (not stored) |
+| POST | `/ingest/plate-read` | `PlateRead` without `id`, `blacklisted`, `droneWatchId` | checks the blacklist (creates `ANPR_MATCH` on a hit), tags the drone watch, broadcasts `{ type: "plate_read" }` |
+| POST | `/ingest/track` | `DetectionRecord` without `id`, `thumbUrl` (+ thumbnail upload) | stores it for `GET /search` and `GET /cameras/{id}/tracks/{trackId}` |
+| POST | `/ingest/heartbeat` | `EdgeNode` without `status` | updates `GET /health/nodes`; marks the node `offline` when heartbeats stop for 60 s and its cameras `offline` + a `CAMERA_OFFLINE` alert |
+| POST | `/ingest/camera-status` | `{ "cameraId", "status", "fps", "visibility", "isNightMode" }` | updates the `Camera` (drives AI-degraded / night mode on the dashboard) |
+
+The engine must keep `trackId` stable while an object stays in view (incident grouping, Tracking view, search).
+Bookmarks are not ingested: they are operator history entries (`POST /alerts/{id}/history`, `kind: "bookmark"`).
+
 ## 3. WebSocket
 
 One connection to `VITE_WS_URL`. The frontend reconnects automatically with exponential backoff (1 s, doubling up to 15 s) and shows the link as

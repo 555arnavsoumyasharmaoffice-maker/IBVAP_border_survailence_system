@@ -83,7 +83,7 @@ export const en = {
   'qrt.radio': "Radio relay (simulated)",
   'qrt.channels': "Secure SMS / radio relay (simulated)",
   'health.title': "Edge Nodes",
-  'health.subtitle': "Existing control-room PC or small AI box per BOP (no camera replacement)",
+  'health.subtitle': "Edge Nodes - existing control-room PC or small AI box per BOP (no camera replacement)",
   'cams.maxNote': "Recommended max 9 feeds per operator",
   'kpi.openCrit': "Open critical incidents",
   'kpi.openCritHint': "Needs attention now",

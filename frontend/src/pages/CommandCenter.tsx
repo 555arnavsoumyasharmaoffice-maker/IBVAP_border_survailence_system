@@ -83,7 +83,14 @@ function SectorOverview() {
   const open = (st: string) => st === 'NEW' || st === 'ACKNOWLEDGED' || st === 'ESCALATED' || st === 'ON_HOLD'
   const camBop = Object.fromEntries(cameras.map((c) => [c.id, c.bopId]))
   const counts: Record<string, number> = {}
-  for (const i of incidents) if (open(i.status) && Date.now() - Date.parse(i.lastSeen) < 86_400_000) counts[camBop[i.cameraId]] = (counts[camBop[i.cameraId]] ?? 0) + 1
+  // Neutral unless something still needs an operator (NEW / ESCALATED): high-performance HMI.
+  const urgent: Record<string, boolean> = {}
+  for (const i of incidents) {
+    if (!open(i.status) || Date.now() - Date.parse(i.lastSeen) >= 86_400_000) continue
+    const b = camBop[i.cameraId]
+    counts[b] = (counts[b] ?? 0) + 1
+    if (i.status === 'NEW' || i.status === 'ESCALATED') urgent[b] = true
+  }
   if (!groups.length) return null
   return (
     <div className="panel flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 text-xs">
@@ -92,7 +99,7 @@ function SectorOverview() {
         <span key={sector.id} className="flex items-center gap-2">
           <span className="text-ink-mute">{sector.name.replace(/ Sector.*/, '')}:</span>
           {bops.map(({ bop }) => (
-            <button key={bop.id} onClick={() => navigate('/alerts')} className={`rounded border px-1.5 py-px ${counts[bop.id] ? 'border-high/50 text-high' : 'border-base-700 text-ink-dim'}`}>
+            <button key={bop.id} onClick={() => navigate('/alerts')} className={`rounded border px-1.5 py-px ${urgent[bop.id] ? 'border-high/50 text-high' : 'border-base-700 text-ink-dim'}`}>
               {bop.name.replace(/^(BOP|ICP|Check Post) /, '')} <span className="font-mono font-bold">{counts[bop.id] ?? 0}</span>
             </button>
           ))}

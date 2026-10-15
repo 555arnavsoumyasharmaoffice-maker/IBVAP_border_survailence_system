@@ -30,6 +30,7 @@ const REMIND_MS = 60_000
 /** ...then the incident is escalated to the supervisor automatically. */
 const AUTO_ESCALATE_MS = 180_000
 const HISTORY_DAYS = 14
+const MAX_STORE_ALERTS = 1000
 
 interface DataState {
   cameras: Camera[]
@@ -220,7 +221,8 @@ export const useData = create<DataState>((set, get) => {
     ingest(a) {
       const { alerts } = get()
       const exists = alerts.some((x) => x.id === a.id)
-      set({ alerts: exists ? alerts.map((x) => (x.id === a.id ? a : x)) : [a, ...alerts] })
+      // Cap the store too (newest first), so a long-running dashboard stays fast.
+      set({ alerts: exists ? alerts.map((x) => (x.id === a.id ? a : x)) : [a, ...alerts].slice(0, MAX_STORE_ALERTS) })
       // Shelved incident or out-of-service camera: the alert is stored but nobody is interrupted.
       const muted = get().cameras.find((c) => c.id === a.cameraId)?.outOfService || alerts.some((x) => isShelved(x) && x.cameraId === a.cameraId && (x.trackId === a.trackId || x.type === a.type) && Date.parse(a.timestamp) - Date.parse(x.timestamp) < 600_000)
       if (!exists && a.status === 'NEW' && !muted) {

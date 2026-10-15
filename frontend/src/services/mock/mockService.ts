@@ -18,6 +18,10 @@ import {
 
 /** Mean gap between simulated alerts. Each gap is randomised +/- 25 %. */
 export const MOCK_ALERT_INTERVAL_MS = 40_000
+/** In-memory caps so the simulator can run for hours without slowing down. */
+const MAX_ALERTS = 800
+const MAX_PLATE_READS = 600
+const MAX_RECORDS = 1200
 
 const TYPE_WEIGHTS: Record<AlertType, number> = {
   VEHICLE_DETECTED: 26,
@@ -182,6 +186,7 @@ export function createMockService(): DataService {
       droneWatchId: watchFor(cameraId, ts)?.id,
     }
     plateReads.unshift(read)
+    if (plateReads.length > MAX_PLATE_READS) plateReads.length = MAX_PLATE_READS
     return read
   }
 
@@ -485,6 +490,9 @@ export function createMockService(): DataService {
     if (!alerts.includes(alert) && camById(alert.cameraId)?.outOfService) return
     if (!alerts.includes(alert)) {
       alerts.unshift(alert)
+      // Keep memory flat for long demos: history + live alerts are capped.
+      if (alerts.length > MAX_ALERTS) alerts.length = MAX_ALERTS
+      if (records.length > MAX_RECORDS) records.length = MAX_RECORDS
       if (alert.bbox && alert.details.objectClass !== 'drone') {
         addRecord(alert.cameraId, new Date(alert.timestamp), alert)
         records.unshift(records.pop()!)

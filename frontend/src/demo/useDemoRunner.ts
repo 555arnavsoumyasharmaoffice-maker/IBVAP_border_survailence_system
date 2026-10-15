@@ -198,9 +198,11 @@ const STEPS: Step[] = [
       if (c.fenceId) void data().setIncidentStatus(c.fenceId, 'ESCALATED', 'Drone drop suspected, QRT on the way')
     },
   },
-  { at: 129, caption: 'IBVAP covers every requirement of Problem Statement 26187', run: (c) => c.navigate('/about') },
+  { at: 128, caption: 'Event log: every operator and system action is in the audit log (who, what, when)', run: (c) => c.navigate('/audit') },
+  { at: 135, caption: 'Command & Control integration: REST API, WebSocket stream and a webhook push every alert as JSON', run: (c) => c.navigate('/settings?tab=integration') },
+  { at: 142, caption: 'IBVAP covers every requirement of Problem Statement 26187', run: (c) => c.navigate('/about') },
 ]
-const TOTAL_SECONDS = 142
+const TOTAL_SECONDS = 155
 
 export function useDemoRunner() {
   const navigate = useNavigate()
