@@ -1,5 +1,5 @@
 import type {
-  AuditCategory, AuditEntry, BBox, BlacklistVehicle, Camera, DetectionModules, EdgeNode, Naka, Role, User, WatchlistPerson, Zone,
+  AuditCategory, AuditEntry, BBox, SuspiciousSubtype, BlacklistVehicle, Camera, DetectionModules, EdgeNode, Naka, Role, User, WatchlistPerson, Zone,
 } from '@/types'
 
 // ---------- random helpers ----------
@@ -100,7 +100,7 @@ export function randomPlate() {
   const state = weighted({ RJ: 50, PB: 25, GJ: 15, JK: 10 })
   return `${state}${pick(RTO[state])}${pick([...LETTERS])}${pick([...LETTERS])}${randInt(1000, 9999)}`
 }
-export const VEHICLE_CLASSES = ['Car', 'Truck', 'Motorcycle', 'Tractor', 'Bus', 'Pickup', 'SUV'] as const
+export const VEHICLE_CLASSES = ['car', 'truck', 'bus', 'motorcycle', 'tractor', 'jeep'] as const
 export const VEHICLE_COLORS = ['White', 'Silver', 'Black', 'Blue', 'Red', 'Grey', 'Brown'] as const
 
 // ---------- seed entities ----------
@@ -197,14 +197,13 @@ export const seedUsers = (): User[] => [
   { id: 'u-05', name: 'Ct. D. Bishnoi', username: 'bishnoi', role: 'OPERATOR', active: false },
 ]
 
-export const SUSPICIOUS = [
-  'Object thrown across fence',
-  'Person crawling near fence',
-  'Group gathering near border pillar',
-  'Unattended bag at check post',
-  'Vehicle halted on border road > 5 min',
-  'Person running towards fence',
-]
+export const SUSPICIOUS: Record<Exclude<SuspiciousSubtype, 'LOITERING'>, string[]> = {
+  WALL_SCALING: ['Person climbing the fence near pillar', 'Ladder placed against the BOP wall'],
+  FAKE_PLATE: ['Plate font / format does not match RTO pattern', 'Same plate read on two vehicles of different class'],
+  UNATTENDED_OBJECT: ['Unattended bag at check post', 'Package left near fence gate > 2 min'],
+  CROWD_GATHERING: ['Group of 6+ gathering near border pillar', 'Crowd forming at the gate after hours'],
+  CRAWLING: ['Person crawling near fence', 'Low crawling movement in the riverbed'],
+}
 
 /** Believable audit history for the last three days. */
 export function seedAudit(): AuditEntry[] {

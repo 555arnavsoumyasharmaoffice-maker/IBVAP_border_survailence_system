@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Download, Layers, Search } from 'lucide-react'
-import type { Alert, AlertStatus, AlertType, Incident, Severity } from '@/types'
+import type { Alert, AlertStatus, AlertType, Incident, Severity, SuspiciousSubtype } from '@/types'
 import { useData, useIncidents } from '@/store/data'
 import { audit } from '@/lib/audit'
-import { ALERT_TYPES, SEV, SEVERITIES, STATUSES, downloadFile, fmtDateTime, fmtDuration, isActive, keyDetail, pct, toCsv } from '@/lib/format'
+import { ALERT_TYPES, SEV, SEVERITIES, STATUSES, SUBTYPES, subtypeOf, downloadFile, fmtDateTime, fmtDuration, isActive, keyDetail, pct, toCsv } from '@/lib/format'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
 import { AlertActions } from '@/components/AlertCard'
@@ -23,6 +23,8 @@ export default function Alerts() {
   const [severity, setSeverity] = useState<Severity | ''>('')
   const [status, setStatus] = useState<AlertStatus | 'ACTIVE' | ''>('')
   const [cameraId, setCameraId] = useState('')
+  const [subtype, setSubtype] = useState<SuspiciousSubtype | ''>('')
+  const subOk = (a: Alert) => !subtype || subtypeOf(a) === subtype
   const [search, setSearch] = useState('')
 
   const camName = useMemo(() => Object.fromEntries(cameras.map((c) => [c.id, c.name])), [cameras])
@@ -35,18 +37,18 @@ export default function Alerts() {
       alerts.filter(
         (a) =>
           (!type || a.type === type) && (!severity || a.severity === severity) && (!status || (status === 'ACTIVE' ? isActive(a) : a.status === status)) &&
-          (!cameraId || a.cameraId === cameraId) && (!q || hay(a).includes(q)),
+          (!cameraId || a.cameraId === cameraId) && (!q || hay(a).includes(q)) && subOk(a),
       ),
-    [alerts, type, severity, status, cameraId, q, camName], // eslint-disable-line react-hooks/exhaustive-deps
+    [alerts, type, severity, status, cameraId, q, camName, subtype], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const filteredIncidents = useMemo(
     () =>
       incidents.filter(
         (i) =>
           (!type || i.alerts.some((a) => a.type === type)) && (!severity || i.severity === severity) && statusOk(i.status) &&
-          (!cameraId || i.cameraId === cameraId) && (!q || i.id.toLowerCase().includes(q) || i.alerts.some((a) => hay(a).includes(q))),
+          (!cameraId || i.cameraId === cameraId) && (!q || i.id.toLowerCase().includes(q) || i.alerts.some((a) => hay(a).includes(q))) && (!subtype || i.alerts.some(subOk)),
       ),
-    [incidents, type, severity, status, cameraId, q, camName], // eslint-disable-line react-hooks/exhaustive-deps
+    [incidents, type, severity, status, cameraId, q, camName, subtype], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const rows = view === 'incidents' ? filteredIncidents.length : filteredAlerts.length
 
@@ -156,6 +158,12 @@ export default function Alerts() {
           <option value="">All types</option>
           {ALERT_TYPES.map((s) => (
             <option key={s} value={s}>{t(`type.${s}`)}</option>
+          ))}
+        </select>
+        <select className="field" value={subtype} onChange={(e) => setSubtype(e.target.value as SuspiciousSubtype | '')} aria-label={t('sub.label')}>
+          <option value="">{t('sub.all')}</option>
+          {SUBTYPES.map((s) => (
+            <option key={s} value={s}>{t(`sub.${s}`)}</option>
           ))}
         </select>
         <select className="field" value={cameraId} onChange={(e) => setCameraId(e.target.value)} aria-label="Camera">

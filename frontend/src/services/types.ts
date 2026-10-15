@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertClip, AlertHistoryEntry, DroneWatch, HistoryKind, Naka, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
+  Alert, AlertClip, AlertHistoryEntry, DroneWatch, HistoryKind, Naka, SuspiciousSubtype, TrackPoint, VehicleClass, AlertStatus, AlertType, AppSettings, AuditEntry, BlacklistVehicle, Camera, ConnectionState, EdgeNode, EvidenceRecord,
   DetectionFrame, FaceMatch, PlateRead, ReviewState, Role, User, WatchlistPerson, Zone, ZoneAuditEntry,
 } from '@/types'
 
@@ -25,6 +25,10 @@ export interface DemoAlertSpec {
   cameraId: string
   plate?: string
   personId?: string
+  subtype?: SuspiciousSubtype
+  vehicleClass?: VehicleClass
+  /** Repeat alert about the same object. */
+  trackId?: number
 }
 
 export interface DemoControls {
@@ -62,6 +66,8 @@ export interface DataService {
   /** Relay a message to the Quick Reaction Team (SMS = secure SMS gateway, WHATSAPP = radio relay; name kept for compatibility). Logged in the alert history. */
   notifyQrt(id: string, channel: 'SMS' | 'WHATSAPP', message: string, by: string): Promise<Alert>
 
+  /** Sightings of one track on one camera around a time (Alert Detail > Tracking). */
+  getTrack(cameraId: string, trackId: number, around: string): Promise<TrackPoint[]>
   /** Clip window around the alert (GET /alerts/{id}/clip). */
   getAlertClip(id: string): Promise<AlertClip>
   /** Append a non-status entry to the alert history (bookmark, shared, ...). */

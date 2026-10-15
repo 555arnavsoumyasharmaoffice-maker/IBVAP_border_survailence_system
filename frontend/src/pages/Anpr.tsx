@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Check, Lock, Pencil, Plus, Search, ShieldAlert, Trash2, TriangleAlert } from 'lucide-react'
-import type { BlacklistReason, BlacklistVehicle, Level, PlateRead } from '@/types'
+import type { BlacklistReason, BlacklistVehicle, Level, PlateRead, VehicleClass } from '@/types'
 import { service } from '@/services'
 import { useData } from '@/store/data'
 import { useCan } from '@/store/auth'
-import { fmtDate, fmtDateTime, pct } from '@/lib/format'
+import { VEHICLE_CLASS_LIST, fmtDate, fmtDateTime, pct } from '@/lib/format'
 import { audit } from '@/lib/audit'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
@@ -85,6 +85,7 @@ function VehicleHistory({ plate, onClose }: { plate: string; onClose: () => void
 }
 
 function ReadsTab() {
+  const t = useT()
   const cameras = useData((s) => s.cameras)
   const [reads, setReads] = useState<PlateRead[] | null>(null)
   const [error, setError] = useState('')
@@ -95,6 +96,8 @@ function ReadsTab() {
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null)
   const camName = useMemo(() => Object.fromEntries(cameras.map((c) => [c.id, c.name])), [cameras])
   const camAt = useMemo(() => Object.fromEntries(cameras.map((c) => [c.id, c])), [cameras])
+  const [vclass, setVclass] = useState<VehicleClass | ''>('')
+  const shown = useMemo(() => (reads && vclass ? reads.filter((r) => r.vehicleClass === vclass) : reads), [reads, vclass])
   const fromIso = from ? new Date(`${from}T00:00:00`).toISOString() : undefined
   const toIso = to ? new Date(`${to}T23:59:59`).toISOString() : undefined
 
@@ -149,22 +152,30 @@ function ReadsTab() {
         <Field label="To">
           <input type="date" className="field" value={to} min={from} max={fmtDate(Date.now())} onChange={(e) => setTo(e.target.value)} />
         </Field>
-        {(search || from || to) && (
-          <button className="btn" onClick={() => { setSearch(''); setFrom(''); setTo('') }}>
+        <Field label={t('veh.label')}>
+          <select className="field" value={vclass} onChange={(e) => setVclass(e.target.value as VehicleClass | '')}>
+            <option value="">{t('veh.all')}</option>
+            {VEHICLE_CLASS_LIST.map((v) => (
+              <option key={v} value={v}>{t(`veh.${v}`)}</option>
+            ))}
+          </select>
+        </Field>
+        {(search || from || to || vclass) && (
+          <button className="btn" onClick={() => { setSearch(''); setFrom(''); setTo(''); setVclass('') }}>
             Clear
           </button>
         )}
         <span className="ml-auto flex items-center gap-1 font-mono text-[10px] text-low">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-low" /> LIVE · {reads?.length ?? 0} reads
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-low" /> LIVE · {shown?.length ?? 0} reads
         </span>
       </div>
 
       <div className="panel overflow-x-auto">
-        {!reads ? (
+        {!shown ? (
           <SkeletonRows rows={10} />
         ) : error ? (
           <ErrorState message={error} onRetry={fetchReads} />
-        ) : !reads.length ? (
+        ) : !shown.length ? (
           <EmptyState title="No plate reads match" hint="Try a shorter plate fragment or a wider date range." />
         ) : (
           <table className="w-full text-xs">
@@ -181,7 +192,7 @@ function ReadsTab() {
               </tr>
             </thead>
             <tbody>
-              {reads.map((r) => (
+              {shown.map((r) => (
                 <tr key={r.id} className={`border-b border-base-800 ${r.blacklisted ? 'bg-crit/10' : 'hover:bg-base-850'}`}>
                   <td className="px-2 py-1.5 font-mono whitespace-nowrap text-ink-dim">{fmtDateTime(r.timestamp)}</td>
                   <td className="max-w-48 truncate px-2 text-ink-dim">{camName[r.cameraId] ?? r.cameraId}</td>
@@ -206,7 +217,7 @@ function ReadsTab() {
                   <td className="px-2">
                     <img src={r.cropUrl} alt="" className="h-5 rounded-sm" />
                   </td>
-                  <td className="px-2">{r.vehicleClass}</td>
+                  <td className="px-2">{t(`veh.${r.vehicleClass}`)}</td>
                   <td className="px-2 text-ink-dim">{r.color ?? '-'}</td>
                   <td className={`px-2 font-mono ${r.confidence < 0.7 ? 'text-med' : 'text-ink-dim'}`}>{pct(r.confidence)}</td>
                   <td className="px-2">

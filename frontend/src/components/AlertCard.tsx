@@ -80,6 +80,7 @@ export function AlertCard({ alert, incident, now, compact = false }: { alert: Al
         <div className="flex items-center gap-1.5">
           <Icon size={14} className={`shrink-0 ${sev.text}`} />
           <span className="truncate text-xs font-semibold">{t(`type.${type}`)}</span>
+          {alert.details.subtype && <span className="shrink-0 rounded border border-med/40 px-1 text-[9px] font-semibold text-med uppercase">{t(`sub.${alert.details.subtype}`)}</span>}
           {count > 1 && (
             <span className="flex shrink-0 items-center gap-0.5 rounded bg-base-600 px-1 font-mono text-[10px] font-bold text-ink" title={`${count} alerts grouped into one incident`}>
               <Layers size={9} /> x{count}

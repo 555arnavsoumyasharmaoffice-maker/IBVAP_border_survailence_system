@@ -1,4 +1,4 @@
-import type { Alert, AlertStatus, AlertType, Severity, Visibility } from '@/types'
+import type { Alert, AlertStatus, AlertType, Severity, SuspiciousSubtype, VehicleClass, Visibility } from '@/types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -41,6 +41,11 @@ export const ALERT_TYPES: AlertType[] = [
   'LOITERING', 'NIGHT_MOVEMENT', 'SUSPICIOUS_ACTIVITY', 'CAMERA_OFFLINE', 'DRONE_SIGHTING',
 ]
 
+export const SUBTYPES: SuspiciousSubtype[] = ['WALL_SCALING', 'FAKE_PLATE', 'UNATTENDED_OBJECT', 'CROWD_GATHERING', 'CRAWLING', 'LOITERING']
+export const VEHICLE_CLASS_LIST: VehicleClass[] = ['car', 'truck', 'bus', 'motorcycle', 'tractor', 'jeep']
+/** Subtype of an alert for filters / analytics: SUSPICIOUS_ACTIVITY subtype, or LOITERING for the loitering type. */
+export const subtypeOf = (a: Alert): SuspiciousSubtype | undefined => a.details.subtype ?? (a.type === 'LOITERING' ? 'LOITERING' : undefined)
+
 export const SEV: Record<Severity, { hex: string; text: string; bg: string; soft: string; border: string }> = {
   CRITICAL: { hex: '#ef4444', text: 'text-crit', bg: 'bg-crit', soft: 'bg-crit/15 text-crit border-crit/50', border: 'border-crit' },
   HIGH: { hex: '#f97316', text: 'text-high', bg: 'bg-high', soft: 'bg-high/15 text-high border-high/50', border: 'border-high' },
@@ -79,6 +84,7 @@ export function keyDetail(a: Alert): string {
   if (d.dwellTimeSec) return `${d.zoneName ?? 'Zone'} - dwell ${fmtDuration(d.dwellTimeSec)}`
   if (a.type === 'FENCE_INTRUSION') return `${d.zoneName ?? 'Fence'} - ${d.objectCount ?? 1} person(s)`
   if (d.vehicleClass) return `${d.vehicleColor ?? ''} ${d.vehicleClass}`.trim()
+  if (d.subtype) return `${d.subtype.replace(/_/g, ' ')}: ${d.description ?? ''}`
   return d.description ?? ''
 }
 

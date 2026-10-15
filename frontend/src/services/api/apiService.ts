@@ -115,6 +115,7 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
     setPlaybookStep: (id, stepId, label, done, by) => send('PATCH', `/alerts/${id}/playbook`, { stepId, label, done, by }) as never,
     notifyQrt: (id, channel, message, by) => send('POST', `/alerts/${id}/notify-qrt`, { channel, message, by }) as never,
 
+    getTrack: (cameraId, trackId, around) => request(`/cameras/${cameraId}/tracks/${trackId}${qs({ around })}`),
     getAlertClip: (id) => request(`/alerts/${id}/clip`),
     addAlertHistory: (id, entry) => send('POST', `/alerts/${id}/history`, entry) as never,
     getDroneWatches: () => request('/drone-watches'),

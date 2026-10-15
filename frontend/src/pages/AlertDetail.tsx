@@ -1,11 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Drone, Map as MapIcon, Save, Video } from 'lucide-react'
-import type { Alert, WatchlistPerson } from '@/types'
+import type { Alert, TrackPoint, WatchlistPerson } from '@/types'
 import { service } from '@/services'
 import { useData } from '@/store/data'
 import { useUi } from '@/store/ui'
-import { SEV, VISIBILITY, fmtDateTime, fmtDuration, isLowVisibility, keyDetail, pct, relTime } from '@/lib/format'
+import { SEV, VISIBILITY, fmtDateTime, fmtDuration, fmtTime, isLowVisibility, keyDetail, pct, relTime } from '@/lib/format'
 import { groupIncidents } from '@/lib/incidents'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
@@ -17,9 +17,77 @@ import { hasPlaybook } from '@/lib/playbooks'
 import { EvidencePanel } from '@/components/EvidencePanel'
 import { ClipPlayer } from '@/components/ClipPlayer'
 import { InWatchTag, ShareNakaButton } from '@/components/DroneWatch'
-import { Chip, EmptyState, PlateTag, SeverityBadge, Skeleton, StatusBadge, TYPE_ICON, useNow } from '@/components/ui'
+import { Chip, EmptyState, ErrorState, PlateTag, SkeletonRows, SeverityBadge, Skeleton, StatusBadge, TYPE_ICON, useNow } from '@/components/ui'
 
 const DAY = 86_400_000
+
+/** Every sighting of this alert's track on its camera, so tracking is visible to the operator. */
+function TrackingPanel({ alert }: { alert: Alert }) {
+  const t = useT()
+  const [points, setPoints] = useState<TrackPoint[] | null>(null)
+  const [error, setError] = useState('')
+  const trackId = alert.trackId
+  useEffect(() => {
+    if (trackId === null) return
+    let live = true
+    setPoints(null)
+    setError('')
+    service.getTrack(alert.cameraId, trackId, alert.timestamp).then((p) => live && setPoints(p), (e: Error) => live && setError(e.message))
+    return () => {
+      live = false
+    }
+  }, [alert.cameraId, trackId, alert.timestamp])
+  const t0 = Date.parse(alert.timestamp)
+  return (
+    <div className="panel p-3">
+      <div className="mb-2 flex items-baseline gap-2">
+        <span className="panel-title">
+          {t('track.title')}
+          {trackId !== null && <span className="ml-1 font-mono">#{trackId}</span>}
+        </span>
+        <span className="text-[10px] text-ink-mute">{t('track.hint')}</span>
+      </div>
+      {trackId === null ? (
+        <div className="text-xs text-ink-mute">{t('track.none')}</div>
+      ) : error ? (
+        <ErrorState message={error} />
+      ) : !points ? (
+        <SkeletonRows rows={3} />
+      ) : !points.length ? (
+        <EmptyState title={t('track.none')} />
+      ) : (
+        <div className="flex gap-3">
+          <svg viewBox="0 0 160 90" className="h-24 w-40 shrink-0 rounded border border-base-700 bg-black">
+            <polyline
+              points={points.map((p) => `${(p.bbox[0] + p.bbox[2] / 2) * 160},${(p.bbox[1] + p.bbox[3]) * 90}`).join(' ')}
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="1.5"
+            />
+            {points.map((p) => {
+              const at = Date.parse(p.at) - t0
+              return <circle key={p.at} cx={(p.bbox[0] + p.bbox[2] / 2) * 160} cy={(p.bbox[1] + p.bbox[3]) * 90} r={Math.abs(at) < 1000 ? 3.5 : 1.8} fill={Math.abs(at) < 1000 ? '#ef4444' : '#38bdf8'} />
+            })}
+          </svg>
+          <ul className="max-h-24 min-w-0 flex-1 overflow-y-auto font-mono text-[11px]">
+            {points.map((p) => {
+              const rel = (Date.parse(p.at) - t0) / 1000
+              return (
+                <li key={p.at} className={`flex gap-3 ${Math.abs(rel) < 1 ? 'font-bold text-crit' : 'text-ink-dim'}`}>
+                  <span>{fmtTime(p.at)}</span>
+                  <span className="w-12 text-right">{rel >= 0 ? '+' : ''}{rel.toFixed(0)}s</span>
+                  <span className="capitalize">{p.class}</span>
+                  <span>{pct(p.confidence)}</span>
+                  <span className="text-ink-mute">x {p.bbox[0].toFixed(2)}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -244,6 +312,8 @@ export default function AlertDetail() {
             </div>
           )}
 
+          <TrackingPanel alert={alert} />
+
           <div className="panel p-3">
             <div className="panel-title mb-2">Related alerts (same track or plate, ±24h)</div>
             {related.length ? (
@@ -297,7 +367,8 @@ export default function AlertDetail() {
               )}
               <Row label="Track ID"><span className="font-mono">{alert.trackId ?? '-'}</span></Row>
               {d.plateNumber && <Row label="Plate"><PlateTag plate={d.plateNumber} flagged={alert.type === 'ANPR_MATCH'} /></Row>}
-              {d.vehicleClass && <Row label="Vehicle">{[d.vehicleColor, d.vehicleClass].filter(Boolean).join(' ')}</Row>}
+              {d.subtype && <Row label={t('sub.label')}><span className="font-semibold text-med">{t(`sub.${d.subtype}`)}</span></Row>}
+              {d.vehicleClass && <Row label={t('veh.label')}>{[d.vehicleColor, t(`veh.${d.vehicleClass}`)].filter(Boolean).join(' ')}</Row>}
               {d.blacklistReason && <Row label="Blacklist reason"><span className="font-semibold text-crit">{d.blacklistReason}</span></Row>}
               {d.matchedPersonName && <Row label="Matched person">{d.matchedPersonName}</Row>}
               {d.zoneName && <Row label="Zone">{d.zoneName}</Row>}

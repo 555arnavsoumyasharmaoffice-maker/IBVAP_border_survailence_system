@@ -1,5 +1,5 @@
 import type {
-  Alert, AlertStatus, AlertType, AppSettings, BBox, ConnectionState, Detection, DetectionClass, DroneWatch,
+  Alert, AlertStatus, AlertType, AppSettings, BBox, SuspiciousSubtype, TrackPoint, VehicleClass, ConnectionState, Detection, DetectionClass, DroneWatch,
   DetectionFrame, EvidenceRecord, FaceMatch, PlateRead, Severity, Zone, ZoneAuditEntry,
 } from '@/types'
 import type { DataService, DemoAlertSpec } from '../types'
@@ -30,7 +30,8 @@ const TYPE_WEIGHTS: Record<AlertType, number> = {
   DRONE_SIGHTING: 2,
 }
 const OPERATORS = ['Ct. S. Meena', 'Ct. P. Gill', 'Insp. A. Rathore']
-const VEHICLE_KINDS: DetectionClass[] = ['car', 'truck', 'motorcycle', 'tractor', 'bus']
+const VEHICLE_KINDS: DetectionClass[] = ['car', 'truck', 'motorcycle', 'tractor', 'bus', 'jeep']
+const SUBTYPES = Object.keys(SUSPICIOUS) as Exclude<SuspiciousSubtype, 'LOITERING'>[]
 /** Types the AI engine typically re-reports while the same object stays in view (these collapse into one incident). */
 const REPEATABLE: AlertType[] = ['FENCE_INTRUSION', 'HUMAN_DETECTED', 'VEHICLE_DETECTED', 'LOITERING', 'NIGHT_MOVEMENT', 'SUSPICIOUS_ACTIVITY']
 
@@ -45,6 +46,8 @@ interface BuildOpts {
   plate?: string
   personId?: string
   live?: boolean
+  subtype?: SuspiciousSubtype
+  vehicleClass?: VehicleClass
 }
 
 export function createMockService(): DataService {
@@ -155,13 +158,13 @@ export function createMockService(): DataService {
   }
 
   // ---------- builders ----------
-  function addPlateRead(cameraId: string, plate: string, ts: Date, lowConf = false): PlateRead {
+  function addPlateRead(cameraId: string, plate: string, ts: Date, lowConf = false, vehicleClass?: VehicleClass): PlateRead {
     const read: PlateRead = {
       id: `pr-${seq++}`,
       timestamp: ts.toISOString(),
       cameraId,
       plate,
-      vehicleClass: pick(VEHICLE_CLASSES),
+      vehicleClass: vehicleClass ?? pick(VEHICLE_CLASSES),
       color: Math.random() < 0.85 ? pick(VEHICLE_COLORS) : null,
       confidence: lowConf ? rand(0.42, 0.68) : rand(0.78, 0.99),
       cropUrl: plateSvg(plate),
@@ -224,7 +227,8 @@ export function createMockService(): DataService {
         break
       case 'VEHICLE_DETECTED':
         Object.assign(details, {
-          vehicleClass: pick(VEHICLE_CLASSES), vehicleColor: pick(VEHICLE_COLORS),
+          vehicleClass: opts.vehicleClass ?? (liveClass && liveClass !== 'person' && liveClass !== 'animal' ? liveClass : pick(VEHICLE_CLASSES)),
+          vehicleColor: pick(VEHICLE_COLORS),
           plateNumber: Math.random() < 0.6 ? randomPlate() : undefined,
         })
         break
@@ -233,7 +237,7 @@ export function createMockService(): DataService {
         severity = entry.priority === 'HIGH' ? 'CRITICAL' : 'HIGH'
         confidence = rand(0.85, 0.99)
         Object.assign(details, {
-          plateNumber: entry.plate, vehicleClass: pick(VEHICLE_CLASSES), vehicleColor: pick(VEHICLE_COLORS),
+          plateNumber: entry.plate, vehicleClass: opts.vehicleClass ?? plateReads.find((r) => r.plate === entry.plate)?.vehicleClass ?? pick(VEHICLE_CLASSES), vehicleColor: pick(VEHICLE_COLORS),
           blacklistReason: entry.reason, description: entry.notes,
         })
         break
@@ -263,10 +267,13 @@ export function createMockService(): DataService {
         Object.assign(details, { objectCount: count, description: 'Movement detected in low-light / IR mode' })
         break
       }
-      case 'SUSPICIOUS_ACTIVITY':
-        severity = Math.random() < 0.5 ? 'HIGH' : 'MEDIUM'
-        Object.assign(details, { description: pick(SUSPICIOUS), zoneName: zone?.name })
+      case 'SUSPICIOUS_ACTIVITY': {
+        const subtype = opts.subtype && opts.subtype !== 'LOITERING' ? opts.subtype : pick(SUBTYPES)
+        severity = subtype === 'WALL_SCALING' || subtype === 'CRAWLING' ? 'HIGH' : Math.random() < 0.4 ? 'HIGH' : 'MEDIUM'
+        Object.assign(details, { subtype, description: pick(SUSPICIOUS[subtype]), zoneName: zone?.name })
+        if (subtype === 'FAKE_PLATE') Object.assign(details, { plateNumber: randomPlate(), vehicleClass: pick(VEHICLE_CLASSES) })
         break
+      }
       case 'DRONE_SIGHTING':
         severity = night ? 'CRITICAL' : 'HIGH'
         confidence = rand(0.7, 0.93)
@@ -313,7 +320,7 @@ export function createMockService(): DataService {
       history: [{ status: 'NEW', at: ts.toISOString(), by: 'AI Engine' }],
     }
 
-    if (kind === 'person' || kind === 'vehicle') details.objectClass = kind === 'person' ? 'person' : (details.vehicleClass?.toLowerCase() ?? liveClass ?? 'vehicle')
+    if (kind === 'person' || kind === 'vehicle') details.objectClass = kind === 'person' && !details.vehicleClass ? 'person' : (details.vehicleClass ?? liveClass ?? 'vehicle')
 
     if (type === 'FACE_MATCH') {
       faceMatches.unshift({
@@ -357,9 +364,10 @@ export function createMockService(): DataService {
     }
   }
 
-  function randomType(ts: Date): AlertType {
+  function randomType(_ts: Date): AlertType {
     const t = weighted(TYPE_WEIGHTS)
-    return t === 'NIGHT_MOVEMENT' && !isNightHour(ts) ? 'HUMAN_DETECTED' : t
+    // Night movement is only generated by cameras that are in night / IR mode.
+    return t === 'NIGHT_MOVEMENT' && !liveCams().some((c) => c.isNightMode) ? 'HUMAN_DETECTED' : t
   }
 
   function camForType(type: AlertType) {
@@ -368,6 +376,7 @@ export function createMockService(): DataService {
         : type === 'ANPR_MATCH' ? c.modules.anpr
           : type === 'FACE_MATCH' ? c.modules.face
             : type === 'DRONE_SIGHTING' ? c.lat > 30.5 // drone drops are a Punjab-sector problem
+            : type === 'NIGHT_MOVEMENT' ? c.isNightMode
             : true,
     )
     return pick(pool.length ? pool : liveCams()).id
@@ -424,12 +433,12 @@ export function createMockService(): DataService {
     alertSubs.forEach((cb) => cb(copy))
   }
 
-  function emitPlateRead(cameraId: string, plate: string, lowConf = false) {
-    const read = addPlateRead(cameraId, plate, new Date(), lowConf)
+  function emitPlateRead(cameraId: string, plate: string, lowConf = false, vehicleClass?: VehicleClass) {
+    const read = addPlateRead(cameraId, plate, new Date(), lowConf, vehicleClass)
     const copy = clone(read)
     plateSubs.forEach((cb) => cb(copy))
     // Business rule: a read matching the blacklist always raises an ANPR_MATCH alert.
-    if (read.blacklisted) emit(buildAlert('ANPR_MATCH', cameraId, new Date(), { plate, live: true }))
+    if (read.blacklisted) emit(buildAlert('ANPR_MATCH', cameraId, new Date(), { plate, live: true, vehicleClass: read.vehicleClass }))
     return read
   }
 
@@ -560,6 +569,23 @@ export function createMockService(): DataService {
       return later(a, 700)
     },
 
+    async getTrack(cameraId, trackId, around) {
+      // Deterministic path through the alert position, one sighting per second from -10 s to +20 s.
+      const a = alerts.find((x) => x.cameraId === cameraId && x.trackId === trackId && Math.abs(Date.parse(x.timestamp) - Date.parse(around)) < 600_000)
+      const base: BBox = a?.bbox ?? [0.45, 0.5, 0.05, 0.2]
+      let h = trackId * 2654435761
+      const r = () => ((h = (h * 1103515245 + 12345) >>> 0) / 4294967296)
+      const vx = (r() < 0.5 ? -1 : 1) * (0.008 + r() * 0.01)
+      const cls = (a?.details.objectClass ?? 'person') as TrackPoint['class']
+      const t0 = Date.parse(around)
+      const points: TrackPoint[] = []
+      for (let s = -10; s <= 20; s += 2) {
+        const x = base[0] + vx * s
+        if (x < -0.05 || x > 1) continue
+        points.push({ at: new Date(t0 + s * 1000).toISOString(), bbox: [x, base[1] + Math.sin(s / 4) * 0.01, base[2], base[3]], confidence: Math.min(0.99, 0.6 + r() * 0.35), class: cls })
+      }
+      return later(points, 200)
+    },
     async getAlertClip(id) {
       const a = findAlert(id)
       if (!a.clip) throw new Error('No clip for this alert')
@@ -774,10 +800,10 @@ export function createMockService(): DataService {
       setLinkDown: setLink,
       async emit(spec: DemoAlertSpec) {
         if (spec.type === 'ANPR_MATCH') {
-          emitPlateRead(spec.cameraId, spec.plate ?? blacklist[0].plate)
+          emitPlateRead(spec.cameraId, spec.plate ?? blacklist[0].plate, false, spec.vehicleClass)
           return clone(alerts[0])
         }
-        if (spec.type === 'VEHICLE_DETECTED' && spec.plate) emitPlateRead(spec.cameraId, spec.plate)
+        if (spec.type === 'VEHICLE_DETECTED' && spec.plate) emitPlateRead(spec.cameraId, spec.plate, false, spec.vehicleClass)
         const a = buildAlert(spec.type, spec.cameraId, new Date(), { ...spec, live: true })
         if (spec.type === 'VEHICLE_DETECTED' && spec.plate) a.details.plateNumber = spec.plate
         emit(a)

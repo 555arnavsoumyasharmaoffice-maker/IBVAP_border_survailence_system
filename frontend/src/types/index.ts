@@ -48,6 +48,12 @@ export type AlertType =
 
 export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
 
+/** Required on SUSPICIOUS_ACTIVITY alerts. LOITERING is also its own alert type and is listed here for filtering. */
+export type SuspiciousSubtype = 'WALL_SCALING' | 'FAKE_PLATE' | 'UNATTENDED_OBJECT' | 'CROWD_GATHERING' | 'CRAWLING' | 'LOITERING'
+
+/** Vehicle classification from the detector. */
+export type VehicleClass = 'car' | 'truck' | 'bus' | 'motorcycle' | 'tractor' | 'jeep'
+
 export type AlertStatus = 'NEW' | 'ACKNOWLEDGED' | 'ESCALATED' | 'RESOLVED' | 'FALSE_ALARM'
 
 /** [x, y, w, h], all normalized 0-1 relative to the frame, origin top-left. */
@@ -55,7 +61,9 @@ export type BBox = [number, number, number, number]
 
 export interface AlertDetails {
   plateNumber?: string
-  vehicleClass?: string
+  vehicleClass?: VehicleClass
+  /** Required when type is SUSPICIOUS_ACTIVITY. */
+  subtype?: SuspiciousSubtype
   vehicleColor?: string
   blacklistReason?: string
   matchedPersonId?: string
@@ -147,13 +155,21 @@ export interface Incident {
   status: AlertStatus
 }
 
-export type DetectionClass = 'person' | 'car' | 'truck' | 'motorcycle' | 'bus' | 'tractor' | 'animal'
+export type DetectionClass = 'person' | 'car' | 'truck' | 'motorcycle' | 'bus' | 'tractor' | 'jeep' | 'animal'
 
 export interface Detection {
   trackId: number
   class: DetectionClass
   confidence: number
   bbox: BBox
+}
+
+/** One sighting of a tracked object (Alert Detail > Tracking). */
+export interface TrackPoint {
+  at: string
+  bbox: BBox
+  confidence: number
+  class: DetectionClass | 'drone'
 }
 
 export interface DetectionFrame {
@@ -233,7 +249,7 @@ export interface PlateRead {
   timestamp: string
   cameraId: string
   plate: string
-  vehicleClass: string
+  vehicleClass: VehicleClass
   color: string | null
   confidence: number
   cropUrl: string

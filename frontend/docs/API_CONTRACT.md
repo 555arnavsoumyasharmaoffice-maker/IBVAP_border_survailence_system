@@ -86,7 +86,8 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
 
 | Field | Used by |
 |---|---|
-| `plateNumber`, `vehicleClass`, `vehicleColor` | VEHICLE_DETECTED, ANPR_MATCH |
+| `plateNumber`, `vehicleClass`, `vehicleColor` | VEHICLE_DETECTED, ANPR_MATCH (and SUSPICIOUS_ACTIVITY / FAKE_PLATE) |
+| `subtype` (**required** for SUSPICIOUS_ACTIVITY) | `WALL_SCALING | FAKE_PLATE | UNATTENDED_OBJECT | CROWD_GATHERING | CRAWLING`. (`LOITERING` stays its own alert type; the UI lists it with the subtypes.) |
 | `blacklistReason` | ANPR_MATCH |
 | `matchedPersonId`, `matchedPersonName`, `similarity` (0-1), `faceCropUrl` | FACE_MATCH |
 | `zoneId`, `zoneName` | FENCE_INTRUSION, LOITERING |
@@ -94,6 +95,11 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
 | `objectCount` | HUMAN_DETECTED, NIGHT_MOVEMENT, FENCE_INTRUSION |
 | `description` | any |
 | `droneWatchId`, `severityRaisedFrom` | any person / vehicle type inside an active drone watch (see Drone watch) |
+
+`vehicleClass` (alerts and `PlateRead`) is one of `car | truck | bus | motorcycle | tractor | jeep`, lowercase.
+
+`NIGHT_MOVEMENT` must only be raised by cameras whose `isNightMode` is true (IR / low-light), so operators can
+tell it apart from ordinary human detection.
 
 Plates are stored **without spaces, uppercase** (`RJ14AB1234`); the UI formats them.
 
@@ -266,6 +272,7 @@ zones itself from the `detections` WebSocket channel, so operators can toggle th
 | GET | `/alerts` | `?from=ISO&to=ISO&cameraId=cam-01&limit=100` (all optional) | `Alert[]`, **newest first** |
 | GET | `/alerts/{id}` | | `Alert` |
 | PATCH | `/alerts/{id}/status` | `{ "status": "ACKNOWLEDGED", "by": "Ct. S. Meena", "note": "optional", "at": "optional ISO time", "kind": "optional" }` | updated `Alert` |
+| GET | `/cameras/{id}/tracks/{trackId}` | `?around=ISO` | `TrackPoint[]` `{ at, bbox, confidence, class }`, oldest first, sightings of that track within a few minutes of `around` (Alert Detail > Tracking) |
 | GET | `/alerts/{id}/clip` | | `AlertClip` (`{ url, startOffsetSec, endOffsetSec }`), 404 if none |
 | POST | `/alerts/{id}/history` | `{ "kind": "bookmark", "note": "+2.5 s: climbs fence", "by": "Ct. S. Meena", "offsetSec": 2.5 }` | updated `Alert` (append entry with current `status` and server `at`, broadcast on WS) |
 | PATCH | `/alerts/{id}/notes` | `{ "notes": "text" }` | updated `Alert` |

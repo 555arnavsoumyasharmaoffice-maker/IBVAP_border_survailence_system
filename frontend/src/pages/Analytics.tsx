@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { Alert, AlertType } from '@/types'
 import { useData } from '@/store/data'
-import { ALERT_TYPES, TYPE_COLOR, fmtDate, fmtDuration } from '@/lib/format'
+import { ALERT_TYPES, SUBTYPES, TYPE_COLOR, VEHICLE_CLASS_LIST, fmtDate, fmtDuration, subtypeOf } from '@/lib/format'
 import { useT } from '@/i18n'
 import { Page } from '@/components/layout/Layout'
 import { EmptyState, ErrorState, Field, PageHeader, Skeleton, Stat } from '@/components/ui'
@@ -72,6 +72,8 @@ export default function Analytics() {
     const heat = Array.from({ length: 7 }, () => new Array<number>(24).fill(0))
     const perCamera: Record<string, number> = {}
     const perType = {} as Record<AlertType, number>
+    const perSub: Record<string, number> = {}
+    const perClass: Record<string, number> = {}
     const dayNight = { Humans: [0, 0], Vehicles: [0, 0], Intrusions: [0, 0], Other: [0, 0] }
     let falseAlarms = 0
     let handled = 0
@@ -86,6 +88,9 @@ export default function Analytics() {
       if (a.type === 'FENCE_INTRUSION') heat[(d.getDay() + 6) % 7][d.getHours()]++
       perCamera[a.cameraId] = (perCamera[a.cameraId] ?? 0) + 1
       perType[a.type] = (perType[a.type] ?? 0) + 1
+      const sub = subtypeOf(a)
+      if (sub) perSub[sub] = (perSub[sub] ?? 0) + 1
+      if (a.details.vehicleClass && (a.type === 'VEHICLE_DETECTED' || a.type === 'ANPR_MATCH')) perClass[a.details.vehicleClass] = (perClass[a.details.vehicleClass] ?? 0) + 1
       const group =
         a.type === 'FENCE_INTRUSION' ? 'Intrusions'
           : a.type === 'VEHICLE_DETECTED' || a.type === 'ANPR_MATCH' ? 'Vehicles'
@@ -108,6 +113,8 @@ export default function Analytics() {
       heatMax: Math.max(1, ...heat.flat()),
       perCamera: cameras.map((c) => ({ name: c.name.replace(/^(BOP|Check Post|ICP) /, ''), count: perCamera[c.id] ?? 0 })).sort((a, b) => b.count - a.count),
       perType: ALERT_TYPES.filter((type) => perType[type]).map((type) => ({ type, name: t(`type.${type}`), value: perType[type] })),
+      perSub: SUBTYPES.map((k) => ({ name: t(`sub.${k}`), count: perSub[k] ?? 0 })),
+      perClass: VEHICLE_CLASS_LIST.map((k) => ({ name: t(`veh.${k}`), count: perClass[k] ?? 0 })),
       dayNight: Object.entries(dayNight).map(([name, [day, night]]) => ({ name, Day: day, Night: night })),
       falseRate: handled ? falseAlarms / handled : 0,
       falseAlarms,
@@ -234,6 +241,30 @@ export default function Analytics() {
                 <Tooltip {...TOOLTIP} itemStyle={{ color: '#e8eef8' }} />
                 <Legend layout="vertical" align="right" verticalAlign="middle" iconSize={8} wrapperStyle={{ fontSize: 10 }} />
               </PieChart>
+            </ResponsiveContainer>
+          </Card>
+
+          <Card title={t('an.subtypes')} note={t('an.subtypesNote')} className="col-span-12 h-64 lg:col-span-6">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.perSub} layout="vertical" margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="#1c2a45" horizontal={false} />
+                <XAxis type="number" {...AXIS} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" width={130} {...AXIS} />
+                <Tooltip {...TOOLTIP} />
+                <Bar dataKey="count" name="Alerts" fill={TYPE_COLOR.SUSPICIOUS_ACTIVITY} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+
+          <Card title={t('an.vehicles')} note={t('an.vehiclesNote')} className="col-span-12 h-64 lg:col-span-6">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.perClass} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                <CartesianGrid stroke="#1c2a45" vertical={false} />
+                <XAxis dataKey="name" {...AXIS} />
+                <YAxis {...AXIS} allowDecimals={false} />
+                <Tooltip {...TOOLTIP} />
+                <Bar dataKey="count" name="Vehicles" fill={TYPE_COLOR.VEHICLE_DETECTED} isAnimationActive={false} />
+              </BarChart>
             </ResponsiveContainer>
           </Card>
 
