@@ -17,7 +17,7 @@ import { hasPlaybook } from '@/lib/playbooks'
 import { EvidencePanel } from '@/components/EvidencePanel'
 import { ClipPlayer } from '@/components/ClipPlayer'
 import { InWatchTag, ShareNakaButton } from '@/components/DroneWatch'
-import { Chip, EmptyState, ErrorState, PlateTag, SkeletonRows, SeverityBadge, Skeleton, StatusBadge, TYPE_ICON, useNow } from '@/components/ui'
+import { Chip, EmptyState, ErrorState, LikelihoodBadge, PlateTag, SkeletonRows, SeverityBadge, Skeleton, StatusBadge, TYPE_ICON, useNow } from '@/components/ui'
 
 const DAY = 86_400_000
 
@@ -189,6 +189,7 @@ export default function AlertDetail() {
         <h1 className="text-lg font-semibold">{t(`type.${alert.type}`)}</h1>
         <span className="font-mono text-xs text-ink-mute">{alert.id}</span>
         <SeverityBadge severity={alert.severity} />
+        <LikelihoodBadge alert={alert} large />
         <StatusBadge status={alert.status} />
         <InWatchTag alert={alert} />
         <div className="ml-auto flex gap-2">

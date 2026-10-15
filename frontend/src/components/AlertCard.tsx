@@ -7,7 +7,7 @@ import { useUi } from '@/store/ui'
 import { useCan } from '@/store/auth'
 import { SEV, isLowVisibility, isShelved, keyDetail, relTime, whyFired } from '@/lib/format'
 import { useT } from '@/i18n'
-import { StatusBadge, TYPE_ICON } from './ui'
+import { LikelihoodBadge, StatusBadge, TYPE_ICON } from './ui'
 import { InWatchTag } from './DroneWatch'
 import { ShelveButton } from './Shelve'
 
@@ -90,7 +90,8 @@ export function AlertCard({ alert, incident, now, compact = false }: { alert: Al
               <Layers size={9} /> x{count}
             </span>
           )}
-          <span className="ml-auto shrink-0 font-mono text-[10px] text-ink-mute">{relTime(alert.timestamp, now)}</span>
+          <span className="ml-auto shrink-0"><LikelihoodBadge alert={alert} compact /></span>
+          <span className="shrink-0 font-mono text-[10px] text-ink-mute">{relTime(alert.timestamp, now)}</span>
         </div>
         <div className="mt-1 flex gap-2">
           <img src={alert.snapshotUrl} alt="" className="h-11 w-[72px] shrink-0 rounded-sm border border-base-700 object-cover" />

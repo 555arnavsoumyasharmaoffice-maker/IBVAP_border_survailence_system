@@ -4,7 +4,7 @@ import { ArrowUpCircle, Check, RefreshCw, Siren, Video, X } from 'lucide-react'
 import { useData, type Toast } from '@/store/data'
 import { SEV, fmtDateTime, keyDetail } from '@/lib/format'
 import { useT } from '@/i18n'
-import { SeverityBadge, TYPE_ICON } from './ui'
+import { LikelihoodBadge, SeverityBadge, TYPE_ICON } from './ui'
 import { NotifyQrt, Playbook, ResponseTimer } from './Playbook'
 import { ClipPlayer } from './ClipPlayer'
 
@@ -120,7 +120,10 @@ export function CriticalModal() {
               <Icon size={20} className="text-crit" />
               <span className="text-base font-semibold">{t(`type.${alert.type}`)}</span>
             </div>
-            <SeverityBadge severity={alert.severity} />
+            <div className="flex flex-wrap gap-1.5">
+              <SeverityBadge severity={alert.severity} />
+              <LikelihoodBadge alert={alert} large />
+            </div>
             <dl className="mt-1 grid grid-cols-[72px_1fr] gap-y-1 text-xs">
               <dt className="text-ink-mute">{t('common.camera')}</dt>
               <dd className="font-medium">{camera?.name}</dd>

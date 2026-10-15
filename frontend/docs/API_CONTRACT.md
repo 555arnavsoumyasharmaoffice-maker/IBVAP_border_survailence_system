@@ -67,6 +67,8 @@ False-alarm controls (set in Settings > Detection, sent with `PUT /cameras/{id}`
 - `severity`: `CRITICAL | HIGH | MEDIUM | LOW`
 - `status`: `NEW | ACKNOWLEDGED | ESCALATED | RESOLVED | FALSE_ALARM`
 - `confirmFrames` (optional number): how many consecutive frames the detection was confirmed over ("why it fired").
+  The UI derives a **likelihood band** from it: High = confidence >= 0.85 and >= 10 frames; Low = confidence < 0.7 or
+  < 6 frames; otherwise Medium; poor `visibility` lowers it one band. Low-likelihood alerts never make a sound.
 - `visibility` (optional): camera visibility when the alert fired; anything but `clear` is shown as a "low visibility" tag.
 - `details.objectClass` (optional): class of the triggering object (`person`, `truck`, ...).
 - `clip` (optional): video around the alert. `startOffsetSec` / `endOffsetSec` are seconds relative to `timestamp`

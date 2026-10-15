@@ -39,6 +39,10 @@ frontend/              React Command Center (this is the active work)
     lib/playbooks.ts   SOP checklists per alert type, QRT message text
     lib/evidence.ts    Evidence ZIP + SHA-256 (jszip, Web Crypto)
     lib/audit.ts       audit(category, action, target, details) helper -> service.logAudit
+    lib/geo.ts         distanceKm, watchAt (drone watch geometry)
+    components/ClipPlayer.tsx  alert clip (real <video> or deterministic simulated canvas), scrubber, bookmarks
+    components/DroneWatch.tsx  watch banner, In-watch tag, Share with police naka
+    components/Shelve.tsx      shelve / unshelve, camera out-of-service
 ```
 
 ## Commands (run inside `frontend/`)
@@ -108,11 +112,21 @@ Leaflet + react-leaflet with OpenStreetMap tiles, Recharts, lucide-react, Zustan
 - Honest labels: "SHA-256 hash computed" (not "verified"), QRT channels are "Secure SMS / radio relay (simulated)",
   mock mode shows "SIMULATED FEED" on tiles and a "Mock data" pill, the border line is "Indicative ... not official".
 
+## Rules added with clips, drone watch, shelving
+
+- Alert clips: `alert.clip` window (-10 s .. +20 s). Mock clips are simulated and labelled "SIMULATED CLIP"; never present them as real.
+- Drone watch: severity raise + `droneWatchId` tagging is a BACKEND rule (mock does it in buildAlert / addPlateRead). The UI only displays it.
+- Shelved incidents and out-of-service cameras never notify. Shelving needs a reason; every shelve / unshelve is in history + audit.
+- Likelihood band (`likelihood()` in lib/format.ts) is shown as text + icon, never colour alone. LOW likelihood never beeps.
+- SUSPICIOUS_ACTIVITY always carries `details.subtype`; NIGHT_MOVEMENT only comes from night-mode cameras.
+
 ## Status
 
 Built: login with roles, Command Center, Live Cameras, Map View, Alerts + Alert Detail, ANPR, Face Watchlist,
 Zones, Analytics, Reports, Settings, Audit Log, System Health, About IBVAP, global alert system, incident grouping,
-response playbook, evidence export, offline action queue, keyboard shortcuts, Demo Mode (Ctrl+Shift+D).
+response playbook, evidence export, offline action queue, keyboard shortcuts, Demo Mode (Ctrl+Shift+D), alert clip player
+with bookmarks, drone drop watch + police nakas, suspicious-activity subtypes, vehicle classes, tracking view, shelving,
+camera out-of-service, likelihood band.
 
 Map View (border line, status markers, alert pulse + popup, type/window filters, heat circles, offline grid) and
 the Zones editor (polygon + tripwire with direction, drag handles, per-zone severity / classes / dwell, audit log)

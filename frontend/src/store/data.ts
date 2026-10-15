@@ -4,7 +4,7 @@ import type { Alert, AlertHistoryEntry, AlertStatus, AlertType, AppSettings, Cam
 import { service } from '@/services'
 import { beep } from '@/lib/sound'
 import { SEV_RANK, eligibleFor, existingIncidentSeverity, groupIncidents } from '@/lib/incidents'
-import { isShelved } from '@/lib/format'
+import { isShelved, likelihood } from '@/lib/format'
 import { useUi } from './ui'
 import { useAuth } from './auth'
 
@@ -118,7 +118,8 @@ export const useData = create<DataState>((set, get) => {
     pushToast({ alertId: a.id, quiet: level === 'quiet', reminder })
     if (level === 'loud' && !reminder) {
       set({ bellPulse: true })
-      if (ui.soundEnabled && !ui.muted) beep(a.severity)
+      // Low-likelihood alerts never make a sound.
+      if (ui.soundEnabled && !ui.muted && likelihood(a) !== 'LOW') beep(a.severity)
       if (MODAL_TYPES.includes(a.type) && !get().modalQueue.includes(a.id)) set({ modalQueue: [...get().modalQueue, a.id].slice(-8) })
     }
   }

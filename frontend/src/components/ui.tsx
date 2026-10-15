@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
-  Car, Fence, Inbox, Moon, ScanFace, ScanLine, Timer, TriangleAlert, User, Drone, VideoOff, X, Activity, WifiOff,
+  Car, Fence, Inbox, Moon, ScanFace, ScanLine, SignalHigh, SignalLow, SignalMedium, Timer, TriangleAlert, User, Drone, VideoOff, X, Activity, WifiOff,
   type LucideIcon,
 } from 'lucide-react'
-import type { AlertStatus, AlertType, Severity, Visibility } from '@/types'
-import { SEV, STATUS_STYLE, VISIBILITY, fmtPlate } from '@/lib/format'
+import type { Alert, AlertStatus, AlertType, Severity, Visibility } from '@/types'
+import { SEV, STATUS_STYLE, VISIBILITY, fmtPlate, likelihood } from '@/lib/format'
 import { useT } from '@/i18n'
 
 /** Re-renders the caller every `ms` and returns the current time. */
@@ -43,6 +43,24 @@ export function StatusBadge({ status }: { status: AlertStatus }) {
 }
 
 /** Per-camera visibility condition (Clear / Low light / Fog / Dust). */
+const LIKELIHOOD_ICON = { HIGH: SignalHigh, MEDIUM: SignalMedium, LOW: SignalLow } as const
+
+/** Likelihood band as text + icon (never colour alone). */
+export function LikelihoodBadge({ alert, large = false, compact = false }: { alert: Alert; large?: boolean; compact?: boolean }) {
+  const t = useT()
+  const band = likelihood(alert)
+  const Icon = LIKELIHOOD_ICON[band]
+  return (
+    <span
+      className={`${chip} ${band === 'LOW' ? 'border-base-600 bg-base-800 text-ink-mute' : 'border-base-600 bg-base-800 text-ink'} ${large ? 'px-2 py-0.5 text-[11px]' : ''}`}
+      title={t('lk.hint')}
+    >
+      <Icon size={large ? 14 : 11} className="mr-1" />
+      {compact ? t(`lk.${band}`).split(" ")[0] : t(`lk.${band}`)}
+    </span>
+  )
+}
+
 export function VisibilityBadge({ visibility }: { visibility: Visibility }) {
   return (
     <span className={`${chip} ${VISIBILITY[visibility].style}`} title="Visibility condition estimated at this camera">

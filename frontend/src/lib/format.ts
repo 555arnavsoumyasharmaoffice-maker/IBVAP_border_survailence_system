@@ -89,6 +89,23 @@ export function keyDetail(a: Alert): string {
   return d.description ?? ''
 }
 
+export type Likelihood = 'HIGH' | 'MEDIUM' | 'LOW'
+
+/**
+ * How likely the alert is real, from detector confidence and how many consecutive frames confirmed it.
+ * High: conf >= 85 % and >= 10 frames. Low: conf < 70 % or < 6 frames. Poor visibility lowers it one band.
+ * Alerts without frame data (camera offline, face / plate matches) use confidence only.
+ */
+export function likelihood(a: Alert): Likelihood {
+  const frames = a.confirmFrames
+  let band: Likelihood =
+    a.confidence < 0.7 || (frames !== undefined && frames < 6) ? 'LOW'
+      : a.confidence >= 0.85 && (frames === undefined || frames >= 10) ? 'HIGH'
+        : 'MEDIUM'
+  if (isLowVisibility(a.visibility) && a.type !== 'CAMERA_OFFLINE') band = band === 'HIGH' ? 'MEDIUM' : 'LOW'
+  return band
+}
+
 /** Short "why it fired" facts for alert cards: class, frames confirmed, dwell, confidence. */
 export function whyFired(a: Alert): string[] {
   const out: string[] = []

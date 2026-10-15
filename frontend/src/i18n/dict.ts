@@ -171,6 +171,10 @@ export const en = {
   'oos.tile': "OUT OF SERVICE",
   'oos.reasonPh': "e.g. lens cleaning, PTZ repair",
   'oos.explain': "Alerts from this camera are suppressed until it is back in service. Logged in the audit log.",
+  'lk.HIGH': "High likelihood",
+  'lk.MEDIUM': "Medium likelihood",
+  'lk.LOW': "Low likelihood",
+  'lk.hint': "Likelihood the alert is real: detector confidence + consecutive frames confirmed, lowered one band in poor visibility. Low-likelihood alerts never make a sound.",
 } as const
 
 export type DictKey = keyof typeof en
@@ -345,4 +349,8 @@ export const hi: Partial<Record<DictKey, string>> = {
   'oos.tile': "सेवा से बाहर",
   'oos.reasonPh': "जैसे: लेंस सफाई, PTZ मरम्मत",
   'oos.explain': "सेवा में वापस आने तक इस कैमरे के अलर्ट दबा दिए जाते हैं।",
+  'lk.HIGH': "उच्च संभावना",
+  'lk.MEDIUM': "मध्यम संभावना",
+  'lk.LOW': "कम संभावना",
+  'lk.hint': "अलर्ट सही होने की संभावना: डिटेक्टर विश्वास + पुष्टि किए गए फ़्रेम। कम संभावना वाले अलर्ट ध्वनि नहीं करते।",
 }
