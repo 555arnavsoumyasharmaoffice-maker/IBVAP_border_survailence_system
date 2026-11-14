@@ -3232,11 +3232,11 @@ class CameraCaptureHub:
 
 
 
-            # High-speed brisk playback: step frames aggressively so surveillance action is fast and lively
+            # Balanced brisk tactical playback: smooth ~1.75x - 2.0x speed
             is_file_stream = (not is_webcam) or (cap is not None and cap.get(cv2.CAP_PROP_FRAME_COUNT) > 0)
             if is_file_stream:
                 vid_fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
-                advance_count = 11 if vid_fps >= 45.0 else 6
+                advance_count = 4 if vid_fps >= 45.0 else 2
                 for _ in range(advance_count):
                     cap.grab()
 
@@ -3518,10 +3518,10 @@ class CameraCaptureHub:
 
 
 
-            # Dynamic brisk pacing: target crisp ~50-60 FPS fast, responsive playback
+            # Dynamic balanced pacing: target smooth ~30-33 FPS natural playback
             proc_time = time.time() - loop_start_t
-            sleep_needed = 0.016 - proc_time
-            if sleep_needed > 0.002:
+            sleep_needed = 0.030 - proc_time
+            if sleep_needed > 0.003:
                 time.sleep(sleep_needed)
             else:
                 time.sleep(0.001)
@@ -3593,9 +3593,9 @@ def stream_hub_generator(cam_id: str):
                     b'Content-Length: ' + str(len(frame_bytes)).encode('ascii') + b'\r\n\r\n' +
                     frame_bytes + b'\r\n'
                 )
-                time.sleep(0.003)
+                time.sleep(0.008)
             else:
-                time.sleep(0.002)
+                time.sleep(0.003)
     finally:
         pass
 
