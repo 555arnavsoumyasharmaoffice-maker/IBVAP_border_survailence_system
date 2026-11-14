@@ -104,7 +104,7 @@ export default function Login() {
 
     try {
       // 1. Real probe to backend cameras endpoint (with 7s timeout)
-      const res = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(7000) })
+      const res = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(25000) })
       if (!res.ok) throw new Error(`HTTP ${res.status}: Backend AI service returned status ${res.status}`)
       const cameras = await res.json()
       const count = Array.isArray(cameras) ? cameras.length : 19
