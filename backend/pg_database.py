@@ -214,6 +214,22 @@ def init_pg_db():
     );
     """)
 
+    # 13. System Users (Military Auth Roster)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS system_users (
+        id VARCHAR(64) PRIMARY KEY,
+        service_id VARCHAR(64) UNIQUE NOT NULL,
+        name VARCHAR(128) NOT NULL,
+        role VARCHAR(32) NOT NULL,
+        password_hash VARCHAR(128) NOT NULL,
+        rank VARCHAR(64),
+        unit VARCHAR(128),
+        status VARCHAR(32) DEFAULT 'ACTIVE',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        last_login TIMESTAMPTZ
+    );
+    """)
+
     # Check and seed tables if empty
     seed_pg(cursor)
 
