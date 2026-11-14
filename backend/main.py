@@ -1167,24 +1167,30 @@ VIDEO_SOURCES = {
 
 
 # Upgraded to YOLOv8 Small (yolov8s.pt) for enhanced accuracy
+yolo_model = None
+candidate_models = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8s.pt")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8n.pt")),
+    os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8s.pt")),
+    os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8n.pt")),
+]
 
-YOLO_MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8s.pt"))
+for cand in candidate_models:
+    if os.path.exists(cand):
+        try:
+            yolo_model = YOLO(cand)
+            print("[AI ENGINE] YOLOv8 model loaded successfully from:", cand)
+            break
+        except Exception as e:
+            print(f"[AI ENGINE WARNING] Could not load candidate {cand}: {e}")
 
-if not os.path.exists(YOLO_MODEL_PATH):
-
-    YOLO_MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8n.pt"))
-
-try:
-
-    yolo_model = YOLO(YOLO_MODEL_PATH)
-
-    print("[AI ENGINE] YOLOv8 model loaded successfully from:", YOLO_MODEL_PATH)
-
-except Exception as e:
-
-    print("[AI ENGINE ERROR] Could not load YOLO model:", e)
-
-    yolo_model = None
+if yolo_model is None:
+    try:
+        print("[AI ENGINE] Local model file not found. Initializing pretrained yolov8n.pt...")
+        yolo_model = YOLO("yolov8n.pt")
+        print("[AI ENGINE] YOLOv8 pretrained model initialized successfully!")
+    except Exception as e:
+        print("[AI ENGINE ERROR] Could not initialize YOLO model:", e)
 
 
 

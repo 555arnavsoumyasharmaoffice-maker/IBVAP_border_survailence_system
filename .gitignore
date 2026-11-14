@@ -12,6 +12,8 @@ demo_videos/
 ai_engine/models/
 ai_engine/output/
 *.pt
+!backend/yolov8n.pt
+!backend/yolov8s.pt
 *.onnx
 *.mp4
 frontend/.env
