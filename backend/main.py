@@ -3218,13 +3218,10 @@ class CameraCaptureHub:
 
 
 
-            # Brisk playback speed: advance an extra frame on non-webcam feeds to eliminate slow-motion drag
-
-            if not is_webcam:
-
+            # Brisk real-time playback: advance extra frame on video files to eliminate sluggish slow-motion drag
+            is_file_stream = (not is_webcam) or (cap is not None and cap.get(cv2.CAP_PROP_FRAME_COUNT) > 0)
+            if is_file_stream:
                 cap.grab()
-
-
 
             frame = cv2.resize(frame, (640, 360))
 
@@ -3507,9 +3504,9 @@ class CameraCaptureHub:
 
 
 
-            # Dynamic pacing: target smooth ~22-25 FPS with adequate CPU breathing room for cloud environments
+            # Dynamic brisk pacing: target crisp ~28-30 FPS real-time motion
             proc_time = time.time() - loop_start_t
-            time.sleep(max(0.035, 0.050 - proc_time))
+            time.sleep(max(0.010, 0.033 - proc_time))
 
 
 
@@ -3573,9 +3570,9 @@ def stream_hub_generator(cam_id: str):
                     b'Content-Length: ' + str(len(frame_bytes)).encode('ascii') + b'\r\n\r\n' +
                     frame_bytes + b'\r\n'
                 )
-                time.sleep(0.035)  # Smooth ~25-28 FPS without socket flooding
+                time.sleep(0.024)  # Brisk ~30-35 FPS responsive delivery
             else:
-                time.sleep(0.020)
+                time.sleep(0.010)
     finally:
         pass
 
