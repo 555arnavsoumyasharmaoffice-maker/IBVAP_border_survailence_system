@@ -93,6 +93,13 @@ export default function Login() {
   }, [])
 
   const runBootSequence = async (uName: string, uPass: string) => {
+    const isLocal = typeof window !== 'undefined' && (
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      API_URL.includes('localhost') ||
+      API_URL.includes('127.0.0.1')
+    )
+
     setBooting(true)
     setBootStatus('booting')
     setBootError(null)
@@ -103,10 +110,14 @@ export default function Login() {
 
     const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
-    // Background wake-up pinger: ping Render immediately and repeatedly so it starts warming up during the 15s sequence
+    // Background wake-up pinger: only on Cloud/Vercel (ping Render cold start); on localhost connect instantly
     let backendReady = false
     let backendData: any = null
     const warmUpPromise = (async () => {
+      if (isLocal) {
+        backendReady = true
+        return
+      }
       const deadline = Date.now() + 25000
       while (Date.now() < deadline && !backendReady) {
         try {
@@ -123,49 +134,44 @@ export default function Login() {
       }
     })()
 
-    // 15-Second Authentic Subsystem Boot Sequence
-    // 0s -> 2.5s: Neural Defense Core
-    await sleep(2500)
+    // Subsystem Boot Sequence (Fast ~0.8s on localhost, 15s on Cloud Vercel/Render)
+    await sleep(isLocal ? 150 : 2500)
     setBootProgress(30)
     setBootLogs((prev) => [
       ...prev,
       { id: 'neural', text: '[NEURAL DEFENSE] Arming Multi-Spectral YOLOv8s Intrusion & Crawling Detection Core', status: 'ARMED', ok: true }
     ])
 
-    // 2.5s -> 5.5s: Geo-Perimeter Sensors
-    await sleep(3000)
+    await sleep(isLocal ? 150 : 3000)
     setBootProgress(50)
     setBootLogs((prev) => [
       ...prev,
       { id: 'geo', text: '[GEO-PERIMETER] Calibrating Virtual Fence Tripwires & Underground Seismic Sensor Grid', status: 'CALIBRATED', ok: true }
     ])
 
-    // 5.5s -> 9.0s: UAV Satellite Squadrons
-    await sleep(3500)
+    await sleep(isLocal ? 150 : 3500)
     setBootProgress(70)
     setBootLogs((prev) => [
       ...prev,
       { id: 'sat', text: '[SAT-UAV LINK] Establishing Encrypted Telemetry Uplink with Drone Squadrons & Outposts', status: 'SYNCHRONIZED', ok: true }
     ])
 
-    // 9.0s -> 12.5s: C4ISR Cloud AI Handshake
-    await sleep(3500)
+    await sleep(isLocal ? 150 : 3500)
     setBootProgress(85)
     setBootLogs((prev) => [
       ...prev,
-      { id: 'telemetry', text: `[C4ISR CLOUD TELEMETRY] Final Handshake with Defense AI Surveillance Engine`, status: 'CONNECTING...', ok: true }
+      { id: 'telemetry', text: `[C4ISR ${isLocal ? 'LOCAL' : 'CLOUD'} TELEMETRY] Final Handshake with Defense AI Surveillance Engine`, status: 'CONNECTING...', ok: true }
     ])
 
-    // 12.5s -> 15.0s: Final Real Verification Gate
-    await sleep(2500)
+    await sleep(isLocal ? 200 : 2500)
 
     try {
-      // Ensure backend is ready (if not yet, wait for warmUpPromise or final probe)
+      // Ensure backend is ready
       await warmUpPromise
 
       let cameras = backendData
       if (!cameras) {
-        const res = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(10000) })
+        const res = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(isLocal ? 3000 : 10000) })
         if (!res.ok) throw new Error(`HTTP ${res.status}: Backend AI service returned status ${res.status}`)
         cameras = await res.json()
       }
@@ -178,10 +184,10 @@ export default function Login() {
       // Verified!
       setBootProgress(95)
       setBootLogs((prev) => [
-        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR CLOUD TELEMETRY] Connected to AI Engine (${count}/${count} Outposts Synchronized)`, status: `${count}/${count} ONLINE`, ok: true } : item)
+        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR ${isLocal ? 'LOCAL' : 'CLOUD'} TELEMETRY] Connected to AI Engine (${count}/${count} Outposts Synchronized)`, status: `${count}/${count} ONLINE`, ok: true } : item)
       ])
 
-      await sleep(1000)
+      await sleep(isLocal ? 200 : 1000)
       setBootProgress(100)
       setBootLogs((prev) => [
         ...prev,

@@ -317,7 +317,11 @@ export default function CommandCenter() {
             {loading && !cameras.length
               ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-full" />)
               : visibleCameras.map((c) => {
-                  const isCurrentActive = (activeCamId === c.id) || (!activeCamId && c.id === visibleCameras[0]?.id)
+                  const isLocal = typeof window !== 'undefined' && (
+                    window.location.hostname === 'localhost' ||
+                    window.location.hostname === '127.0.0.1'
+                  )
+                  const isCurrentActive = isLocal || (activeCamId === c.id) || (!activeCamId && c.id === visibleCameras[0]?.id)
                   return (
                     <div
                       key={c.id}

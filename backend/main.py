@@ -1140,6 +1140,7 @@ def check_is_defense_scene(cam_id: str) -> bool:
 # =========================================================================
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+IS_CLOUD = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
 
 
 
@@ -2267,15 +2268,16 @@ class CameraCaptureHub:
     def touch_camera(self, cam_id: str):
         now_t = time.time()
         self.active_cams[cam_id] = now_t
-        # Clean up stale idle cameras that haven't been touched in over 25 seconds
-        for old_cam, last_t in list(self.active_cams.items()):
-            if old_cam != cam_id and (now_t - last_t > 25.0):
-                self.active_cams.pop(old_cam, None)
-                with self.get_lock(old_cam):
-                    self.latest_jpeg.pop(old_cam, None)
+        # Clean up stale idle cameras only on Cloud (Render 512MB RAM limit); on Localhost keep all feeds live
+        if IS_CLOUD:
+            for old_cam, last_t in list(self.active_cams.items()):
+                if old_cam != cam_id and (now_t - last_t > 25.0):
+                    self.active_cams.pop(old_cam, None)
+                    with self.get_lock(old_cam):
+                        self.latest_jpeg.pop(old_cam, None)
 
     def stop_camera(self, cam_id: str):
-        # Graceful mark: do not abruptly kill worker, let 25s idle loop reap it
+        # Graceful mark: do not abruptly kill worker, let cloud idle loop reap it
         pass
 
     def _run_inference_bg(self, cam_id: str, frame: np.ndarray):
@@ -3146,7 +3148,7 @@ class CameraCaptureHub:
 
         while self.running:
             now_t = time.time()
-            if cam_id not in self.active_cams or (now_t - self.active_cams[cam_id] > 25.0):
+            if IS_CLOUD and (cam_id not in self.active_cams or (now_t - self.active_cams[cam_id] > 25.0)):
                 print(f"[HUB] Releasing worker and capture for idle camera: {cam_id}")
                 break
 

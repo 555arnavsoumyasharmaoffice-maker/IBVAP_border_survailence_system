@@ -241,7 +241,11 @@ export default function LiveCameras() {
           style={{ gridTemplateColumns: `repeat(${layout}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${layout}, minmax(0, 1fr))` }}
         >
           {visible.map((c) => {
-            const isCurrentActive = (activeCamId === c.id) || (!activeCamId && c.id === visible[0]?.id)
+            const isLocal = typeof window !== 'undefined' && (
+              window.location.hostname === 'localhost' ||
+              window.location.hostname === '127.0.0.1'
+            )
+            const isCurrentActive = isLocal || (activeCamId === c.id) || (!activeCamId && c.id === visible[0]?.id)
             return (
               <Tile
                 key={c.id}
