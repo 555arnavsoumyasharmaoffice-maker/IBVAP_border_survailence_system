@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Camera as CameraIcon, ChevronLeft, ChevronRight, Fence, Hash, MapPin, Maximize2, Moon, Square, Sun, Video } from 'lucide-react'
 import type { Camera } from '@/types'
-import { useData } from '@/store/data'
+import { useData, CLOUD_ACTIVE_CAM_IDS } from '@/store/data'
 import { useUi, type CameraLayout } from '@/store/ui'
 import { downloadFile, fmtDateTime } from '@/lib/format'
 import { audit } from '@/lib/audit'
@@ -245,7 +245,7 @@ export default function LiveCameras() {
               window.location.hostname === 'localhost' ||
               window.location.hostname === '127.0.0.1'
             )
-            const isCurrentActive = isLocal || (activeCamId === c.id) || (!activeCamId && c.id === visible[0]?.id)
+            const isCurrentActive = isLocal || CLOUD_ACTIVE_CAM_IDS.has(c.id) || (activeCamId === c.id)
             return (
               <Tile
                 key={c.id}
