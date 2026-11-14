@@ -2,7 +2,8 @@ import { useState, useEffect, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import {
   Shield, Lock, User, UserPlus, AlertTriangle, CheckCircle2,
-  Eye, EyeOff, Terminal, Zap, Activity, Radio, KeyRound, ShieldAlert
+  Eye, EyeOff, Terminal, Zap, Activity, Radio, KeyRound, ShieldAlert,
+  Cpu, Database, Server, Crosshair, ArrowRight, Sparkles, Radar
 } from 'lucide-react'
 import type { Role } from '@/types'
 import { service } from '@/services'
@@ -48,6 +49,11 @@ export default function Login() {
 
   const [timedOut] = useState(() => sessionStorage.getItem('ibvap.timedOut'))
 
+  // Tactical Workstation Booting Sequence (10s Cold-start Wake-up & Bootstrap)
+  const [booting, setBooting] = useState(false)
+  const [bootProgress, setBootProgress] = useState(0)
+  const [bootLogs, setBootLogs] = useState<string[]>([])
+
   // Load live personnel roster from backend
   const loadRoster = async () => {
     try {
@@ -73,7 +79,49 @@ export default function Login() {
     void loadRoster()
   }, [])
 
-  if (user) return <Navigate to="/" replace />
+  // 10-Second Workstation Establishing & Server Wake-up Timer
+  useEffect(() => {
+    if (!booting) return
+
+    // Wake up backend and camera feeds in background
+    void service.getCameras().catch(() => {})
+
+    const totalMs = 10000 // 10 seconds total duration
+    const intervalMs = 100
+    let elapsed = 0
+
+    const stages = [
+      { at: 300, text: '[AUTH_VERIFIED] Session Token & Identity cryptographically validated.' },
+      { at: 2000, text: '[LINK_WAKEUP] Transmitting wake-up beacon to AI Surveillance Engine...' },
+      { at: 4500, text: '[DB_SYNC] Neon Cloud PostgreSQL synchronized: 19 Surveillance Nodes online.' },
+      { at: 7000, text: '[NEURAL_CORE] YOLOv8s Military Model & Real-time ANPR Pipeline loaded.' },
+      { at: 8800, text: '[TELEMETRY] Seismic grid & FLIR thermal sensor streams calibrated.' },
+      { at: 9800, text: '[READY] Tactical Workstation Established. Launching Command Center...' },
+    ]
+
+    const interval = setInterval(() => {
+      elapsed += intervalMs
+      const pct = Math.min(Math.round((elapsed / totalMs) * 100), 100)
+      setBootProgress(pct)
+
+      stages.forEach((st) => {
+        if (elapsed >= st.at) {
+          setBootLogs((prev) => (prev.includes(st.text) ? prev : [...prev, st.text]))
+        }
+      })
+
+      if (elapsed >= totalMs) {
+        clearInterval(interval)
+        setTimeout(() => {
+          navigate('/')
+        }, 300)
+      }
+    }, intervalMs)
+
+    return () => clearInterval(interval)
+  }, [booting, navigate])
+
+  if (user && !booting) return <Navigate to="/" replace />
 
   const selectRosterMember = (m: RosterMember) => {
     if (m.status === 'RETIRED') {
@@ -101,7 +149,8 @@ export default function Login() {
 
     try {
       await login(username.trim(), undefined, password)
-      navigate('/')
+      // Trigger 10-second tactical workstation bootstrapping
+      setBooting(true)
     } catch (err: any) {
       console.error('Login error:', err)
       const msg = err?.message || 'Access Denied: Invalid Service ID or Password.'
@@ -140,6 +189,106 @@ export default function Login() {
     } finally {
       setOnboardBusy(false)
     }
+  }
+
+  // Tactical Workstation Booting Screen Overlay (10s Cold-start Wake-up & Bootstrap)
+  if (booting) {
+    const remainingSeconds = Math.max(0, Math.ceil((10000 - (bootProgress / 100) * 10000) / 1000))
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 font-mono text-cyan-400 select-none p-4 overflow-hidden">
+        {/* Background Grid Pattern & Radial glow */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(6,182,212,0.15)_0%,rgba(2,6,23,0.95)_70%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(6,182,212,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(6,182,212,0.05)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
+
+        {/* Central Tactical Workstation Terminal */}
+        <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-cyan-500/50 bg-[#071322]/90 backdrop-blur-xl p-8 shadow-[0_0_80px_rgba(6,182,212,0.3)]">
+          {/* Tactical Corner Reticles */}
+          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-400" />
+          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-400" />
+          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-400" />
+          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-400" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-cyan-500/30 pb-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-400/60 bg-cyan-950/60 shadow-[0_0_20px_rgba(6,182,212,0.4)]">
+                <Radar className="text-cyan-400 animate-spin" size={24} style={{ animationDuration: '4s' }} />
+                <span className="absolute inset-0 rounded-xl border border-cyan-300 animate-ping opacity-30" />
+              </div>
+              <div>
+                <div className="text-[10px] tracking-widest text-cyan-400/80 uppercase">
+                  CLASSIFIED DEFENSE GATEWAY // PS-26187
+                </div>
+                <div className="text-lg font-black tracking-wider text-white">
+                  ESTABLISHING SECURE TACTICAL WORKSTATION
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] text-slate-400">SESSION AUTHENTICATED</div>
+              <div className="text-xs font-bold text-emerald-400">{username}</div>
+            </div>
+          </div>
+
+          {/* Central Animated Progress */}
+          <div className="mb-6 space-y-2">
+            <div className="flex justify-between items-baseline text-xs">
+              <span className="text-cyan-300 flex items-center gap-2">
+                <Activity size={14} className="animate-pulse text-cyan-400" />
+                NEURAL CORE BOOTSTRAP IN PROGRESS...
+              </span>
+              <span className="text-2xl font-black tracking-wider text-cyan-300 font-mono">
+                {bootProgress}%
+              </span>
+            </div>
+
+            {/* Glowing Tactical Progress Bar */}
+            <div className="h-3.5 w-full rounded-full bg-slate-950 border border-cyan-500/40 p-0.5 overflow-hidden shadow-inner">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 shadow-[0_0_15px_rgba(6,182,212,0.8)] transition-all duration-150 ease-out"
+                style={{ width: `${bootProgress}%` }}
+              />
+            </div>
+
+            <div className="flex justify-between text-[11px] text-slate-400 pt-1">
+              <span>Waking up cloud AI analytics & video pipelines</span>
+              <span>Estimated: <span className="text-white font-bold">{remainingSeconds}s</span> remaining</span>
+            </div>
+          </div>
+
+          {/* Live Telemetry Boot Logs */}
+          <div className="rounded-lg border border-cyan-900/60 bg-black/60 p-4 font-mono text-[11px] space-y-2 mb-6 min-h-[140px] shadow-inner">
+            <div className="text-[10px] text-cyan-500/70 uppercase tracking-widest border-b border-cyan-900/40 pb-1 mb-2 flex items-center justify-between">
+              <span>TELEMETRY & HARDWARE INITIALIZATION STREAM</span>
+              <span className="text-emerald-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE LINK
+              </span>
+            </div>
+            {bootLogs.map((log, i) => (
+              <div key={i} className="flex items-center gap-2 text-cyan-300 animate-fadeIn">
+                <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                <span>{log}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Quick Direct Bypass / Skip Action */}
+          <div className="flex items-center justify-between pt-2 border-t border-cyan-500/20 text-xs">
+            <span className="text-slate-400 text-[11px]">
+              Ready to enter early?
+            </span>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 hover:text-white transition-all text-xs font-bold shadow-[0_0_15px_rgba(6,182,212,0.2)]"
+            >
+              <span>ENTER COMMAND CENTER NOW</span>
+              <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
