@@ -30,6 +30,14 @@ try:
 except Exception:
     pass
 
+import sys
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.winmm.timeBeginPeriod(1)
+    except Exception:
+        pass
+
 
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, Response, Header
@@ -2242,6 +2250,7 @@ class CameraCaptureHub:
         self.workers: Dict[str, threading.Thread] = {}
 
         self.latest_jpeg: Dict[str, bytes] = {}
+        self.frame_seq: Dict[str, int] = {}
 
         self.locks: Dict[str, threading.Lock] = {}
 
@@ -3223,12 +3232,13 @@ class CameraCaptureHub:
 
 
 
-            # Fast brisk video playback: advance 3 extra frames (4x step) to provide lively, energetic surveillance motion
+            # High-speed brisk playback: step frames aggressively so surveillance action is fast and lively
             is_file_stream = (not is_webcam) or (cap is not None and cap.get(cv2.CAP_PROP_FRAME_COUNT) > 0)
             if is_file_stream:
-                cap.grab()
-                cap.grab()
-                cap.grab()
+                vid_fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+                advance_count = 11 if vid_fps >= 45.0 else 6
+                for _ in range(advance_count):
+                    cap.grab()
 
             frame = cv2.resize(frame, (640, 360))
 
@@ -3504,13 +3514,14 @@ class CameraCaptureHub:
                 with self.get_lock(cam_id):
 
                     self.latest_jpeg[cam_id] = jpeg.tobytes()
+                    self.frame_seq[cam_id] = self.frame_seq.get(cam_id, 0) + 1
 
 
 
-            # Dynamic brisk pacing: target crisp ~40-45 FPS fast, responsive playback
+            # Dynamic brisk pacing: target crisp ~50-60 FPS fast, responsive playback
             proc_time = time.time() - loop_start_t
-            sleep_needed = 0.020 - proc_time
-            if sleep_needed > 0.004:
+            sleep_needed = 0.016 - proc_time
+            if sleep_needed > 0.002:
                 time.sleep(sleep_needed)
             else:
                 time.sleep(0.001)
@@ -3549,6 +3560,11 @@ class CameraCaptureHub:
 
             return self.latest_jpeg.get(cam_id)
 
+    def get_latest_frame_with_seq(self, cam_id: str):
+        self.ensure_worker(cam_id)
+        with self.get_lock(cam_id):
+            return self.frame_seq.get(cam_id, 0), self.latest_jpeg.get(cam_id)
+
 
 
 hub = CameraCaptureHub()
@@ -3564,22 +3580,22 @@ def stream_hub_generator(cam_id: str):
             break
         time.sleep(0.05)
 
-    last_bytes = None
+    last_seq = -1
     try:
         while True:
             hub.touch_camera(cam_id)
-            frame_bytes = hub.get_latest_frame(cam_id)
-            if frame_bytes and frame_bytes != last_bytes:
-                last_bytes = frame_bytes
+            seq, frame_bytes = hub.get_latest_frame_with_seq(cam_id)
+            if frame_bytes and seq != last_seq:
+                last_seq = seq
                 yield (
                     b'--frame\r\n'
                     b'Content-Type: image/jpeg\r\n'
                     b'Content-Length: ' + str(len(frame_bytes)).encode('ascii') + b'\r\n\r\n' +
                     frame_bytes + b'\r\n'
                 )
-                time.sleep(0.008)  # Fast responsive delivery
+                time.sleep(0.003)
             else:
-                time.sleep(0.004)
+                time.sleep(0.002)
     finally:
         pass
 
