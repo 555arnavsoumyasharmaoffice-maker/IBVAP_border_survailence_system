@@ -2248,6 +2248,7 @@ class CameraCaptureHub:
         self.aerial_trackers: Dict[str, AerialReconTracker] = {}
 
         self.active_cams: Dict[str, float] = {}
+        self.is_inferring: Dict[str, bool] = {}
 
         self.running = True
 
@@ -2276,6 +2277,867 @@ class CameraCaptureHub:
     def stop_camera(self, cam_id: str):
         # Graceful mark: do not abruptly kill worker, let 25s idle loop reap it
         pass
+
+    def _run_inference_bg(self, cam_id: str, frame: np.ndarray):
+        try:
+            if yolo_model is None:
+                return
+            try:
+                res = yolo_model.predict(frame, imgsz=320, conf=0.15, verbose=False)
+
+                detections = []
+
+                boxes = res[0].boxes
+
+                hud_items = []
+
+
+
+                person_in_zone = False
+
+                highest_person_conf = 0.0
+
+                highest_person_bbox = [0, 0, 0, 0]
+
+
+
+                tank_detected = False
+
+                highest_tank_conf = 0.0
+
+                highest_tank_bbox = [0, 0, 0, 0]
+
+
+
+                drone_detected = False
+
+                highest_drone_conf = 0.0
+
+                highest_drone_bbox = [0, 0, 0, 0]
+
+
+
+                vehicle_front_detected = False
+
+                highest_veh_conf = 0.0
+
+                highest_veh_bbox = [0, 0, 0, 0]
+
+
+
+                no_plate_vehicle_detected = False
+
+                highest_no_plate_bbox = [0, 0, 0, 0]
+
+                no_plate_class_name = "vehicle"
+
+
+
+                anpr_match_detected = False
+
+                anpr_match_plate = ""
+
+                anpr_match_reason = ""
+
+                anpr_match_bbox = [0, 0, 0, 0]
+
+
+
+                animal_detected = False
+
+                highest_animal_conf = 0.0
+
+                highest_animal_bbox = [0, 0, 0, 0]
+
+                animal_detected_label = "Animal"
+
+
+
+                # Pre-pass: collect vehicle bounding boxes to detect riders vs trespassers
+
+                raw_veh_boxes = []
+
+                for b in boxes:
+
+                    c_id = int(b.cls[0])
+
+                    if c_id in (1, 2, 3, 5, 7):
+
+                        bx1, by1, bx2, by2 = b.xyxy[0].tolist()
+
+                        raw_veh_boxes.append((bx1, by1, bx2, by2))
+
+
+
+                # Cross-class Non-Maximum Suppression to remove overlapping duplicate boxes
+                # (e.g. dog detected as both sheep and dog, or tank detected as both boat and truck)
+                clean_boxes = []
+                if len(boxes) > 0:
+                    sorted_b = sorted(boxes, key=lambda b: float(b.conf[0]), reverse=True)
+                    for b in sorted_b:
+                        bx1, by1, bx2, by2 = b.xyxy[0].tolist()
+                        b_cls = int(b.cls[0])
+                        b_area = (bx2 - bx1) * (by2 - by1)
+                        b_conf = float(b.conf[0])
+                        
+                        # Filter extreme low confidence noise
+                        if b_cls in (15, 16, 17, 18, 19, 20, 21, 22, 23) and b_conf < 0.25:
+                            continue
+                        if b_cls in (4, 33, 38) and b_area < 350:
+                            continue
+                            
+                        suppress = False
+                        for k in clean_boxes:
+                            kx1, ky1, kx2, ky2 = k.xyxy[0].tolist()
+                            k_cls = int(k.cls[0])
+                            ix1 = max(bx1, kx1)
+                            iy1 = max(by1, ky1)
+                            ix2 = min(bx2, kx2)
+                            iy2 = min(by2, ky2)
+                            iw = max(0.0, ix2 - ix1)
+                            ih = max(0.0, iy2 - iy1)
+                            inter = iw * ih
+                            if inter > 0:
+                                k_area = (kx2 - kx1) * (ky2 - ky1)
+                                union = b_area + k_area - inter
+                                iou = inter / union if union > 0 else 0
+                                # Suppress overlapping animals
+                                if (b_cls in (15, 16, 17, 18, 19, 20, 21, 22, 23)) and (k_cls in (15, 16, 17, 18, 19, 20, 21, 22, 23)):
+                                    if iou > 0.35:
+                                        suppress = True
+                                        break
+                                # Suppress overlapping vehicles
+                                elif (b_cls in (1, 2, 3, 5, 7, 8)) and (k_cls in (1, 2, 3, 5, 7, 8)):
+                                    if iou > 0.40:
+                                        suppress = True
+                                        break
+                                elif b_cls == k_cls and iou > 0.45:
+                                    suppress = True
+                                    break
+                        if not suppress:
+                            clean_boxes.append(b)
+                
+                for idx, box in enumerate(clean_boxes):
+
+                    cls_id = int(box.cls[0])
+
+                    conf = float(box.conf[0])
+
+                    x1, y1, x2, y2 = box.xyxy[0].tolist()
+
+                    norm_x = max(0.0, min(1.0, x1 / 640.0))
+
+                    norm_y = max(0.0, min(1.0, y1 / 360.0))
+
+                    norm_w = max(0.0, min(1.0, (x2 - x1) / 640.0))
+
+                    norm_h = max(0.0, min(1.0, (y2 - y1) / 360.0))
+
+                    nbb = [round(norm_x, 3), round(norm_y, 3), round(norm_w, 3), round(norm_h, 3)]
+
+
+
+                    # Granular vehicle & object categorization
+
+                    obj_cat = categorize_detected_object(cls_id, conf, (int(x1), int(y1), int(x2), int(y2)), frame, cam_id)
+
+
+
+                    if obj_cat:
+
+                        cls_name = obj_cat["class"]
+
+                        disp_label = obj_cat["display"]
+
+                        box_color = obj_cat["color"]
+
+                        has_reticle = obj_cat.get("reticle", False)
+
+
+
+                        # Handle person: distinguish vehicle riders/commuters from genuine perimeter fence intruders
+
+                        if cls_name == "person":
+
+                            cx = norm_x + norm_w / 2.0
+
+                            cy = norm_y + norm_h / 2.0
+
+                            px_cx = (x1 + x2) / 2.0
+
+                            px_cy = (y1 + y2) / 2.0
+
+
+
+                            # Check if person is sitting on a motorcycle or inside a car
+
+                            is_rider = False
+
+                            for vx1, vy1, vx2, vy2 in raw_veh_boxes:
+
+                                if (vx1 - 15) <= px_cx <= (vx2 + 15) and (vy1 - 15) <= px_cy <= (vy2 + 15):
+
+                                    is_rider = True
+
+                                    break
+
+
+
+                            if is_rider:
+
+                                disp_label = f"RIDER / DRIVER {int(conf*100)}%"
+
+                                box_color = (192, 132, 252) # Purple tint for commuters
+
+                            else:
+
+                                # Standalone person
+
+                                target_src_val = VIDEO_SOURCES.get(cam_id, "")
+
+                                is_real_webcam = (target_src_val == 0 or str(target_src_val).strip().lower() in ("0", "webcam"))
+
+                                is_defense_scene = check_is_defense_scene(cam_id)
+
+                                src_str_val = str(target_src_val).lower()
+
+                                cam_full_name = (str(CAMERA_NAMES.get(cam_id, "")) + " " + str(cam_id)).lower()
+
+                                is_drone_cam = (cam_id == "cam-03" or "drone" in src_str_val or "uav" in cam_full_name or "drone" in cam_full_name or "air defense" in cam_full_name)
+
+
+
+                                if is_real_webcam:
+
+                                    disp_label = f"OPERATOR / PERSON {int(conf*100)}%"
+
+                                    box_color = (34, 197, 94)
+
+                                    has_reticle = False
+
+                                elif is_drone_cam:
+
+                                    # Dedicated Drone Air Defense Reconnaissance camera
+
+                                    disp_label = f"UAV OPERATOR / PILOT {int(conf*100)}%"
+
+                                    box_color = (34, 197, 94)
+
+                                    has_reticle = False
+
+                                elif is_defense_scene:
+
+                                    # In defense perimeter fence scene:
+
+                                    # Fence climber/intruder is climbing against the barbed wire fence (cx <= 0.53)
+
+                                    if cx <= 0.53:
+
+                                        person_in_zone = True
+
+                                        if conf > highest_person_conf:
+
+                                            highest_person_conf = conf
+
+                                            highest_person_bbox = nbb
+
+                                        disp_label = f"PERIMETER INTRUSION {int(conf*100)}%"
+
+                                        box_color = (0, 0, 235)
+
+                                        has_reticle = True
+
+                                    else:
+
+                                        # Armed patrol soldiers walking down the dirt road (cx > 0.53)
+
+                                        disp_label = f"ARMED PATROL {int(conf*100)}%"
+
+                                        box_color = (34, 197, 94)
+
+                                        has_reticle = False
+
+                                elif cam_id in ("cam-01", "cam-02") or "checkpost" in cam_full_name or "gate" in cam_full_name:
+
+                                    # Civilian border checkpost barrier gate
+
+                                    disp_label = f"PEDESTRIAN {int(conf*100)}%"
+
+                                    box_color = (34, 197, 94)
+
+                                    has_reticle = False
+
+                                else:
+
+                                    # Border defense personnel / sentry
+
+                                    disp_label = f"PERSON / PEDESTRIAN {int(conf*100)}%"
+
+                                    box_color = (34, 197, 94)
+
+                                    has_reticle = False
+
+
+
+                        # Handle combat tanks
+
+                        elif cls_name == "tank":
+
+                            tank_detected = True
+
+                            if conf > highest_tank_conf:
+
+                                highest_tank_conf = conf
+
+                                highest_tank_bbox = nbb
+
+
+
+                        # Handle tactical drones
+
+                        elif cls_name == "drone":
+
+                            drone_detected = True
+
+                            if conf > highest_drone_conf:
+
+                                highest_drone_conf = conf
+
+                                highest_drone_bbox = nbb
+
+
+
+                        # Handle animals
+
+                        elif cls_name == "animal":
+
+                            animal_detected = True
+
+                            if conf > highest_animal_conf:
+
+                                highest_animal_conf = conf
+
+                                highest_animal_bbox = nbb
+
+                                animal_detected_label = obj_cat.get("label", "Animal")
+
+
+
+                        # Handle civilian vehicles
+
+                        elif obj_cat.get("is_vehicle"):
+
+                            vehicle_front_detected = True
+
+                            if conf > highest_veh_conf:
+
+                                highest_veh_conf = conf
+
+                                highest_veh_bbox = nbb
+
+
+
+                            # License plate check on front-facing foreground vehicles
+
+                            # Never on side profile of a bus or distant traffic
+
+                            is_bus = (cls_name == "bus")
+
+                            in_foreground = (y2 >= 240 and (norm_w >= 0.18 or norm_h >= 0.20))
+
+
+
+                            if cls_name in ("car", "truck", "tempo", "auto_rickshaw") and in_foreground and not is_bus:
+
+                                plate_info = detect_and_read_license_plate(
+
+                                    frame,
+
+                                    vehicle_boxes=[(int(x1), int(y1), int(x2), int(y2))],
+
+                                    cam_id=cam_id,
+
+                                    track_id=idx + 1,
+
+                                    vehicle_class=cls_name
+
+                                )
+
+                                if plate_info and plate_info.get("has_plate"):
+
+                                    plate_str = plate_info.get("plate")
+
+                                    is_bl = plate_info.get("blacklisted", False)
+
+                                    bl_reason = plate_info.get("reason", "Watchlist Target")
+
+                                    read_mode = plate_info.get("read_mode", "TRACK_MATCH")
+
+                                    if plate_str:
+
+                                        if is_bl:
+
+                                            disp_label += f" [{plate_str} · BLACKLISTED]"
+
+                                            box_color = (0, 0, 255) # Red warning badge
+
+                                            has_reticle = True
+
+                                            anpr_match_detected = True
+
+                                            anpr_match_plate = plate_str
+
+                                            anpr_match_reason = bl_reason
+
+                                            anpr_match_bbox = nbb
+
+                                        elif read_mode == "REAL_OCR":
+
+                                            disp_label += f" [OCR: {plate_str}]"
+
+                                            box_color = (34, 197, 94) # Green verified plate
+
+                                        else:
+
+                                            disp_label += f" [{plate_str}]"
+
+                                            box_color = (45, 212, 191) # Teal/Cyan for perimeter track plate
+
+                                        
+
+                                        log_and_broadcast_plate_read(
+
+                                            cam_id=cam_id,
+
+                                            plate=plate_str,
+
+                                            vehicle_class=cls_name,
+
+                                            color=plate_info.get("color", "White"),
+
+                                            conf=plate_info.get("confidence", 0.95),
+
+                                            crop=plate_info.get("crop"),
+
+                                            blacklisted=is_bl,
+
+                                            read_mode=read_mode
+
+                                        )
+
+                                elif plate_info and not plate_info.get("has_plate") and y2 >= 285 and norm_h >= 0.25:
+
+                                    disp_label += " [NO NUMBER PLATE DETECTED]"
+
+                                    box_color = (0, 70, 255)
+
+                                    has_reticle = True
+
+                                    no_plate_vehicle_detected = True
+
+                                    highest_no_plate_bbox = nbb
+
+                                    no_plate_class_name = cls_name.replace('_', ' ').upper()
+
+
+
+                        hud_items.append({
+
+                            "box": (int(x1), int(y1), int(x2), int(y2)),
+
+                            "label": disp_label,
+
+                            "color": box_color,
+
+                            "reticle": has_reticle
+
+                        })
+
+
+
+                        detections.append({
+
+                            "trackId": idx + 1,
+
+                            "class": cls_name,
+
+                            "label": obj_cat.get("label"),
+
+                            "confidence": round(conf, 2),
+
+                            "bbox": nbb
+
+                        })
+
+
+
+                # Specialized Airborne Drone Target Detection (Fallback if not detected by YOLO)
+
+                if not drone_detected and (cam_id == "cam-03" or "drone" in cam_id.lower() or "sky" in cam_id.lower() or "uav" in cam_id.lower()):
+
+                    now_d_ts = time.time()
+
+                    d_obj = detect_drone_in_frame(frame)
+
+                    if d_obj:
+
+                        self.last_drone_cache[cam_id] = {
+
+                            "obj": d_obj,
+
+                            "time": now_d_ts
+
+                        }
+
+                    elif cam_id in self.last_drone_cache:
+
+                        if (now_d_ts - self.last_drone_cache[cam_id]["time"]) < 0.6:
+
+                            d_obj = self.last_drone_cache[cam_id]["obj"]
+
+
+
+                    if d_obj:
+
+                        drone_detected = True
+
+                        highest_drone_conf = d_obj["conf"]
+
+                        highest_drone_bbox = d_obj["norm_box"]
+
+                        dx1, dy1, dx2, dy2 = d_obj["box"]
+
+
+
+                        # Send to frontend WebSocket so it renders bounding box
+
+                        detections.append({
+
+                            "trackId": len(detections) + 1,
+
+                            "class": "drone",
+
+                            "confidence": d_obj["conf"],
+
+                            "bbox": d_obj["norm_box"]
+
+                        })
+
+
+
+                        # Add Tactical UAV Reticle & Box on video stream HUD
+
+                        hud_items.append({
+
+                            "box": (dx1, dy1, dx2, dy2),
+
+                            "label": f"TACTICAL RECON DRONE [UAV] {int(d_obj['conf'] * 100)}%",
+
+                            "color": (22, 115, 249),
+
+                            "reticle": True
+
+                        })
+
+
+
+                self.last_hud[cam_id] = hud_items
+
+
+
+                # Broadcast detection boxes over WebSocket
+
+                if main_loop is not None and not main_loop.is_closed():
+
+                    det_payload = {
+
+                        "cameraId": cam_id,
+
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+
+                        "detections": detections
+
+                    }
+
+                    asyncio.run_coroutine_threadsafe(manager.broadcast_detections(cam_id, det_payload), main_loop)
+
+
+
+                now_ts = time.time()
+
+
+
+                # Trigger Alerts with intelligent cooldown per camera
+
+                if cam_id == "cam-01" and person_in_zone and (now_ts - last_alert_time.get("cam-01", 0) > 25.0):
+
+                    last_alert_time["cam-01"] = now_ts
+
+                    fire_security_alert(
+
+                        cam_id="cam-01",
+
+                        alert_type="FENCE_INTRUSION",
+
+                        severity="CRITICAL",
+
+                        confidence=highest_person_conf or 0.88,
+
+                        target_bbox=highest_person_bbox,
+
+                        details={
+
+                            "zoneName": "PERIMETER WIRE ALPHA",
+
+                            "target": "Person",
+
+                            "objectCount": 1,
+
+                            "description": "Border Infiltration: Unauthorized person breached Virtual Perimeter Wire",
+
+                            "threatLevel": "CRITICAL"
+
+                        },
+
+                        notes="Automated YOLOv8 real-time border security breach alert.",
+
+                        frame_to_save=frame
+
+                    )
+
+
+
+                # Security Alert: Blacklisted ANPR match
+
+                elif anpr_match_detected and (now_ts - last_alert_time.get(f"{cam_id}_anpr_match", 0) > 20.0):
+
+                    last_alert_time[f"{cam_id}_anpr_match"] = now_ts
+
+                    fire_security_alert(
+
+                        cam_id=cam_id,
+
+                        alert_type="ANPR_MATCH",
+
+                        severity="CRITICAL",
+
+                        confidence=0.97,
+
+                        target_bbox=anpr_match_bbox,
+
+                        details={
+
+                            "target": f"Blacklisted Vehicle {anpr_match_plate}",
+
+                            "description": f"SECURITY INTERCEPT: Blacklisted Vehicle [{anpr_match_plate}] intercepted ({anpr_match_reason})",
+
+                            "threatLevel": "CRITICAL",
+
+                            "plateNumber": anpr_match_plate,
+
+                            "blacklistReason": anpr_match_reason,
+
+                            "subtype": "FAKE_PLATE"
+
+                        },
+
+                        notes="Real-time Automated ANPR Watchlist Intercept.",
+
+                        frame_to_save=frame
+
+                    )
+
+
+
+                # Security Alert: Vehicle with NO number plate detected
+
+                elif no_plate_vehicle_detected and (now_ts - last_alert_time.get(f"{cam_id}_noplate", 0) > 25.0):
+
+                    last_alert_time[f"{cam_id}_noplate"] = now_ts
+
+                    fire_security_alert(
+
+                        cam_id=cam_id,
+
+                        alert_type="SUSPICIOUS_ACTIVITY",
+
+                        severity="HIGH",
+
+                        confidence=0.88,
+
+                        target_bbox=highest_no_plate_bbox,
+
+                        details={
+
+                            "target": f"Unregistered {no_plate_class_name.capitalize()}",
+
+                            "description": f"Security Violation: {no_plate_class_name.upper()} approaching WITHOUT License Plate (Missing / Obscured Plate Violation)",
+
+                            "threatLevel": "HIGH",
+
+                            "subtype": "FAKE_PLATE"
+
+                        },
+
+                        notes="Automated Missing License Plate Violation Detection.",
+
+                        frame_to_save=frame
+
+                    )
+
+
+
+                elif cam_id == "cam-02" and vehicle_front_detected and (now_ts - last_alert_time.get("cam-02", 0) > 30.0):
+
+                    last_alert_time["cam-02"] = now_ts
+
+                    fire_security_alert(
+
+                        cam_id="cam-02",
+
+                        alert_type="VEHICLE_DETECTED",
+
+                        severity="MEDIUM",
+
+                        confidence=highest_veh_conf or 0.85,
+
+                        target_bbox=highest_veh_bbox,
+
+                        details={
+
+                            "target": "Civilian / Front-View Vehicle",
+
+                            "vehicleClass": "car",
+
+                            "description": "Front-view Vehicle approached Border Outpost Checkpost Gate",
+
+                            "threatLevel": "MEDIUM"
+
+                        },
+
+                        notes="Real-time checkpost approach detection.",
+
+                        frame_to_save=frame
+
+                    )
+
+
+
+                elif drone_detected and (now_ts - last_alert_time.get(f"{cam_id}_drone", 0) > 25.0):
+
+                    last_alert_time[f"{cam_id}_drone"] = now_ts
+
+                    fire_security_alert(
+
+                        cam_id=cam_id,
+
+                        alert_type="DRONE_SIGHTING",
+
+                        severity="CRITICAL",
+
+                        confidence=highest_drone_conf or 0.91,
+
+                        target_bbox=highest_drone_bbox,
+
+                        details={
+
+                            "target": "Tactical Reconnaissance UAV",
+
+                            "description": "Border Air Defense: Tactical Military UAV Drone sighted in restricted airspace",
+
+                            "threatLevel": "CRITICAL"
+
+                        },
+
+                        notes="Air Defense Drone & UAV Infiltration Alert.",
+
+                        frame_to_save=frame
+
+                    )
+
+
+
+                elif animal_detected and cam_id not in ("cam-03", "cam-04") and (now_ts - last_alert_time.get(f"{cam_id}_animal", 0) > 30.0):
+
+                    last_alert_time[f"{cam_id}_animal"] = now_ts
+
+                    fire_security_alert(
+
+                        cam_id=cam_id,
+
+                        alert_type="WILDLIFE_CROSSING",
+
+                        severity="LOW",
+
+                        confidence=highest_animal_conf or 0.85,
+
+                        target_bbox=highest_animal_bbox,
+
+                        details={
+
+                            "target": animal_detected_label,
+
+                            "description": f"Border Wildlife Activity: {animal_detected_label} detected near perimeter fence / border tract",
+
+                            "threatLevel": "LOW"
+
+                        },
+
+                        notes=f"Automated {animal_detected_label} detection.",
+
+                        frame_to_save=frame
+
+                    )
+
+
+
+                elif tank_detected and (now_ts - last_alert_time.get(f"{cam_id}_tank", 0) > 25.0):
+
+                    last_alert_time[f"{cam_id}_tank"] = now_ts
+
+                    fire_security_alert(
+
+                        cam_id=cam_id,
+
+                        alert_type="VEHICLE_DETECTED",
+
+                        severity="CRITICAL",
+
+                        confidence=highest_tank_conf or 0.88,
+
+                        target_bbox=highest_tank_bbox,
+
+                        details={
+
+                            "target": "DRDO Zorawar Light Combat Tank",
+
+                            "vehicleClass": "tank",
+
+                            "description": "Forward Line of Control: Indian Army DRDO Zorawar Combat Tank active in border operational sector",
+
+                            "threatLevel": "CRITICAL"
+
+                        },
+
+                        notes="Forward Armored Tank Division combat tracking.",
+
+                        frame_to_save=frame
+
+                    )
+
+
+
+            except Exception as yolo_err:
+
+                print(f"[YOLO INFERENCE ERROR] {yolo_err}")
+
+
+
+            self.last_hud[cam_id] = hud_items
+        except Exception as e:
+            pass
+        finally:
+            self.is_inferring[cam_id] = False
 
     def _worker_loop(self, cam_id: str):
         current_src = None
@@ -2490,857 +3352,9 @@ class CameraCaptureHub:
 
                     asyncio.run_coroutine_threadsafe(manager.broadcast_detections(cam_id, det_payload), main_loop)
 
-            elif yolo_model is not None and frame_counter % 8 == 0:
-                try:
-                    res = yolo_model.predict(frame, imgsz=320, conf=0.15, verbose=False)
-
-                    detections = []
-
-                    boxes = res[0].boxes
-
-                    hud_items = []
-
-
-
-                    person_in_zone = False
-
-                    highest_person_conf = 0.0
-
-                    highest_person_bbox = [0, 0, 0, 0]
-
-
-
-                    tank_detected = False
-
-                    highest_tank_conf = 0.0
-
-                    highest_tank_bbox = [0, 0, 0, 0]
-
-
-
-                    drone_detected = False
-
-                    highest_drone_conf = 0.0
-
-                    highest_drone_bbox = [0, 0, 0, 0]
-
-
-
-                    vehicle_front_detected = False
-
-                    highest_veh_conf = 0.0
-
-                    highest_veh_bbox = [0, 0, 0, 0]
-
-
-
-                    no_plate_vehicle_detected = False
-
-                    highest_no_plate_bbox = [0, 0, 0, 0]
-
-                    no_plate_class_name = "vehicle"
-
-
-
-                    anpr_match_detected = False
-
-                    anpr_match_plate = ""
-
-                    anpr_match_reason = ""
-
-                    anpr_match_bbox = [0, 0, 0, 0]
-
-
-
-                    animal_detected = False
-
-                    highest_animal_conf = 0.0
-
-                    highest_animal_bbox = [0, 0, 0, 0]
-
-                    animal_detected_label = "Animal"
-
-
-
-                    # Pre-pass: collect vehicle bounding boxes to detect riders vs trespassers
-
-                    raw_veh_boxes = []
-
-                    for b in boxes:
-
-                        c_id = int(b.cls[0])
-
-                        if c_id in (1, 2, 3, 5, 7):
-
-                            bx1, by1, bx2, by2 = b.xyxy[0].tolist()
-
-                            raw_veh_boxes.append((bx1, by1, bx2, by2))
-
-
-
-                    # Cross-class Non-Maximum Suppression to remove overlapping duplicate boxes
-                    # (e.g. dog detected as both sheep and dog, or tank detected as both boat and truck)
-                    clean_boxes = []
-                    if len(boxes) > 0:
-                        sorted_b = sorted(boxes, key=lambda b: float(b.conf[0]), reverse=True)
-                        for b in sorted_b:
-                            bx1, by1, bx2, by2 = b.xyxy[0].tolist()
-                            b_cls = int(b.cls[0])
-                            b_area = (bx2 - bx1) * (by2 - by1)
-                            b_conf = float(b.conf[0])
-                            
-                            # Filter extreme low confidence noise
-                            if b_cls in (15, 16, 17, 18, 19, 20, 21, 22, 23) and b_conf < 0.25:
-                                continue
-                            if b_cls in (4, 33, 38) and b_area < 350:
-                                continue
-                                
-                            suppress = False
-                            for k in clean_boxes:
-                                kx1, ky1, kx2, ky2 = k.xyxy[0].tolist()
-                                k_cls = int(k.cls[0])
-                                ix1 = max(bx1, kx1)
-                                iy1 = max(by1, ky1)
-                                ix2 = min(bx2, kx2)
-                                iy2 = min(by2, ky2)
-                                iw = max(0.0, ix2 - ix1)
-                                ih = max(0.0, iy2 - iy1)
-                                inter = iw * ih
-                                if inter > 0:
-                                    k_area = (kx2 - kx1) * (ky2 - ky1)
-                                    union = b_area + k_area - inter
-                                    iou = inter / union if union > 0 else 0
-                                    # Suppress overlapping animals
-                                    if (b_cls in (15, 16, 17, 18, 19, 20, 21, 22, 23)) and (k_cls in (15, 16, 17, 18, 19, 20, 21, 22, 23)):
-                                        if iou > 0.35:
-                                            suppress = True
-                                            break
-                                    # Suppress overlapping vehicles
-                                    elif (b_cls in (1, 2, 3, 5, 7, 8)) and (k_cls in (1, 2, 3, 5, 7, 8)):
-                                        if iou > 0.40:
-                                            suppress = True
-                                            break
-                                    elif b_cls == k_cls and iou > 0.45:
-                                        suppress = True
-                                        break
-                            if not suppress:
-                                clean_boxes.append(b)
-                    
-                    for idx, box in enumerate(clean_boxes):
-
-                        cls_id = int(box.cls[0])
-
-                        conf = float(box.conf[0])
-
-                        x1, y1, x2, y2 = box.xyxy[0].tolist()
-
-                        norm_x = max(0.0, min(1.0, x1 / 640.0))
-
-                        norm_y = max(0.0, min(1.0, y1 / 360.0))
-
-                        norm_w = max(0.0, min(1.0, (x2 - x1) / 640.0))
-
-                        norm_h = max(0.0, min(1.0, (y2 - y1) / 360.0))
-
-                        nbb = [round(norm_x, 3), round(norm_y, 3), round(norm_w, 3), round(norm_h, 3)]
-
-
-
-                        # Granular vehicle & object categorization
-
-                        obj_cat = categorize_detected_object(cls_id, conf, (int(x1), int(y1), int(x2), int(y2)), frame, cam_id)
-
-
-
-                        if obj_cat:
-
-                            cls_name = obj_cat["class"]
-
-                            disp_label = obj_cat["display"]
-
-                            box_color = obj_cat["color"]
-
-                            has_reticle = obj_cat.get("reticle", False)
-
-
-
-                            # Handle person: distinguish vehicle riders/commuters from genuine perimeter fence intruders
-
-                            if cls_name == "person":
-
-                                cx = norm_x + norm_w / 2.0
-
-                                cy = norm_y + norm_h / 2.0
-
-                                px_cx = (x1 + x2) / 2.0
-
-                                px_cy = (y1 + y2) / 2.0
-
-
-
-                                # Check if person is sitting on a motorcycle or inside a car
-
-                                is_rider = False
-
-                                for vx1, vy1, vx2, vy2 in raw_veh_boxes:
-
-                                    if (vx1 - 15) <= px_cx <= (vx2 + 15) and (vy1 - 15) <= px_cy <= (vy2 + 15):
-
-                                        is_rider = True
-
-                                        break
-
-
-
-                                if is_rider:
-
-                                    disp_label = f"RIDER / DRIVER {int(conf*100)}%"
-
-                                    box_color = (192, 132, 252) # Purple tint for commuters
-
-                                else:
-
-                                    # Standalone person
-
-                                    target_src_val = VIDEO_SOURCES.get(cam_id, "")
-
-                                    is_real_webcam = (target_src_val == 0 or str(target_src_val).strip().lower() in ("0", "webcam"))
-
-                                    is_defense_scene = check_is_defense_scene(cam_id)
-
-                                    src_str_val = str(target_src_val).lower()
-
-                                    cam_full_name = (str(CAMERA_NAMES.get(cam_id, "")) + " " + str(cam_id)).lower()
-
-                                    is_drone_cam = (cam_id == "cam-03" or "drone" in src_str_val or "uav" in cam_full_name or "drone" in cam_full_name or "air defense" in cam_full_name)
-
-
-
-                                    if is_real_webcam:
-
-                                        disp_label = f"OPERATOR / PERSON {int(conf*100)}%"
-
-                                        box_color = (34, 197, 94)
-
-                                        has_reticle = False
-
-                                    elif is_drone_cam:
-
-                                        # Dedicated Drone Air Defense Reconnaissance camera
-
-                                        disp_label = f"UAV OPERATOR / PILOT {int(conf*100)}%"
-
-                                        box_color = (34, 197, 94)
-
-                                        has_reticle = False
-
-                                    elif is_defense_scene:
-
-                                        # In defense perimeter fence scene:
-
-                                        # Fence climber/intruder is climbing against the barbed wire fence (cx <= 0.53)
-
-                                        if cx <= 0.53:
-
-                                            person_in_zone = True
-
-                                            if conf > highest_person_conf:
-
-                                                highest_person_conf = conf
-
-                                                highest_person_bbox = nbb
-
-                                            disp_label = f"PERIMETER INTRUSION {int(conf*100)}%"
-
-                                            box_color = (0, 0, 235)
-
-                                            has_reticle = True
-
-                                        else:
-
-                                            # Armed patrol soldiers walking down the dirt road (cx > 0.53)
-
-                                            disp_label = f"ARMED PATROL {int(conf*100)}%"
-
-                                            box_color = (34, 197, 94)
-
-                                            has_reticle = False
-
-                                    elif cam_id in ("cam-01", "cam-02") or "checkpost" in cam_full_name or "gate" in cam_full_name:
-
-                                        # Civilian border checkpost barrier gate
-
-                                        disp_label = f"PEDESTRIAN {int(conf*100)}%"
-
-                                        box_color = (34, 197, 94)
-
-                                        has_reticle = False
-
-                                    else:
-
-                                        # Border defense personnel / sentry
-
-                                        disp_label = f"PERSON / PEDESTRIAN {int(conf*100)}%"
-
-                                        box_color = (34, 197, 94)
-
-                                        has_reticle = False
-
-
-
-                            # Handle combat tanks
-
-                            elif cls_name == "tank":
-
-                                tank_detected = True
-
-                                if conf > highest_tank_conf:
-
-                                    highest_tank_conf = conf
-
-                                    highest_tank_bbox = nbb
-
-
-
-                            # Handle tactical drones
-
-                            elif cls_name == "drone":
-
-                                drone_detected = True
-
-                                if conf > highest_drone_conf:
-
-                                    highest_drone_conf = conf
-
-                                    highest_drone_bbox = nbb
-
-
-
-                            # Handle animals
-
-                            elif cls_name == "animal":
-
-                                animal_detected = True
-
-                                if conf > highest_animal_conf:
-
-                                    highest_animal_conf = conf
-
-                                    highest_animal_bbox = nbb
-
-                                    animal_detected_label = obj_cat.get("label", "Animal")
-
-
-
-                            # Handle civilian vehicles
-
-                            elif obj_cat.get("is_vehicle"):
-
-                                vehicle_front_detected = True
-
-                                if conf > highest_veh_conf:
-
-                                    highest_veh_conf = conf
-
-                                    highest_veh_bbox = nbb
-
-
-
-                                # License plate check on front-facing foreground vehicles
-
-                                # Never on side profile of a bus or distant traffic
-
-                                is_bus = (cls_name == "bus")
-
-                                in_foreground = (y2 >= 240 and (norm_w >= 0.18 or norm_h >= 0.20))
-
-
-
-                                if cls_name in ("car", "truck", "tempo", "auto_rickshaw") and in_foreground and not is_bus:
-
-                                    plate_info = detect_and_read_license_plate(
-
-                                        frame,
-
-                                        vehicle_boxes=[(int(x1), int(y1), int(x2), int(y2))],
-
-                                        cam_id=cam_id,
-
-                                        track_id=idx + 1,
-
-                                        vehicle_class=cls_name
-
-                                    )
-
-                                    if plate_info and plate_info.get("has_plate"):
-
-                                        plate_str = plate_info.get("plate")
-
-                                        is_bl = plate_info.get("blacklisted", False)
-
-                                        bl_reason = plate_info.get("reason", "Watchlist Target")
-
-                                        read_mode = plate_info.get("read_mode", "TRACK_MATCH")
-
-                                        if plate_str:
-
-                                            if is_bl:
-
-                                                disp_label += f" [{plate_str} · BLACKLISTED]"
-
-                                                box_color = (0, 0, 255) # Red warning badge
-
-                                                has_reticle = True
-
-                                                anpr_match_detected = True
-
-                                                anpr_match_plate = plate_str
-
-                                                anpr_match_reason = bl_reason
-
-                                                anpr_match_bbox = nbb
-
-                                            elif read_mode == "REAL_OCR":
-
-                                                disp_label += f" [OCR: {plate_str}]"
-
-                                                box_color = (34, 197, 94) # Green verified plate
-
-                                            else:
-
-                                                disp_label += f" [{plate_str}]"
-
-                                                box_color = (45, 212, 191) # Teal/Cyan for perimeter track plate
-
-                                            
-
-                                            log_and_broadcast_plate_read(
-
-                                                cam_id=cam_id,
-
-                                                plate=plate_str,
-
-                                                vehicle_class=cls_name,
-
-                                                color=plate_info.get("color", "White"),
-
-                                                conf=plate_info.get("confidence", 0.95),
-
-                                                crop=plate_info.get("crop"),
-
-                                                blacklisted=is_bl,
-
-                                                read_mode=read_mode
-
-                                            )
-
-                                    elif plate_info and not plate_info.get("has_plate") and y2 >= 285 and norm_h >= 0.25:
-
-                                        disp_label += " [NO NUMBER PLATE DETECTED]"
-
-                                        box_color = (0, 70, 255)
-
-                                        has_reticle = True
-
-                                        no_plate_vehicle_detected = True
-
-                                        highest_no_plate_bbox = nbb
-
-                                        no_plate_class_name = cls_name.replace('_', ' ').upper()
-
-
-
-                            hud_items.append({
-
-                                "box": (int(x1), int(y1), int(x2), int(y2)),
-
-                                "label": disp_label,
-
-                                "color": box_color,
-
-                                "reticle": has_reticle
-
-                            })
-
-
-
-                            detections.append({
-
-                                "trackId": idx + 1,
-
-                                "class": cls_name,
-
-                                "label": obj_cat.get("label"),
-
-                                "confidence": round(conf, 2),
-
-                                "bbox": nbb
-
-                            })
-
-
-
-                    # Specialized Airborne Drone Target Detection (Fallback if not detected by YOLO)
-
-                    if not drone_detected and (cam_id == "cam-03" or "drone" in cam_id.lower() or "sky" in cam_id.lower() or "uav" in cam_id.lower()):
-
-                        now_d_ts = time.time()
-
-                        d_obj = detect_drone_in_frame(frame)
-
-                        if d_obj:
-
-                            self.last_drone_cache[cam_id] = {
-
-                                "obj": d_obj,
-
-                                "time": now_d_ts
-
-                            }
-
-                        elif cam_id in self.last_drone_cache:
-
-                            if (now_d_ts - self.last_drone_cache[cam_id]["time"]) < 0.6:
-
-                                d_obj = self.last_drone_cache[cam_id]["obj"]
-
-
-
-                        if d_obj:
-
-                            drone_detected = True
-
-                            highest_drone_conf = d_obj["conf"]
-
-                            highest_drone_bbox = d_obj["norm_box"]
-
-                            dx1, dy1, dx2, dy2 = d_obj["box"]
-
-
-
-                            # Send to frontend WebSocket so it renders bounding box
-
-                            detections.append({
-
-                                "trackId": len(detections) + 1,
-
-                                "class": "drone",
-
-                                "confidence": d_obj["conf"],
-
-                                "bbox": d_obj["norm_box"]
-
-                            })
-
-
-
-                            # Add Tactical UAV Reticle & Box on video stream HUD
-
-                            hud_items.append({
-
-                                "box": (dx1, dy1, dx2, dy2),
-
-                                "label": f"TACTICAL RECON DRONE [UAV] {int(d_obj['conf'] * 100)}%",
-
-                                "color": (22, 115, 249),
-
-                                "reticle": True
-
-                            })
-
-
-
-                    self.last_hud[cam_id] = hud_items
-
-
-
-                    # Broadcast detection boxes over WebSocket
-
-                    if main_loop is not None and not main_loop.is_closed():
-
-                        det_payload = {
-
-                            "cameraId": cam_id,
-
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-
-                            "detections": detections
-
-                        }
-
-                        asyncio.run_coroutine_threadsafe(manager.broadcast_detections(cam_id, det_payload), main_loop)
-
-
-
-                    now_ts = time.time()
-
-
-
-                    # Trigger Alerts with intelligent cooldown per camera
-
-                    if cam_id == "cam-01" and person_in_zone and (now_ts - last_alert_time.get("cam-01", 0) > 25.0):
-
-                        last_alert_time["cam-01"] = now_ts
-
-                        fire_security_alert(
-
-                            cam_id="cam-01",
-
-                            alert_type="FENCE_INTRUSION",
-
-                            severity="CRITICAL",
-
-                            confidence=highest_person_conf or 0.88,
-
-                            target_bbox=highest_person_bbox,
-
-                            details={
-
-                                "zoneName": "PERIMETER WIRE ALPHA",
-
-                                "target": "Person",
-
-                                "objectCount": 1,
-
-                                "description": "Border Infiltration: Unauthorized person breached Virtual Perimeter Wire",
-
-                                "threatLevel": "CRITICAL"
-
-                            },
-
-                            notes="Automated YOLOv8 real-time border security breach alert.",
-
-                            frame_to_save=frame_out
-
-                        )
-
-
-
-                    # Security Alert: Blacklisted ANPR match
-
-                    elif anpr_match_detected and (now_ts - last_alert_time.get(f"{cam_id}_anpr_match", 0) > 20.0):
-
-                        last_alert_time[f"{cam_id}_anpr_match"] = now_ts
-
-                        fire_security_alert(
-
-                            cam_id=cam_id,
-
-                            alert_type="ANPR_MATCH",
-
-                            severity="CRITICAL",
-
-                            confidence=0.97,
-
-                            target_bbox=anpr_match_bbox,
-
-                            details={
-
-                                "target": f"Blacklisted Vehicle {anpr_match_plate}",
-
-                                "description": f"SECURITY INTERCEPT: Blacklisted Vehicle [{anpr_match_plate}] intercepted ({anpr_match_reason})",
-
-                                "threatLevel": "CRITICAL",
-
-                                "plateNumber": anpr_match_plate,
-
-                                "blacklistReason": anpr_match_reason,
-
-                                "subtype": "FAKE_PLATE"
-
-                            },
-
-                            notes="Real-time Automated ANPR Watchlist Intercept.",
-
-                            frame_to_save=frame_out
-
-                        )
-
-
-
-                    # Security Alert: Vehicle with NO number plate detected
-
-                    elif no_plate_vehicle_detected and (now_ts - last_alert_time.get(f"{cam_id}_noplate", 0) > 25.0):
-
-                        last_alert_time[f"{cam_id}_noplate"] = now_ts
-
-                        fire_security_alert(
-
-                            cam_id=cam_id,
-
-                            alert_type="SUSPICIOUS_ACTIVITY",
-
-                            severity="HIGH",
-
-                            confidence=0.88,
-
-                            target_bbox=highest_no_plate_bbox,
-
-                            details={
-
-                                "target": f"Unregistered {no_plate_class_name.capitalize()}",
-
-                                "description": f"Security Violation: {no_plate_class_name.upper()} approaching WITHOUT License Plate (Missing / Obscured Plate Violation)",
-
-                                "threatLevel": "HIGH",
-
-                                "subtype": "FAKE_PLATE"
-
-                            },
-
-                            notes="Automated Missing License Plate Violation Detection.",
-
-                            frame_to_save=frame_out
-
-                        )
-
-
-
-                    elif cam_id == "cam-02" and vehicle_front_detected and (now_ts - last_alert_time.get("cam-02", 0) > 30.0):
-
-                        last_alert_time["cam-02"] = now_ts
-
-                        fire_security_alert(
-
-                            cam_id="cam-02",
-
-                            alert_type="VEHICLE_DETECTED",
-
-                            severity="MEDIUM",
-
-                            confidence=highest_veh_conf or 0.85,
-
-                            target_bbox=highest_veh_bbox,
-
-                            details={
-
-                                "target": "Civilian / Front-View Vehicle",
-
-                                "vehicleClass": "car",
-
-                                "description": "Front-view Vehicle approached Border Outpost Checkpost Gate",
-
-                                "threatLevel": "MEDIUM"
-
-                            },
-
-                            notes="Real-time checkpost approach detection.",
-
-                            frame_to_save=frame_out
-
-                        )
-
-
-
-                    elif drone_detected and (now_ts - last_alert_time.get(f"{cam_id}_drone", 0) > 25.0):
-
-                        last_alert_time[f"{cam_id}_drone"] = now_ts
-
-                        fire_security_alert(
-
-                            cam_id=cam_id,
-
-                            alert_type="DRONE_SIGHTING",
-
-                            severity="CRITICAL",
-
-                            confidence=highest_drone_conf or 0.91,
-
-                            target_bbox=highest_drone_bbox,
-
-                            details={
-
-                                "target": "Tactical Reconnaissance UAV",
-
-                                "description": "Border Air Defense: Tactical Military UAV Drone sighted in restricted airspace",
-
-                                "threatLevel": "CRITICAL"
-
-                            },
-
-                            notes="Air Defense Drone & UAV Infiltration Alert.",
-
-                            frame_to_save=frame_out
-
-                        )
-
-
-
-                    elif animal_detected and cam_id not in ("cam-03", "cam-04") and (now_ts - last_alert_time.get(f"{cam_id}_animal", 0) > 30.0):
-
-                        last_alert_time[f"{cam_id}_animal"] = now_ts
-
-                        fire_security_alert(
-
-                            cam_id=cam_id,
-
-                            alert_type="WILDLIFE_CROSSING",
-
-                            severity="LOW",
-
-                            confidence=highest_animal_conf or 0.85,
-
-                            target_bbox=highest_animal_bbox,
-
-                            details={
-
-                                "target": animal_detected_label,
-
-                                "description": f"Border Wildlife Activity: {animal_detected_label} detected near perimeter fence / border tract",
-
-                                "threatLevel": "LOW"
-
-                            },
-
-                            notes=f"Automated {animal_detected_label} detection.",
-
-                            frame_to_save=frame_out
-
-                        )
-
-
-
-                    elif tank_detected and (now_ts - last_alert_time.get(f"{cam_id}_tank", 0) > 25.0):
-
-                        last_alert_time[f"{cam_id}_tank"] = now_ts
-
-                        fire_security_alert(
-
-                            cam_id=cam_id,
-
-                            alert_type="VEHICLE_DETECTED",
-
-                            severity="CRITICAL",
-
-                            confidence=highest_tank_conf or 0.88,
-
-                            target_bbox=highest_tank_bbox,
-
-                            details={
-
-                                "target": "DRDO Zorawar Light Combat Tank",
-
-                                "vehicleClass": "tank",
-
-                                "description": "Forward Line of Control: Indian Army DRDO Zorawar Combat Tank active in border operational sector",
-
-                                "threatLevel": "CRITICAL"
-
-                            },
-
-                            notes="Forward Armored Tank Division combat tracking.",
-
-                            frame_to_save=frame_out
-
-                        )
-
-
-
-                except Exception as yolo_err:
-
-                    print(f"[YOLO INFERENCE ERROR] {yolo_err}")
-
-
+            elif yolo_model is not None and frame_counter % 12 == 0 and not self.is_inferring.get(cam_id, False):
+                self.is_inferring[cam_id] = True
+                threading.Thread(target=self._run_inference_bg, args=(cam_id, frame.copy()), daemon=True).start()
 
             # Render HUD items onto frame_out
 
