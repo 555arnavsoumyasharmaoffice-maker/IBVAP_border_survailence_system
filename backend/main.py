@@ -2297,7 +2297,7 @@ class CameraCaptureHub:
             if yolo_model is None:
                 return
             try:
-                res = yolo_model.predict(frame, imgsz=320, conf=0.15, verbose=False)
+                res = yolo_model.predict(frame, imgsz=288, conf=0.15, verbose=False)
 
                 detections = []
 
@@ -3362,7 +3362,7 @@ class CameraCaptureHub:
 
                         asyncio.run_coroutine_threadsafe(manager.broadcast_detections(cam_id, det_payload), main_loop)
 
-            elif yolo_model is not None and frame_counter % 12 == 0 and not self.is_inferring.get(cam_id, False):
+            elif yolo_model is not None and not self.is_inferring.get(cam_id, False):
                 self.is_inferring[cam_id] = True
                 threading.Thread(target=self._run_inference_bg, args=(cam_id, frame.copy()), daemon=True).start()
 
