@@ -118,10 +118,11 @@ export default function Login() {
         backendReady = true
         return
       }
-      const deadline = Date.now() + 25000
+      // Render Free Tier cold start takes 35-50s when waking from inactive sleep
+      const deadline = Date.now() + 55000
       while (Date.now() < deadline && !backendReady) {
         try {
-          const r = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(6000) })
+          const r = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(8000) })
           if (r.ok) {
             backendData = await r.json()
             backendReady = true
@@ -171,7 +172,7 @@ export default function Login() {
 
       let cameras = backendData
       if (!cameras) {
-        const res = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(isLocal ? 3000 : 10000) })
+        const res = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(isLocal ? 3000 : 25000) })
         if (!res.ok) throw new Error(`HTTP ${res.status}: Backend AI service returned status ${res.status}`)
         cameras = await res.json()
       }
