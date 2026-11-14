@@ -91,12 +91,12 @@ export default function Login() {
     let elapsed = 0
 
     const stages = [
-      { at: 300, text: '[AUTH_VERIFIED] Session Token & Identity cryptographically validated.' },
-      { at: 2000, text: '[LINK_WAKEUP] Transmitting wake-up beacon to AI Surveillance Engine...' },
-      { at: 4500, text: '[DB_SYNC] Neon Cloud PostgreSQL synchronized: 19 Surveillance Nodes online.' },
-      { at: 7000, text: '[NEURAL_CORE] YOLOv8s Military Model & Real-time ANPR Pipeline loaded.' },
-      { at: 8800, text: '[TELEMETRY] Seismic grid & FLIR thermal sensor streams calibrated.' },
-      { at: 9800, text: '[READY] Tactical Workstation Established. Launching Command Center...' },
+      { at: 300, text: '[COMSEC / TRANSEC] Verifying Military Cryptographic Keys & Command Clearance... [VERIFIED]' },
+      { at: 1800, text: '[C4ISR TELEMETRY] Polling 19 Border Outposts (Jaisalmer Sundar & Amritsar Attari Sector)... [19/19 ONLINE]' },
+      { at: 3800, text: '[NEURAL DEFENSE] Arming Multi-Spectral YOLOv8s Intrusion & Crawling Detection Core... [ARMED]' },
+      { at: 5800, text: '[GEO-PERIMETER] Calibrating Virtual Fence Tripwires & Underground Seismic Sensor Grid... [CALIBRATED]' },
+      { at: 7800, text: '[AIR DEFENSE / ANPR] Synchronizing UAV Anti-Drone Radar & Vehicle Intercept Database... [ACTIVE]' },
+      { at: 9400, text: '[SITREP READY] Tactical Workstation Established. Security Clearance: LEVEL-IV TOP SECRET... [ENGAGED]' },
     ]
 
     const interval = setInterval(() => {
@@ -260,19 +260,31 @@ export default function Login() {
           </div>
 
           {/* Live Telemetry Boot Logs */}
-          <div className="rounded-lg border border-cyan-900/60 bg-black/60 p-4 font-mono text-[11px] space-y-2 mb-6 min-h-[140px] shadow-inner">
+          <div className="rounded-lg border border-cyan-900/60 bg-black/60 p-4 font-mono text-[11px] space-y-2 mb-6 min-h-[185px] shadow-inner">
             <div className="text-[10px] text-cyan-500/70 uppercase tracking-widest border-b border-cyan-900/40 pb-1 mb-2 flex items-center justify-between">
-              <span>TELEMETRY & HARDWARE INITIALIZATION STREAM</span>
+              <span>C4ISR BORDER DEFENSE PROTOCOL & SUBSYSTEM CHECKS</span>
               <span className="text-emerald-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE LINK
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE TELEMETRY
               </span>
             </div>
-            {bootLogs.map((log, i) => (
-              <div key={i} className="flex items-center gap-2 text-cyan-300 animate-fadeIn">
-                <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
-                <span>{log}</span>
-              </div>
-            ))}
+            {bootLogs.map((log, i) => {
+              const lastBracket = log.lastIndexOf('[')
+              const mainText = lastBracket > 15 ? log.slice(0, lastBracket).trim() : log
+              const statusTag = lastBracket > 15 ? log.slice(lastBracket) : ''
+              return (
+                <div key={i} className="flex items-center justify-between gap-2 text-xs text-cyan-200 py-0.5 animate-fadeIn">
+                  <div className="flex items-center gap-2 truncate">
+                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                    <span className="font-mono">{mainText}</span>
+                  </div>
+                  {statusTag && (
+                    <span className="text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 shrink-0">
+                      {statusTag.replace(/[\[\]]/g, '')}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           {/* Quick Direct Bypass / Skip Action */}
