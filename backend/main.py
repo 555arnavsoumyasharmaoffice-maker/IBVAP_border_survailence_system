@@ -1211,9 +1211,31 @@ def resolve_source_path(val):
     if "demo_videos" in norm_val:
         idx = norm_val.find("demo_videos")
         sub_rel = norm_val[idx:]
-        resolved_cand = os.path.abspath(os.path.join(PROJECT_ROOT, *sub_rel.split("/")))
+        parts = [p for p in sub_rel.split("/") if p]
+        resolved_cand = os.path.abspath(os.path.join(PROJECT_ROOT, *parts))
         if os.path.exists(resolved_cand):
             return resolved_cand
+        # Case-insensitive resolution for Linux file systems
+        try:
+            cur = PROJECT_ROOT
+            found = True
+            for part in parts:
+                if not os.path.exists(cur):
+                    found = False
+                    break
+                matched = False
+                for entry in os.listdir(cur):
+                    if entry.lower() == part.lower():
+                        cur = os.path.join(cur, entry)
+                        matched = True
+                        break
+                if not matched:
+                    found = False
+                    break
+            if found and os.path.exists(cur):
+                return cur
+        except Exception:
+            pass
 
     if os.path.isabs(s_val) and os.path.exists(s_val):
 
@@ -1780,12 +1802,30 @@ def categorize_detected_object(cls_id: int, conf: float, raw_box: tuple, frame_6
 
 
     is_defense_scene = check_is_defense_scene(cam_id)
+    target_src_val = VIDEO_SOURCES.get(cam_id, "")
+    src_str_val = str(target_src_val).lower()
+    cam_name_str = (str(CAMERA_NAMES.get(cam_id, "")) + " " + str(cam_id)).lower()
+    is_pure_tank_cam = (
+        cam_id == "cam-04"
+        or "zorawar" in src_str_val
+        or "tank" in cam_name_str
+        or "armored" in cam_name_str
+    )
 
     norm_cx = (x1 + x2) / (2.0 * frame_640.shape[1])
 
     norm_cy = (y1 + y2) / (2.0 * frame_640.shape[0])
 
-
+    # Dedicated Forward Tank Division: ANY heavy vehicle/boat/tank class is the combat tank
+    if is_pure_tank_cam and cls_id in (2, 3, 5, 6, 7, 8, 37) and area >= 1200:
+        return {
+            "class": "tank",
+            "label": "DRDO Zorawar Combat Tank",
+            "display": f"COMBAT TANK [DRDO ZORAWAR TANK] {int(conf*100)}%",
+            "color": (0, 0, 238),
+            "reticle": True,
+            "is_vehicle": True
+        }
 
     # 1. Armored Combat Tank / MBT vs Highway Freight Truck vs Tactical Drone
     if is_defense_scene:
@@ -2297,6 +2337,7 @@ class CameraCaptureHub:
         self.locks: Dict[str, threading.Lock] = {}
 
         self.last_hud: Dict[str, list] = {}
+        self.last_hud_time: Dict[str, float] = {}
 
         self.last_drone_cache: Dict[str, dict] = {}
 
@@ -2342,7 +2383,8 @@ class CameraCaptureHub:
             if yolo_model is None:
                 return
             try:
-                res = yolo_model.predict(frame, imgsz=288, conf=0.15, verbose=False)
+                pred_imgsz = 224 if IS_CLOUD else 288
+                res = yolo_model.predict(frame, imgsz=pred_imgsz, conf=0.15, verbose=False)
 
                 detections = []
 
@@ -2900,7 +2942,11 @@ class CameraCaptureHub:
 
 
 
-                self.last_hud[cam_id] = hud_items
+                if hud_items:
+                    self.last_hud[cam_id] = hud_items
+                    self.last_hud_time[cam_id] = time.time()
+                elif (time.time() - self.last_hud_time.get(cam_id, 0)) > 3.0:
+                    self.last_hud[cam_id] = []
 
 
 
@@ -3192,7 +3238,11 @@ class CameraCaptureHub:
 
 
 
-            self.last_hud[cam_id] = hud_items
+            if hud_items:
+                self.last_hud[cam_id] = hud_items
+                self.last_hud_time[cam_id] = time.time()
+            elif (time.time() - self.last_hud_time.get(cam_id, 0)) > 3.0:
+                self.last_hud[cam_id] = []
         except Exception as e:
             pass
         finally:
@@ -3288,9 +3338,9 @@ class CameraCaptureHub:
 
 
 
-            # Balanced brisk tactical playback: smooth ~1.75x - 2.0x speed
+            # Balanced brisk tactical playback: smooth ~1.75x - 2.0x speed on localhost
             is_file_stream = (not is_webcam) or (cap is not None and cap.get(cv2.CAP_PROP_FRAME_COUNT) > 0)
-            if is_file_stream:
+            if is_file_stream and not IS_CLOUD:
                 vid_fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
                 advance_count = 4 if vid_fps >= 45.0 else 2
                 for _ in range(advance_count):
@@ -3419,8 +3469,12 @@ class CameraCaptureHub:
                         asyncio.run_coroutine_threadsafe(manager.broadcast_detections(cam_id, det_payload), main_loop)
 
             elif yolo_model is not None and not self.is_inferring.get(cam_id, False):
-                self.is_inferring[cam_id] = True
-                threading.Thread(target=self._run_inference_bg, args=(cam_id, frame.copy()), daemon=True).start()
+                should_infer = True
+                if IS_CLOUD:
+                    should_infer = (frame_counter % 8 == 0)
+                if should_infer:
+                    self.is_inferring[cam_id] = True
+                    threading.Thread(target=self._run_inference_bg, args=(cam_id, frame.copy()), daemon=True).start()
 
             # Render HUD items onto frame_out
 
@@ -3581,14 +3635,14 @@ class CameraCaptureHub:
 
 
 
-            # Dynamic balanced pacing: target smooth ~28-33 FPS natural playback
+            # Dynamic balanced pacing: target smooth ~28-33 FPS natural playback on localhost, ~21 FPS on Cloud
             proc_time = time.time() - loop_start_t
-            target_period = 0.036 if IS_CLOUD else 0.030
+            target_period = 0.048 if IS_CLOUD else 0.030
             sleep_needed = target_period - proc_time
             if sleep_needed > 0.003:
                 time.sleep(sleep_needed)
             else:
-                time.sleep(0.002)
+                time.sleep(0.005 if IS_CLOUD else 0.002)
 
 
 
@@ -3646,8 +3700,8 @@ def stream_hub_generator(cam_id: str):
 
     last_seq = -1
     last_touch = time.time()
-    sleep_frame = 0.035 if IS_CLOUD else 0.020 # ~28-30 FPS on Cloud to prevent buffer bloat
-    sleep_idle = 0.020 if IS_CLOUD else 0.005
+    sleep_frame = 0.045 if IS_CLOUD else 0.020 # ~22 FPS on Cloud to prevent buffer bloat
+    sleep_idle = 0.025 if IS_CLOUD else 0.005
     try:
         while True:
             now_t = time.time()
