@@ -147,11 +147,15 @@ export default function Login() {
     setError('')
     sessionStorage.removeItem('ibvap.timedOut')
 
+    // Start booting sequence immediately so user is not redirected early by Zustand state
+    setBooting(true)
+
     try {
       await login(username.trim(), undefined, password)
-      // Trigger 10-second tactical workstation bootstrapping
-      setBooting(true)
+      // Login succeeded! The 10-second timer will now play the full tactical boot sequence and navigate('/')
     } catch (err: any) {
+      setBooting(false)
+      setBusy(false)
       console.error('Login error:', err)
       const msg = err?.message || 'Access Denied: Invalid Service ID or Password.'
       if (msg.includes('403') || msg.toLowerCase().includes('retired')) {
@@ -161,7 +165,6 @@ export default function Login() {
       } else {
         setError(msg)
       }
-      setBusy(false)
     }
   }
 
