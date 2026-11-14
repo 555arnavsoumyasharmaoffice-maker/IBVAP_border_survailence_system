@@ -6,6 +6,7 @@ import { useData } from '@/store/data'
 import { useUi, type CameraLayout } from '@/store/ui'
 import { downloadFile, fmtDateTime } from '@/lib/format'
 import { audit } from '@/lib/audit'
+import { latLngToMGRS } from '@/lib/geo'
 import { useT } from '@/i18n'
 import { CameraFeed, type CameraFeedHandle } from '@/components/CameraFeed'
 import { AlertCard } from '@/components/AlertCard'
@@ -128,7 +129,8 @@ function Focused({ camera, onBack }: { camera: Camera; onBack: () => void }) {
           <span>ID {camera.id}</span>
           <span>{camera.streamUrl}</span>
           <span>
-            {camera.lat.toFixed(4)}, {camera.lng.toFixed(4)}
+            {camera.lat.toFixed(4)}, {camera.lng.toFixed(4)}</span>
+          <span className="text-accent">MGRS: {latLngToMGRS(camera.lat, camera.lng)}
           </span>
           <span>{camera.isNightMode ? 'NIGHT / IR' : 'DAY'}</span>
           {snapMsg && <span className="text-accent">{snapMsg}</span>}

@@ -5,7 +5,7 @@ import { service } from '@/services'
 
 interface AuthState {
   user: User | null
-  login: (username: string, role: Role) => Promise<void>
+  login: (username: string, role?: Role, password?: string) => Promise<void>
   logout: (reason?: string) => void
 }
 
@@ -13,8 +13,8 @@ export const useAuth = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
-      login: async (username, role) => {
-        const user = await service.login(username, role)
+      login: async (username, role, password) => {
+        const user = await service.login(username, role, password)
         set({ user })
         void service.logAudit({ user: user.name, role: user.role, category: 'AUTH', action: 'Signed in', target: 'Command Center', details: '' }).catch(() => {})
       },

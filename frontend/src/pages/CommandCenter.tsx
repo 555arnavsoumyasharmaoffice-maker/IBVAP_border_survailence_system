@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BellRing, Siren, Timer, Video, type LucideIcon } from 'lucide-react'
+import { Activity, BellRing, ChevronLeft, ChevronRight, Clock, Siren, Timer, Video, type LucideIcon } from 'lucide-react'
 import type { Alert, Severity } from '@/types'
 import { useData, useIncidents } from '@/store/data'
 import { SEV, SEVERITIES, fmtDuration, fmtTime, isShelved, keyDetail } from '@/lib/format'
@@ -10,6 +10,7 @@ import { AlertCard } from '@/components/AlertCard'
 import { useHierarchy } from '@/components/HierarchyTree'
 import { LastHandover } from '@/pages/Shift'
 import { EmptyState, Skeleton, useNow } from '@/components/ui'
+import { SeismicGrid } from '@/components/SeismicGrid'
 
 const HOUR = 3_600_000
 
@@ -110,12 +111,24 @@ function SectorOverview() {
   )
 }
 
+type CcLayout = 1 | 2 | 4 | 6 | 'all'
+
+const LAYOUT_OPTIONS: { id: CcLayout; label: string; title: string }[] = [
+  { id: 1, label: '1x1', title: 'Single camera view (1 feed)' },
+  { id: 2, label: '2x1', title: 'Dual camera split (2 feeds)' },
+  { id: 4, label: '2x2', title: 'Quad grid (4 feeds)' },
+  { id: 6, label: '3x2', title: '6-camera grid (6 feeds)' },
+  { id: 'all', label: 'All', title: 'All online cameras simultaneously' },
+]
+
 export default function CommandCenter() {
   const t = useT()
   const navigate = useNavigate()
   const now = useNow(1000)
   const { alerts, cameras, loading, error } = useData()
   const incidents = useIncidents()
+
+  const [bottomTab, setBottomTab] = useState<'timeline' | 'seismic'>('timeline')
 
   const kpis = useMemo(() => {
     const ts = now
@@ -138,7 +151,56 @@ export default function CommandCenter() {
     ]
   }, [alerts, cameras, incidents, t, now])
 
-  const tiles = useMemo(() => cameras.filter((c) => c.status !== 'offline').slice(0, 4), [cameras])
+  const [layout, setLayout] = useState<CcLayout>(() => {
+    const saved = localStorage.getItem('ibvap.cc_layout')
+    if (saved === '1' || saved === '2' || saved === '4' || saved === '6' || saved === 'all') {
+      return saved === 'all' ? 'all' : (Number(saved) as CcLayout)
+    }
+    return 4
+  })
+  const [bopFilter, setBopFilter] = useState<string>('ALL')
+  const [page, setPage] = useState(0)
+  const [autoTour, setAutoTour] = useState(false)
+  const bops = useData((s) => s.bops)
+
+  const onlineCameras = useMemo(() => cameras.filter((c) => c.status !== 'offline'), [cameras])
+  const filteredCameras = useMemo(() => {
+    if (bopFilter === 'ALL') return onlineCameras
+    return onlineCameras.filter((c) => c.bopId === bopFilter)
+  }, [onlineCameras, bopFilter])
+
+  const perPage = layout === 'all' ? Math.max(1, filteredCameras.length) : (layout as number)
+  const totalPages = Math.max(1, Math.ceil(filteredCameras.length / perPage))
+  const currentPage = Math.min(page, totalPages - 1)
+
+  const visibleCameras = useMemo(() => {
+    if (layout === 'all') return filteredCameras
+    return filteredCameras.slice(currentPage * perPage, currentPage * perPage + perPage)
+  }, [filteredCameras, layout, currentPage, perPage])
+
+  const handleLayoutChange = (newLayout: CcLayout) => {
+    setLayout(newLayout)
+    setPage(0)
+    localStorage.setItem('ibvap.cc_layout', String(newLayout))
+  }
+
+  useEffect(() => {
+    if (!autoTour || totalPages <= 1 || layout === 'all') return
+    const timer = setInterval(() => {
+      setPage((p) => (p + 1) % totalPages)
+    }, 10000)
+    return () => clearInterval(timer)
+  }, [autoTour, totalPages, layout])
+
+  const gridStyle = useMemo(() => {
+    const count = visibleCameras.length
+    if (count <= 1) return { gridTemplateColumns: '1fr', gridTemplateRows: '1fr' }
+    if (count === 2) return { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridTemplateRows: '1fr' }
+    if (count <= 4) return { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }
+    if (count <= 6) return { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }
+    if (count <= 8) return { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }
+    return { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gridTemplateRows: 'repeat(3, minmax(0, 1fr))' }
+  }, [visibleCameras.length])
 
   return (
     <div className="flex h-full flex-col gap-2 p-2">
@@ -151,22 +213,169 @@ export default function CommandCenter() {
       <SectorOverview />
 
       <div className="flex min-h-0 flex-1 gap-2">
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {/* Camera Toolbar / View Switcher */}
+          <div className="panel flex shrink-0 items-center justify-between gap-2 px-2.5 py-1 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 font-semibold text-ink">
+                <Video size={13} className="text-accent" />
+                <span className="text-[11px] uppercase tracking-wider">CCTV Feeds</span>
+                <span className="font-mono text-[11px] font-normal text-ink-mute">
+                  ({visibleCameras.length}/{onlineCameras.length} online)
+                </span>
+              </div>
+
+              {bops.length > 1 && (
+                <div className="flex items-center gap-1">
+                  <select
+                    value={bopFilter}
+                    onChange={(e) => {
+                      setBopFilter(e.target.value)
+                      setPage(0)
+                    }}
+                    className="field h-6 px-1.5 py-0 text-[11px] font-mono text-ink-dim"
+                    title="Filter cameras by Border Outpost"
+                  >
+                    <option value="ALL">All BOPs ({onlineCameras.length} cams)</option>
+                    {bops.map((b) => {
+                      const count = onlineCameras.filter((c) => c.bopId === b.id).length
+                      return (
+                        <option key={b.id} value={b.id}>
+                          {b.name.replace(/^(BOP|ICP|Check Post) /, '')} ({count})
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">Layout:</span>
+              <div className="flex rounded border border-base-700 bg-base-850 p-0.5">
+                {LAYOUT_OPTIONS.map((opt) => {
+                  const active = layout === opt.id
+                  return (
+                    <button
+                      key={opt.id}
+                      title={opt.title}
+                      onClick={() => handleLayoutChange(opt.id)}
+                      className={`rounded px-2 py-0.5 font-mono text-[11px] font-medium transition-colors ${
+                        active ? 'bg-accent/20 text-accent font-semibold' : 'text-ink-mute hover:text-ink'
+                      }`}
+                    >
+                      {opt.id === 'all' ? `All (${onlineCameras.length})` : opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {totalPages > 1 && layout !== 'all' && (
+                <div className="flex items-center gap-1 border-l border-base-700 pl-1.5">
+                  <button
+                    className="btn btn-sm h-6 w-6 p-0"
+                    disabled={currentPage === 0}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    title="Previous page"
+                  >
+                    <ChevronLeft size={12} />
+                  </button>
+                  <span className="font-mono text-[10px] text-ink-dim px-0.5">
+                    {currentPage + 1}/{totalPages}
+                  </span>
+                  <button
+                    className="btn btn-sm h-6 w-6 p-0"
+                    disabled={currentPage >= totalPages - 1}
+                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    title="Next page"
+                  >
+                    <ChevronRight size={12} />
+                  </button>
+                </div>
+              )}
+
+              {totalPages > 1 && layout !== 'all' && (
+                <button
+                  onClick={() => setAutoTour((v) => !v)}
+                  className={`btn btn-sm h-6 px-1.5 py-0 text-[10px] font-mono ${
+                    autoTour ? 'border-accent bg-accent/15 text-accent' : 'text-ink-mute hover:text-ink'
+                  }`}
+                  title="Automatically cycle camera pages every 10 seconds"
+                >
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${autoTour ? 'bg-accent animate-pulse' : 'bg-ink-mute'} mr-1`} />
+                  Tour
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div
+            className="grid min-h-0 flex-1 gap-2"
+            style={gridStyle}
+          >
             {loading && !cameras.length
               ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-full" />)
-              : tiles.map((c) => (
-                  <button key={c.id} className="min-h-0 overflow-hidden rounded border border-base-700 text-left" onClick={() => navigate(`/cameras?cam=${c.id}`)}>
+              : visibleCameras.map((c) => (
+                  <div
+                    key={c.id}
+                    role="button"
+                    tabIndex={0}
+                    className="group relative min-h-0 overflow-hidden rounded border border-base-700 bg-black text-left cursor-pointer hover:border-accent/80 transition-colors focus:outline-none focus:ring-1 focus:ring-accent"
+                    onClick={() => navigate(`/cameras?cam=${c.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        navigate(`/cameras?cam=${c.id}`)
+                      }
+                    }}
+                    title={`Click to open full view for ${c.name}`}
+                  >
                     <CameraFeed camera={c} className="h-full w-full" />
-                  </button>
+                  </div>
                 ))}
-            {!loading && !tiles.length && (
-              <div className="panel col-span-2 row-span-2">
-                <EmptyState title="No cameras online" hint={error ?? 'Add a camera in Settings, or check the network link to the outpost.'} icon={Video} />
+            {!loading && !visibleCameras.length && (
+              <div className="panel col-span-full row-span-full flex items-center justify-center p-8">
+                <EmptyState
+                  title="No cameras matching filter"
+                  hint={error ?? "Try selecting 'All BOPs' or check camera connections in Settings."}
+                  icon={Video}
+                />
               </div>
             )}
           </div>
-          <Timeline alerts={alerts} now={now} />
+
+          {/* Bottom Multi-Domain Telemetry Switcher: Timeline vs. Seismic Grid */}
+          <div className="flex flex-col gap-1 shrink-0">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setBottomTab('timeline')}
+                  className={`flex items-center gap-1 px-2.5 py-0.5 rounded font-mono text-[10px] font-semibold transition-colors ${
+                    bottomTab === 'timeline'
+                      ? 'bg-accent/25 text-accent border border-accent/50'
+                      : 'text-ink-mute hover:text-ink'
+                  }`}
+                >
+                  <Clock size={11} /> {t('cc.timeline').toUpperCase()}
+                </button>
+                <button
+                  onClick={() => setBottomTab('seismic')}
+                  className={`flex items-center gap-1 px-2.5 py-0.5 rounded font-mono text-[10px] font-semibold transition-colors ${
+                    bottomTab === 'seismic'
+                      ? 'bg-accent/25 text-accent border border-accent/50'
+                      : 'text-ink-mute hover:text-ink'
+                  }`}
+                >
+                  <Activity size={11} className="text-accent" /> SEISMIC UGS GROUND GRID
+                </button>
+              </div>
+            </div>
+
+            {bottomTab === 'timeline' ? (
+              <Timeline alerts={alerts} now={now} />
+            ) : (
+              <SeismicGrid />
+            )}
+          </div>
         </div>
 
         <aside className="panel flex w-80 shrink-0 flex-col 2xl:w-96">

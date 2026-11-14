@@ -116,7 +116,7 @@ export default function AlertDetail() {
   const camera = useData((s) => s.cameras.find((c) => c.id === alert?.cameraId))
   const zones = useData((s) => s.zones)
   const [showZones, setShowZones] = useState(true)
-  const [view, setView] = useState<'clip' | 'snapshot'>('clip')
+  const [view, setView] = useState<'clip' | 'snapshot'>('snapshot')
 
   // Older alerts may not be in the 14-day store: fetch on demand.
   useEffect(() => {
@@ -316,6 +316,67 @@ export default function AlertDetail() {
             </div>
           )}
 
+          {/* Forensic Vehicle & License Plate Evidence Card */}
+          {(alert.type === 'ANPR_MATCH' || alert.type === 'VEHICLE_DETECTED' || d.subtype === 'FAKE_PLATE' || !!d.plateNumber || !!d.vehicleClass) && (
+            <div className="panel p-3 border-l-4 border-l-amber-500">
+              <div className="panel-title mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-semibold text-white">
+                  <span>🚗</span> Vehicle & License Plate Forensics
+                </span>
+                {d.plateNumber && (
+                  <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                    OCR Conf: {pct(alert.confidence)}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative rounded border border-base-700 bg-black/60 p-1 shrink-0">
+                  <img
+                    src={d.plateCropUrl || alert.snapshotUrl}
+                    alt="Vehicle / Plate Evidence"
+                    className="h-20 w-32 rounded object-cover bg-black"
+                  />
+                  <span className="mt-1 block text-center font-mono text-[9px] text-ink-mute">
+                    {d.plateCropUrl ? 'License Plate Crop' : 'Foreground Frame Crop'}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {d.plateNumber ? (
+                      <span className="font-mono text-lg font-bold tracking-widest px-2.5 py-0.5 rounded bg-amber-400 text-black border border-amber-600 shadow-sm">
+                        {d.plateNumber}
+                      </span>
+                    ) : (
+                      <span className="font-mono text-xs font-semibold px-2 py-1 rounded bg-crit/20 text-crit border border-crit/40">
+                        ⚠ NO NUMBER PLATE DETECTED
+                      </span>
+                    )}
+                    {d.subtype === 'FAKE_PLATE' && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-600 text-white uppercase tracking-wider animate-pulse">
+                        SECURITY VIOLATION
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-ink-dim">
+                    <div>
+                      <span className="text-ink-mute">Class: </span>
+                      <strong className="text-white capitalize">{d.vehicleClass ? t(`veh.${d.vehicleClass}`) : 'Vehicle'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-ink-mute">Jurisdiction: </span>
+                      <strong className="text-white">{d.plateNumber ? `${d.plateNumber.slice(0, 2)} State RTO` : 'Unregistered'}</strong>
+                    </div>
+                    {d.description && (
+                      <div className="col-span-2 text-[11px] text-ink-mute italic">
+                        {d.description}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <TrackingPanel alert={alert} />
 
           <div className="panel p-3">
@@ -348,8 +409,13 @@ export default function AlertDetail() {
               <Row label="Camera">{camera?.name ?? alert.cameraId}</Row>
               <Row label="Location">
                 {camera ? (
-                  <Link to={`/map?cam=${camera.id}`} className="text-accent hover:underline" title="Open in Map View">
-                    {camera.locationName} ({camera.lat.toFixed(4)}, {camera.lng.toFixed(4)})
+                  <Link to={`/map?cam=${camera.id}`} className="text-accent hover:underline flex flex-col gap-0.5" title="Open in Map View">
+                    <span className="font-semibold text-white">
+                      Sector: {camera.bopId === 'bop-attari' ? 'Amritsar Sector (Punjab)' : 'Jaisalmer Sector (Rajasthan)'}
+                    </span>
+                    <span className="text-ink-dim">
+                      Post: {camera.bopId === 'bop-attari' ? 'Attari Joint Checkpost' : (camera.locationName || 'BOP Sundar Main Gate')} ({camera.lat.toFixed(4)}° N, {camera.lng.toFixed(4)}° E)
+                    </span>
                   </Link>
                 ) : (
                   '-'

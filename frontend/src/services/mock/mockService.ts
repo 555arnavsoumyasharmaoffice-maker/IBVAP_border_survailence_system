@@ -560,10 +560,34 @@ export function createMockService(): DataService {
   return {
     mode: 'mock',
 
-    login(username, role) {
-      const known = users.find((u) => u.role === role && (!username.trim() || u.name === username.trim()))
+    login(username, role, password) {
+      const known = users.find((u) => (role && u.role === role) || (!username.trim() || u.name === username.trim()))
       if (known) known.lastLogin = new Date().toISOString()
-      return later({ id: known?.id ?? 'u-session', name: username.trim() || role, username: known?.username ?? role.toLowerCase(), role, active: true, lastLogin: new Date().toISOString() }, 350)
+      return later({ id: known?.id ?? 'u-session', name: username.trim() || role || 'Officer', username: known?.username ?? 'officer', role: role || 'OPERATOR', active: true, lastLogin: new Date().toISOString() }, 200)
+    },
+    getRoster() {
+      return later([
+        { id: 'usr-01', serviceId: 'IBVAP-ADM-9102', name: 'SI R. Sharma', role: 'ADMIN', rank: 'Sub-Inspector', unit: 'Tech Command', status: 'ACTIVE' },
+        { id: 'usr-02', serviceId: 'IBVAP-CMD-4819', name: 'Insp. A. Rathore', role: 'COMMANDER', rank: 'Inspector', unit: 'Sector Threat Command', status: 'ACTIVE' },
+        { id: 'usr-03', serviceId: 'IBVAP-OP-3312', name: 'Ct. S. Meena', role: 'OPERATOR', rank: 'Constable', unit: 'BOP Sundar Wing', status: 'ACTIVE' },
+        { id: 'usr-04', serviceId: 'IBVAP-OP-1084', name: 'Ct. V. Gurjar', role: 'OPERATOR', rank: 'Constable (Retd.)', unit: 'Border Outpost Alpha', status: 'RETIRED' }
+      ], 150)
+    },
+    registerOfficer(officer: any) {
+      const tag = (officer.role || 'OP').slice(0, 3).toUpperCase(); return later({ ok: true, user: { ...officer, serviceId: `IBVAP-${tag}-${Math.floor(1000 + Math.random() * 9000)}`, status: 'ACTIVE' } }, 200)
+    },
+    retireOfficer(userId: string) {
+      return later({ ok: true, userId, status: 'RETIRED' }, 200)
+    },
+    updateOfficerRole(userId: string, role: any, rank?: string) {
+      return later({ ok: true, userId, role, rank }, 200)
+    },
+    updateOfficerStatus(userId: string, status: any) {
+      return later({ ok: true, userId, status }, 200)
+    },
+    verifyPassword(_username: string, password: string) {
+      if (password && password.length > 0) return later(true, 150)
+      return Promise.reject(new Error('Password required'))
     },
 
     getCameras: () => later(cameras),
@@ -880,6 +904,22 @@ export function createMockService(): DataService {
       m.reviewedBy = by
       return later(m, 80)
     },
+    async simulateFaceMatch(params) {
+      const personId = params?.personId ?? (watchlist[0]?.id || 'wl-01')
+      const person = watchlist.find((w) => w.id === personId) || watchlist[0]
+      const m: FaceMatch = {
+        id: `fm-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        cameraId: params?.cameraId ?? 'cam-01',
+        personId: person?.id || 'wl-01',
+        similarity: params?.similarity ?? 0.945,
+        capturedUrl: person?.photos[0] || 'http://localhost:8000/media/faces/wl_tariq.jpg',
+        alertId: `alt-fm-${Date.now()}`,
+        review: 'PENDING',
+      }
+      faceMatches.unshift(m)
+      return later(m, 120)
+    },
 
     getEdgeNodes() {
       // Small random drift so the page looks live.
@@ -917,6 +957,42 @@ export function createMockService(): DataService {
         /* invalid URL */
       }
       return later({ ok, message: ok ? 'Mock mode: test event simulated, 200 OK (nothing was actually sent)' : 'Invalid webhook URL' }, 700)
+    },
+    getSitrep() {
+      return later({
+        classification: 'TOP SECRET // NOFORN // BORDER COMMAND',
+        sector: 'WESTERN BORDER COMMAND (IBVAP SECTOR)',
+        reportId: 'SITREP-01',
+        generatedAt: new Date().toISOString(),
+        defconLevel: 3,
+        readinessStatus: 'DEFENSE CONDITION OPERATIONAL - 100% READY',
+        statistics: {
+          totalAlerts: 142, criticalAlerts: 4, highAlerts: 18, infiltrationsDetected: 6,
+          droneIncursions: 2, droneNeutralized: 1, vehiclesScanned: 840,
+          blacklistedVehiclesIntercepted: 3, facesAnalyzed: 95, activeWatchlistProfiles: 12,
+          operationalCameras: 12, sensorHealthPct: 99.8
+        },
+        recentIncidents: [],
+        countermeasureStatus: {
+          cuasJammer: 'ARMED_STANDBY',
+          frequencyCoverage: '2.4GHz / 5.8GHz / GNSS-L1 Multi-Band',
+          virtualTripwires: 2,
+          nightVisionCapability: 'Gen-3 Thermal FLIR + Phosphor NVG Enabled'
+        },
+        commandingOfficer: 'Brig. Vikram Rathore, IBVAP Operational Defense Command'
+      }, 300)
+    },
+    setThermalPalette(camId: string, palette: string) {
+      return later({ cameraId: camId, palette, status: 'APPLIED' }, 200)
+    },
+    triggerDroneJam(camId: string, active: boolean) {
+      return later({ success: true, cameraId: camId, active, mode: 'DIRECTIONAL_RF_PULSE_JAMMER', effect: 'C2_LINK_SEVERED_FORCED_LAND' }, 300)
+    },
+    getTripwire(camId: string) {
+      return later({ cameraId: camId, points: [[0.1, 0.7], [0.9, 0.7]] }, 200)
+    },
+    saveTripwire(camId: string, points: [number, number][]) {
+      return later({ cameraId: camId, points, status: 'SAVED' }, 200)
     },
 
     subscribeAlerts(cb) {

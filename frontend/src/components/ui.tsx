@@ -17,8 +17,9 @@ export function useNow(ms = 1000) {
   return now
 }
 
-export const TYPE_ICON: Record<AlertType, LucideIcon> = {
+const RAW_TYPE_ICON: Record<string, LucideIcon> = {
   FENCE_INTRUSION: Fence,
+  PERIMETER_BREACH: Fence,
   HUMAN_DETECTED: User,
   VEHICLE_DETECTED: Car,
   ANPR_MATCH: ScanLine,
@@ -29,6 +30,10 @@ export const TYPE_ICON: Record<AlertType, LucideIcon> = {
   CAMERA_OFFLINE: VideoOff,
   DRONE_SIGHTING: Drone,
 }
+
+export const TYPE_ICON: Record<string, LucideIcon> = new Proxy(RAW_TYPE_ICON, {
+  get: (target, prop: string) => target[prop] || Activity
+})
 
 const chip = 'inline-flex items-center rounded border px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap'
 

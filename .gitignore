@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 alerts.db
+*.db
+backend/media/
+backend/crops_debug/
 node_modules/
 dist/
 .env

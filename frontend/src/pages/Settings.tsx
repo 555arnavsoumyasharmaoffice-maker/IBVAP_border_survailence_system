@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Loader2, Lock, Pencil, Play, PlugZap, Plus, Save, Send, Square, Volume2 } from 'lucide-react'
+import { Loader2, Lock, Pencil, Play, PlugZap, Plus, RefreshCw, Save, Send, Square, Volume2, ShieldCheck, UserPlus, AlertTriangle, CheckCircle2, UserCheck, ShieldAlert } from 'lucide-react'
 import type { AppSettings, Camera, CameraType, DetectionModules, Severity, User } from '@/types'
 import { API_URL, WS_URL, service } from '@/services'
 import { useData } from '@/store/data'
@@ -42,10 +42,13 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
   const bops = useData((s) => s.bops)
   const [test, setTest] = useState<{ ok: boolean; message: string } | 'testing' | null>(null)
   const [busy, setBusy] = useState(false)
+  const [previewKey, setPreviewKey] = useState<number>(Date.now())
   const set = (patch: Partial<CameraForm>) => setForm((f) => ({ ...f, ...patch }))
-  const lat = Number(form.lat)
-  const lng = Number(form.lng)
-  const valid = form.name.trim() && form.streamUrl.trim() && form.lat !== '' && form.lng !== '' && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+  
+  const selectedBop = bops.find((b) => b.id === form.bopId)
+  const effectiveLat = form.lat !== '' ? Number(form.lat) : (selectedBop?.lat ?? 31.6042)
+  const effectiveLng = form.lng !== '' ? Number(form.lng) : (selectedBop?.lng ?? 74.5731)
+  const valid = form.name.trim().length > 0 && form.streamUrl.trim().length > 0
 
   const runTest = async () => {
     setTest('testing')
@@ -57,18 +60,83 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
     }
   }
 
+  const handleSwitchToWebcam = async () => {
+    set({ streamUrl: '0' })
+    if (form.id) {
+      setBusy(true)
+      try {
+        await fetch(`${API_URL}/cameras/${form.id}/set-source`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: '0' })
+        })
+        setPreviewKey(Date.now())
+      } catch (err) {
+        console.error('Failed to set webcam source:', err)
+      } finally {
+        setBusy(false)
+      }
+    }
+  }
+
+  const handleSwitchToDefault = async () => {
+    set({ streamUrl: 'default' })
+    if (form.id) {
+      setBusy(true)
+      try {
+        await fetch(`${API_URL}/cameras/${form.id}/set-source`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: 'default' })
+        })
+        setPreviewKey(Date.now())
+      } catch (err) {
+        console.error('Failed to set default source:', err)
+      } finally {
+        setBusy(false)
+      }
+    }
+  }
+
   const submit = async (e: FormEvent) => {
     e.preventDefault()
+    if (!valid) {
+      alert('Please enter Camera Name and Stream URL / Upload a video.')
+      return
+    }
     setBusy(true)
     try {
-      await service.saveCamera({ id: form.id, name: form.name.trim(), locationName: form.locationName.trim(), streamUrl: form.streamUrl.trim(), lat, lng, cameraType: form.cameraType, bopId: form.bopId })
+      const payload = {
+        id: form.id,
+        name: form.name.trim(),
+        locationName: form.locationName.trim() || 'Sector Perimeter',
+        streamUrl: form.streamUrl.trim(),
+        lat: effectiveLat,
+        lng: effectiveLng,
+        cameraType: form.cameraType || 'visible',
+        bopId: form.bopId || 'bop-attari'
+      }
+      const saved = await service.saveCamera(payload)
+      const targetId = form.id || (saved && (saved as any).id)
+      if (targetId) {
+        await fetch(`${API_URL}/cameras/${targetId}/set-source`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: form.streamUrl.trim() })
+        }).catch(() => {})
+      }
       await useData.getState().refreshCameras()
       audit('SETTINGS', 'Camera saved', form.name.trim(), form.streamUrl.trim())
       onClose()
+    } catch (err: any) {
+      console.error('Save camera error:', err)
+      alert(`Could not save camera: ${err?.message || 'Server error. Please verify stream path.'}`)
     } finally {
       setBusy(false)
     }
   }
+
+  const isWebcam = form.streamUrl === '0' || form.streamUrl.toLowerCase() === 'webcam'
 
   return (
     <Modal title={form.id ? `Edit camera ${form.id}` : 'Add camera'} onClose={onClose}>
@@ -79,13 +147,122 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
         <Field label="Location">
           <input className="field" value={form.locationName} onChange={(e) => set({ locationName: e.target.value })} placeholder="BOP Sundar, Jaisalmer Sector (RJ)" />
         </Field>
-        <Field label="Stream URL (RTSP / HTTP)">
+        <Field label="Stream Source / Mode">
+          <div className="flex flex-wrap gap-2 mb-2">
+            <button
+              type="button"
+              className={`btn btn-sm ${form.streamUrl === '0' || form.streamUrl === 'webcam' ? 'btn-primary ring-2 ring-emerald-500' : ''}`}
+              onClick={() => void handleSwitchToWebcam()}
+              disabled={busy}
+              title="Primary laptop built-in camera"
+            >
+              📹 Laptop Cam 0 (Built-in)
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${form.streamUrl === '1' ? 'btn-primary ring-2 ring-emerald-500' : ''}`}
+              onClick={async () => {
+                set({ streamUrl: '1' })
+                if (form.id) {
+                  setBusy(true)
+                  try {
+                    await fetch(`${API_URL}/cameras/${form.id}/set-source`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ source: '1' })
+                    })
+                    setPreviewKey(Date.now())
+                  } catch (err) {
+                    console.error(err)
+                  } finally {
+                    setBusy(false)
+                  }
+                }
+              }}
+              disabled={busy}
+              title="External USB Webcam 1 or connected phone camera"
+            >
+              📹 External USB Cam 1
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${form.streamUrl === '2' ? 'btn-primary ring-2 ring-emerald-500' : ''}`}
+              onClick={async () => {
+                set({ streamUrl: '2' })
+                if (form.id) {
+                  setBusy(true)
+                  try {
+                    await fetch(`${API_URL}/cameras/${form.id}/set-source`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ source: '2' })
+                    })
+                    setPreviewKey(Date.now())
+                  } catch (err) {
+                    console.error(err)
+                  } finally {
+                    setBusy(false)
+                  }
+                }
+              }}
+              disabled={busy}
+              title="External USB Webcam 2"
+            >
+              📹 External USB Cam 2
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${form.streamUrl.includes('demo_videos') || form.streamUrl === 'default' ? 'btn-primary' : ''}`}
+              onClick={() => void handleSwitchToDefault()}
+              disabled={busy}
+            >
+              🎬 Border Demo Video
+            </button>
+            <label className="btn btn-sm cursor-pointer border-dashed border-accent">
+              📤 Upload Recorded MP4
+              <input
+                type="file"
+                accept="video/mp4,video/avi,video/mkv,video/webm"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const fd = new FormData()
+                  fd.append('file', file)
+                  setBusy(true)
+                  try {
+                    const uploadEndpoint = form.id
+                      ? `${API_URL}/cameras/${form.id}/upload-video`
+                      : `${API_URL}/cameras/upload-video`
+                    const res = await fetch(uploadEndpoint, { method: 'POST', body: fd })
+                    const data = await res.json()
+                    if (data.ok) {
+                      set({ streamUrl: data.path })
+                      setPreviewKey(Date.now())
+                      alert(`Video uploaded successfully!\nApplied to stream source: ${data.path}`)
+                    } else {
+                      alert('Upload failed: ' + (data.detail || 'Server error'))
+                    }
+                  } catch (err) {
+                    alert('Upload failed: ' + String(err))
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              />
+            </label>
+          </div>
+        </Field>
+        <Field label="Stream URL (RTSP / HTTP / USB Index 0, 1, 2)">
           <div className="flex gap-2">
-            <input className="field min-w-0 flex-1 font-mono" value={form.streamUrl} onChange={(e) => { set({ streamUrl: e.target.value }); setTest(null) }} placeholder="rtsp://10.21.4.11:554/stream1" required />
+            <input className="field min-w-0 flex-1 font-mono" value={form.streamUrl} onChange={(e) => { set({ streamUrl: e.target.value }); setTest(null) }} placeholder="0 for webcam, 1 for USB cam, or rtsp://..." required />
             <button type="button" className="btn" onClick={() => void runTest()} disabled={!form.streamUrl.trim() || test === 'testing'}>
               {test === 'testing' ? <Loader2 size={13} className="animate-spin" /> : <PlugZap size={13} />} Test connection
             </button>
           </div>
+          <span className="text-[10px] text-ink-mute mt-1 block">
+            💡 <strong>Multiple Cameras:</strong> Index <strong>0</strong> = Built-in laptop webcam, <strong>1</strong> or <strong>2</strong> = External USB webcams. For network CCTV, enter RTSP URL (e.g. <code>rtsp://192.168.1.100:554/h264</code>).
+          </span>
         </Field>
         {test && test !== 'testing' && <div className={`text-xs ${test.ok ? 'text-low' : 'text-crit'}`}>{test.ok ? '✓' : '✗'} {test.message}</div>}
         <Field label="Camera type">
@@ -96,7 +273,18 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
           </select>
         </Field>
         <Field label="BOP (Sector → BOP)">
-          <select className="field" value={form.bopId ?? ''} onChange={(e) => set({ bopId: e.target.value || undefined })}>
+          <select
+            className="field"
+            value={form.bopId ?? ''}
+            onChange={(e) => {
+              const bId = e.target.value || undefined
+              const bObj = bops.find((b) => b.id === bId)
+              set({
+                bopId: bId,
+                ...(bObj ? { lat: String(bObj.lat), lng: String(bObj.lng) } : {})
+              })
+            }}
+          >
             <option value="">Select BOP</option>
             {bops.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
@@ -105,14 +293,54 @@ function CameraModal({ initial, onClose }: { initial: CameraForm; onClose: () =>
         </Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Latitude">
-            <input type="number" step="any" className="field font-mono" value={form.lat} onChange={(e) => set({ lat: e.target.value })} placeholder="27.7904" required />
+            <input type="number" step="any" className="field font-mono" value={form.lat} onChange={(e) => set({ lat: e.target.value })} placeholder="31.6042" />
           </Field>
           <Field label="Longitude">
-            <input type="number" step="any" className="field font-mono" value={form.lng} onChange={(e) => set({ lng: e.target.value })} placeholder="70.3521" required />
+            <input type="number" step="any" className="field font-mono" value={form.lng} onChange={(e) => set({ lng: e.target.value })} placeholder="74.5731" />
           </Field>
         </div>
-        <button className="btn btn-primary w-full" type="submit" disabled={!valid || busy}>
-          <Save size={13} /> Save camera
+        {form.id && (
+          <div className="rounded border border-base-700 bg-black/40 p-2">
+            <div className="mb-1 text-[11px] font-semibold text-ink-dim flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                {isWebcam ? <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> : '📹'}
+                <span>{isWebcam ? 'Live Laptop Webcam Feed:' : 'Stream Preview:'}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewKey(Date.now())}
+                className="text-[10px] text-accent underline flex items-center gap-1 cursor-pointer hover:text-white"
+                title="Reload video preview"
+              >
+                <RefreshCw size={11} className={busy ? 'animate-spin' : ''} /> Reload preview
+              </button>
+            </div>
+            <div className="relative aspect-video w-full overflow-hidden rounded bg-black">
+              <img
+                key={previewKey}
+                src={`${API_URL}/cameras/${form.id}/stream.mjpg?t=${previewKey}`}
+                alt="Stream Preview"
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none'
+                }}
+              />
+            </div>
+            <div className="mt-1.5 flex items-center justify-between text-[10px]">
+              <span className="text-ink-mute">
+                Active Source: <strong className="font-mono text-white">{isWebcam ? 'Laptop Webcam (Live Device 0)' : form.streamUrl}</strong>
+              </span>
+              {isWebcam ? (
+                <span className="font-semibold text-emerald-400">● REAL-TIME CAMERA</span>
+              ) : (
+                <span className="text-ink-mute">● RECORDED STREAM</span>
+              )}
+            </div>
+          </div>
+        )}
+        <button className="btn btn-primary w-full flex items-center justify-center gap-2" type="submit" disabled={!valid || busy}>
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+          {busy ? 'Saving camera...' : 'Save camera'}
         </button>
       </form>
     </Modal>
@@ -128,7 +356,7 @@ function CamerasTab({ canManage }: { canManage: boolean }) {
     <>
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs text-ink-mute">Existing CCTV cameras are added by stream URL. No new hardware is required.</span>
-        <button className="btn btn-primary" disabled={!canManage} onClick={() => setEditing({ name: '', locationName: '', streamUrl: '', lat: '', lng: '', cameraType: 'visible' })}>
+        <button className="btn btn-primary" disabled={!canManage} onClick={() => setEditing({ name: '', locationName: '', streamUrl: '', lat: '31.6042', lng: '74.5731', cameraType: 'visible', bopId: 'bop-attari' })}>
           <Plus size={13} /> Add camera
         </button>
       </div>
@@ -409,49 +637,338 @@ function IntegrationTab({ canManage }: { canManage: boolean }) {
   )
 }
 
-// ---------------- Users ----------------
+// ---------------- Personnel & Succession Roster ----------------
+interface RosterOfficer {
+  id: string
+  serviceId: string
+  name: string
+  role: 'ADMIN' | 'COMMANDER' | 'OPERATOR'
+  rank: string
+  unit: string
+  status: 'ACTIVE' | 'RETIRED'
+  lastLogin?: string
+}
+
 function UsersTab() {
-  const [users, setUsers] = useState<User[] | null>(null)
+  const [roster, setRoster] = useState<RosterOfficer[] | null>(null)
   const [error, setError] = useState('')
-  const loadUsers = () => {
+  const [success, setSuccess] = useState('')
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const canManage = useCan('manage')
+
+  const [newOfficer, setNewOfficer] = useState({
+    name: '',
+    role: 'OPERATOR' as 'ADMIN' | 'COMMANDER' | 'OPERATOR',
+    rank: 'Constable',
+    unit: 'HQ Border Surveillance Wing',
+    password: 'user@123',
+  })
+  const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState('')
+
+  const loadRoster = () => {
     setError('')
-    service.getUsers().then(setUsers, (e: Error) => setError(e.message))
+    service.getRoster().then(
+      (data) => setRoster(data as RosterOfficer[]),
+      (e: Error) => setError(e.message)
+    )
   }
-  useEffect(loadUsers, [])
-  const roleStyle = { ADMIN: 'border-crit/50 bg-crit/15 text-crit', COMMANDER: 'border-high/50 bg-high/15 text-high', OPERATOR: 'border-accent/50 bg-accent/15 text-accent' }
+  useEffect(loadRoster, [])
+
+  const handleRoleChange = async (userId: string, newRole: 'ADMIN' | 'COMMANDER' | 'OPERATOR') => {
+    setBusyId(userId)
+    setError('')
+    setSuccess('')
+    try {
+      await service.updateOfficerRole(userId, newRole)
+      setSuccess(`Role successfully updated to ${newRole}. Access privileges synchronized.`)
+      loadRoster()
+    } catch (e: any) {
+      setError(e?.message || 'Failed to update officer role.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleStatusToggle = async (officer: RosterOfficer) => {
+    const nextStatus = officer.status === 'ACTIVE' ? 'RETIRED' : 'ACTIVE'
+    setBusyId(officer.id)
+    setError('')
+    setSuccess('')
+    try {
+      await service.updateOfficerStatus(officer.id, nextStatus)
+      setSuccess(`Officer ${officer.name} status updated to ${nextStatus}.`)
+      loadRoster()
+    } catch (e: any) {
+      setError(e?.message || 'Status change refused by defense security guardrail.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleAddOfficer = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!newOfficer.name.trim()) {
+      setAddError('Officer name is mandatory.')
+      return
+    }
+    setAdding(true)
+    setAddError('')
+    try {
+      const res: any = await service.registerOfficer(newOfficer)
+      const assignedId = res?.user?.serviceId || res?.serviceId || 'Assigned'
+      setSuccess(`Officer commissioned! Auto-assigned Service ID: ${assignedId}`)
+      setShowAddModal(false)
+      setNewOfficer({ name: '', role: 'OPERATOR', rank: 'Constable', unit: 'HQ Border Surveillance Wing', password: 'user@123' })
+      loadRoster()
+    } catch (e: any) {
+      setAddError(e?.message || 'Failed to commission officer.')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const roleStyle = {
+    ADMIN: 'border-crit/50 bg-crit/15 text-crit',
+    COMMANDER: 'border-high/50 bg-high/15 text-high',
+    OPERATOR: 'border-accent/50 bg-accent/15 text-accent',
+  }
+
   return (
-    <div className="panel max-w-3xl overflow-x-auto">
-      {error ? (
-        <ErrorState message={error} onRetry={loadUsers} />
-      ) : !users ? (
-        <SkeletonRows rows={4} />
-      ) : !users.length ? (
-        <EmptyState title="No users" />
-      ) : (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-base-700 text-left text-[10px] tracking-wider text-ink-mute uppercase">
-              <th className="px-3 py-2">Name</th>
-              <th className="px-2">Username</th>
-              <th className="px-2">Role</th>
-              <th className="px-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-b border-base-800">
-                <td className="px-3 py-1.5 font-medium">{u.name}</td>
-                <td className="px-2 font-mono text-ink-dim">{u.username}</td>
-                <td className="px-2"><Chip className={roleStyle[u.role]}>{u.role}</Chip></td>
-                <td className="px-2 text-ink-dim">{u.active ? 'Active' : 'Disabled'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <div className="px-3 py-2 text-[11px] text-ink-mute">
-        Operator: acknowledge, escalate, mark false alarm. Commander: also resolve alerts and edit zones / watchlists. Admin: everything, including cameras and settings.
+    <div className="space-y-4 max-w-4xl">
+      {/* Header with Commission Button */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-bold text-ink">Defense Personnel & Succession Management</h3>
+          <p className="text-xs text-ink-dim">
+            Manage military service rosters, role delegation, officer promotions, and retirement access control.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="btn btn-primary flex items-center gap-1.5 py-1.5 text-xs font-semibold"
+        >
+          <UserPlus size={14} /> Commission New Officer
+        </button>
       </div>
+
+      {/* Notifications */}
+      {success && (
+        <div className="rounded border border-low/50 bg-low/10 p-2.5 text-xs text-low flex items-center gap-2">
+          <CheckCircle2 size={16} className="shrink-0" />
+          <span>{success}</span>
+        </div>
+      )}
+      {error && (
+        <div className="rounded border border-crit/50 bg-crit/10 p-2.5 text-xs text-crit flex items-center gap-2">
+          <ShieldAlert size={16} className="shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Roster Table */}
+      <div className="panel overflow-x-auto">
+        {!roster ? (
+          <SkeletonRows rows={4} />
+        ) : !roster.length ? (
+          <EmptyState title="No personnel in roster" />
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-base-700 text-left text-[10px] tracking-wider text-ink-mute uppercase">
+                <th className="px-3 py-2.5">Service ID</th>
+                <th className="px-3 py-2.5">Name & Rank</th>
+                <th className="px-3 py-2.5">Assigned Unit</th>
+                <th className="px-3 py-2.5">Role / Succession</th>
+                <th className="px-3 py-2.5">Operational Status</th>
+                <th className="px-3 py-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roster.map((u) => {
+                const isRetired = u.status === 'RETIRED'
+                const isBusy = busyId === u.id
+                return (
+                  <tr key={u.id} className={`border-b border-base-800 ${isRetired ? 'opacity-60 bg-base-950/40' : ''}`}>
+                    <td className="px-3 py-2 font-mono font-bold text-accent whitespace-nowrap">
+                      {u.serviceId}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="font-semibold text-ink">{u.name}</div>
+                      <div className="text-[10px] text-ink-mute font-mono">{u.rank}</div>
+                    </td>
+                    <td className="px-3 py-2 text-ink-dim whitespace-nowrap">
+                      {u.unit}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <select
+                        value={u.role}
+                        disabled={isBusy || !canManage}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value as any)}
+                        className={`field h-7 px-2 py-0 text-xs font-semibold rounded cursor-pointer ${roleStyle[u.role]}`}
+                        title="Change officer role to promote or assign succession"
+                      >
+                        <option value="OPERATOR">OPERATOR</option>
+                        <option value="COMMANDER">COMMANDER</option>
+                        <option value="ADMIN">ADMIN</option>
+                      </select>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold ${
+                          isRetired
+                            ? 'bg-crit/15 text-crit border border-crit/40'
+                            : 'bg-low/15 text-low border border-low/40'
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${isRetired ? 'bg-crit' : 'bg-low animate-pulse'}`} />
+                        {u.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => handleStatusToggle(u)}
+                        disabled={isBusy || !canManage}
+                        className={`btn btn-sm text-[11px] px-2 py-1 ${
+                          isRetired
+                            ? 'border-low/40 text-low hover:bg-low/10'
+                            : 'border-crit/40 text-crit hover:bg-crit/10'
+                        }`}
+                        title={isRetired ? 'Reactivate officer for operational duties' : 'Retire officer (revokes all system access)'}
+                      >
+                        {isBusy ? <Loader2 size={12} className="animate-spin" /> : isRetired ? 'Reactivate' : 'Retire'}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+
+        {/* Succession & Hierarchy Rules Footnote */}
+        <div className="border-t border-base-700 bg-base-850/50 p-3 text-[11px] text-ink-mute space-y-1">
+          <div className="font-semibold text-ink-dim flex items-center gap-1">
+            <ShieldCheck size={13} className="text-accent" /> Military Succession & Access Control Principles:
+          </div>
+          <p>
+            • <strong>Succession (Role Handover):</strong> When an Admin or Commander is due for retirement or transfer, promote an incoming officer to <span className="text-crit font-semibold">ADMIN</span> before retiring the predecessor.
+          </p>
+          <p>
+            • <strong>Last Admin Standing Guardrail:</strong> The system strictly prohibits retiring or demoting the final active Administrator to guarantee the surveillance grid is never locked out.
+          </p>
+          <p>
+            • <strong>Automatic Revocation:</strong> Retired officers are blocked at authentication (HTTP 403 refusal) and cannot enter the Command Center until reactivated.
+          </p>
+        </div>
+      </div>
+
+      {/* Commission Officer Modal */}
+      {showAddModal && (
+        <Modal title="Commission New Defense Officer" onClose={() => setShowAddModal(false)}>
+          <form onSubmit={handleAddOfficer} className="space-y-3">
+            <div>
+              <label className="block text-[11px] font-mono text-ink-mute uppercase mb-1">
+                Officer Full Name
+              </label>
+              <input
+                type="text"
+                required
+                value={newOfficer.name}
+                onChange={(e) => setNewOfficer({ ...newOfficer, name: e.target.value })}
+                placeholder="e.g. Insp. Vikram Batra"
+                className="field w-full"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-mono text-ink-mute uppercase mb-1">
+                  Designated Role
+                </label>
+                <select
+                  value={newOfficer.role}
+                  onChange={(e) => setNewOfficer({ ...newOfficer, role: e.target.value as any })}
+                  className="field w-full"
+                >
+                  <option value="OPERATOR">OPERATOR</option>
+                  <option value="COMMANDER">COMMANDER</option>
+                  <option value="ADMIN">ADMIN</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-mono text-ink-mute uppercase mb-1">
+                  Military Rank
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newOfficer.rank}
+                  onChange={(e) => setNewOfficer({ ...newOfficer, rank: e.target.value })}
+                  placeholder="e.g. Sub-Inspector"
+                  className="field w-full"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono text-ink-mute uppercase mb-1">
+                Station / Outpost Unit
+              </label>
+              <input
+                type="text"
+                required
+                value={newOfficer.unit}
+                onChange={(e) => setNewOfficer({ ...newOfficer, unit: e.target.value })}
+                placeholder="e.g. BOP Sector-4 Bravo"
+                className="field w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono text-ink-mute uppercase mb-1">
+                Initial Passkey
+              </label>
+              <input
+                type="password"
+                required
+                value={newOfficer.password}
+                onChange={(e) => setNewOfficer({ ...newOfficer, password: e.target.value })}
+                placeholder="Secret authorization key"
+                className="field w-full"
+              />
+            </div>
+
+            <div className="rounded bg-base-800 border border-base-700 p-2 text-[11px] text-ink-dim">
+              ⚡ Notice: The system will automatically generate a cryptographically unique Military Service ID (e.g. <span className="font-mono text-accent">IBVAP-{newOfficer.role.slice(0, 3)}-XXXX</span>).
+            </div>
+
+            {addError && (
+              <div className="rounded border border-crit/50 bg-crit/10 p-2 text-xs text-crit">
+                {addError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="btn"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={adding}
+                className="btn btn-primary font-bold"
+              >
+                {adding ? 'Commissioning...' : 'Commission Officer'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   )
 }

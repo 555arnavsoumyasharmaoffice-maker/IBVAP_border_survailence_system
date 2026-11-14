@@ -41,7 +41,7 @@ export default function App() {
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="audit" element={<AuditLog />} />
-        <Route path="health" element={<SystemHealth />} />
+        <Route path="health" element={<Navigate to="/" replace />} />
         <Route path="about" element={<About />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

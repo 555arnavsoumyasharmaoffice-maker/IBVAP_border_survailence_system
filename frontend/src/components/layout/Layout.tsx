@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowLeftRight, Bell, ChartColumn, CircleHelp, CloudUpload, Fence, FileText, HeartPulse, Info, Languages, LayoutDashboard, LogOut, Map, Play,
-  ScanFace, ScanLine, ScanSearch, ScrollText, Settings, Shield, Square, User, Video, Volume2, VolumeX, WifiOff, type LucideIcon,
+  ScanFace, ScanLine, ScanSearch, ScrollText, Settings, Shield, Square, Sun, Moon, User, Video, Volume2, VolumeX, WifiOff, KeyRound, Eye, EyeOff, ShieldAlert, Loader2, type LucideIcon,
 } from 'lucide-react'
 import { service } from '@/services'
 import { useAuth, useCan } from '@/store/auth'
@@ -13,6 +13,7 @@ import { isActive } from '@/lib/format'
 import { AlertToasts, CriticalModal } from '../AlertOverlays'
 import { Modal, useNow } from '../ui'
 import { WatchBanner } from '../DroneWatch'
+import { SitrepModal } from '../SitrepModal'
 
 const NAV: { to: string; key: DictKey; icon: LucideIcon; manageOnly?: boolean }[] = [
   { to: '/', key: 'nav.command', icon: LayoutDashboard },
@@ -27,7 +28,6 @@ const NAV: { to: string; key: DictKey; icon: LucideIcon; manageOnly?: boolean }[
   { to: '/reports', key: 'nav.reports', icon: FileText },
   { to: '/shift', key: 'nav.shift', icon: ArrowLeftRight },
   { to: '/audit', key: 'nav.audit', icon: ScrollText, manageOnly: true },
-  { to: '/health', key: 'nav.health', icon: HeartPulse },
   { to: '/settings', key: 'nav.settings', icon: Settings },
   { to: '/about', key: 'nav.about', icon: Info },
 ]
@@ -85,8 +85,34 @@ function TopBar() {
   const bellPulse = useData((s) => s.bellPulse)
   const pending = useData((s) => s.pending.length)
   const active = useData((s) => s.alerts.reduce((n, a) => n + (isActive(a) ? 1 : 0), 0))
-  const { lang, muted, toggleLang, toggleMute } = useUi()
+  const { lang, theme, muted, toggleLang, toggleTheme, toggleMute } = useUi()
   const [menu, setMenu] = useState(false)
+  const [sitrepOpen, setSitrepOpen] = useState(false)
+  const [signOutModal, setSignOutModal] = useState(false)
+  const [soPassword, setSoPassword] = useState('')
+  const [soShowPw, setSoShowPw] = useState(false)
+  const [soBusy, setSoBusy] = useState(false)
+  const [soError, setSoError] = useState('')
+
+  const handleSignOutSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!soPassword.trim()) {
+      setSoError('Passkey is required to authorize sign out.')
+      return
+    }
+    setSoBusy(true)
+    setSoError('')
+    try {
+      const username = (user as any)?.serviceId || user?.username || user?.name || ''
+      await service.verifyPassword(username, soPassword.trim())
+      setSignOutModal(false)
+      logout('Manual officer sign out verified with passkey')
+    } catch (err: any) {
+      setSoError(err?.message || 'Invalid passkey. Terminal sign out refused by Defense Security Protocol.')
+    } finally {
+      setSoBusy(false)
+    }
+  }
   const online = cameras.filter((c) => c.status !== 'offline').length
   const d = new Date(now)
   const connTone = connection === 'online' ? 'bg-low' : connection === 'offline' ? 'bg-crit' : 'bg-med'
@@ -123,6 +149,14 @@ function TopBar() {
           <div className="text-[10px] text-ink-mute">{d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</div>
         </div>
         <button
+          onClick={() => setSitrepOpen(true)}
+          className="flex h-8 items-center gap-1.5 rounded border border-red-500/50 bg-red-950/30 px-2.5 text-xs font-bold text-red-300 hover:bg-red-900/40 hover:text-white transition-colors"
+          title="Open Daily Defense Situation Report (SITREP)"
+        >
+          <FileText size={13} className="text-red-400" />
+          <span className="hidden md:inline">SITREP</span>
+        </button>
+        <button
           onClick={() => navigate('/alerts')}
           className={`flex h-8 items-center gap-2 rounded border px-2.5 text-xs ${active ? 'border-crit/60 bg-crit/15 text-crit' : 'border-base-700 text-ink-dim'}`}
         >
@@ -143,6 +177,10 @@ function TopBar() {
         <button className={`${iconBtn} ${muted ? 'text-high' : ''}`} onClick={toggleMute} title={`${t(muted ? 'top.unmute' : 'top.mute')} (M)`} aria-label={t(muted ? 'top.unmute' : 'top.mute')}>
           {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
         </button>
+        <button className={`${iconBtn} w-auto gap-1 px-2 text-xs font-semibold`} onClick={toggleTheme} title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}>
+          {theme === 'dark' ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-accent" />}
+          <span className="hidden sm:inline">{theme === 'dark' ? 'LIGHT' : 'DARK'}</span>
+        </button>
         <button className={`${iconBtn} w-auto gap-1 px-2 text-xs font-semibold`} onClick={toggleLang} title="English / हिन्दी">
           <Languages size={15} /> {lang === 'en' ? 'EN' : 'हिं'}
         </button>
@@ -157,13 +195,96 @@ function TopBar() {
           </button>
           {menu && (
             <div className="panel absolute right-0 z-[1200] mt-1 w-44 p-1 shadow-xl shadow-black/60" onMouseLeave={() => setMenu(false)}>
-              <button className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-base-800" onClick={() => logout()}>
+              <button
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-base-800"
+                onClick={() => {
+                  setMenu(false)
+                  setSoPassword('')
+                  setSoError('')
+                  setSignOutModal(true)
+                }}
+              >
                 <LogOut size={14} /> {t('act.logout')}
               </button>
             </div>
           )}
         </div>
       </div>
+      <SitrepModal isOpen={sitrepOpen} onClose={() => setSitrepOpen(false)} />
+      {signOutModal && (
+        <Modal title="Authorize Terminal Sign Out" onClose={() => setSignOutModal(false)}>
+          <form onSubmit={handleSignOutSubmit} className="space-y-3.5">
+            <div className="rounded border border-base-700 bg-base-850 p-3">
+              <div className="text-[11px] font-mono uppercase tracking-wider text-ink-mute">Active Terminal Officer</div>
+              <div className="text-sm font-bold text-ink mt-0.5">{user?.name}</div>
+              <div className="flex items-center gap-2 font-mono text-[11px] text-accent mt-0.5">
+                <span>{(user as any)?.serviceId || user?.username}</span>
+                <span className="text-ink-mute">·</span>
+                <span>{user?.role}</span>
+                {(user as any)?.rank && (
+                  <>
+                    <span className="text-ink-mute">·</span>
+                    <span className="text-ink-dim">{(user as any)?.rank}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono text-ink-mute uppercase mb-1 flex items-center justify-between">
+                <span>Enter Security Passkey</span>
+                <span className="text-[10px] text-ink-mute">Salted Verification</span>
+              </label>
+              <div className="relative">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-ink-mute">
+                  <KeyRound size={15} />
+                </div>
+                <input
+                  type={soShowPw ? 'text' : 'password'}
+                  required
+                  autoFocus
+                  value={soPassword}
+                  onChange={(e) => setSoPassword(e.target.value)}
+                  placeholder="Enter passkey to sign out"
+                  className="field w-full pl-8 pr-8"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSoShowPw(!soShowPw)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-ink-mute hover:text-ink"
+                >
+                  {soShowPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+
+            {soError && (
+              <div className="rounded border border-crit/50 bg-crit/10 p-2 text-xs text-crit flex items-start gap-1.5">
+                <ShieldAlert size={15} className="shrink-0 mt-0.5 text-crit" />
+                <span>{soError}</span>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setSignOutModal(false)}
+                className="btn"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={soBusy}
+                className="btn btn-danger font-semibold flex items-center gap-1.5"
+              >
+                {soBusy ? <Loader2 size={13} className="animate-spin" /> : <LogOut size={13} />}
+                <span>{soBusy ? 'Verifying...' : 'Authorize Sign Out'}</span>
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </header>
   )
 }
@@ -318,6 +439,12 @@ function useIdleLogout() {
 
 function Shell() {
   useEffect(() => useData.getState().start(), [])
+  const theme = useUi((s) => s.theme)
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('light', theme === 'light')
+    }
+  }, [theme])
   useIdleLogout()
   useShortcuts()
   return (

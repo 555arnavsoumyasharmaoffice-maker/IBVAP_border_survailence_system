@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bookmark, Pause, Play } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Bookmark, Pause, Play, Video } from 'lucide-react'
 import type { Alert, AlertClip } from '@/types'
 import { service } from '@/services'
 import { useData } from '@/store/data'
@@ -48,7 +49,72 @@ function simObjects(alert: Alert): SimObject[] {
   return objs
 }
 
-function drawSim(ctx: CanvasRenderingContext2D, W: number, H: number, alert: Alert, objs: SimObject[], t: number, night: boolean, camName: string, thermal = false) {
+function drawSim(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  alert: Alert,
+  objs: SimObject[],
+  t: number,
+  night: boolean,
+  camName: string,
+  thermal = false,
+  snapshotImg: HTMLImageElement | null = null,
+) {
+  const fs = Math.max(10, W / 48)
+
+  if (snapshotImg && snapshotImg.naturalWidth) {
+    ctx.drawImage(snapshotImg, 0, 0, W, H)
+
+    // Dynamic scanning line
+    const scanY = Math.abs((t * 220) % H)
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.15)'
+    ctx.fillRect(0, scanY, W, 4)
+
+    // Highlight target object with tactical military reticle
+    if (alert.bbox) {
+      const [bx, by, bw, bh] = [alert.bbox[0] * W, alert.bbox[1] * H, alert.bbox[2] * W, alert.bbox[3] * H]
+      const alertBox = Math.abs(t) < 2.0
+      ctx.strokeStyle = alertBox ? '#ef4444' : '#38bdf8'
+      ctx.lineWidth = alertBox ? 3 : 2
+      ctx.strokeRect(bx, by, bw, bh)
+
+      // Corner brackets
+      const clen = Math.min(bw, bh) * 0.25
+      ctx.strokeStyle = '#ef4444'
+      ctx.lineWidth = 2.5
+      ctx.beginPath(); ctx.moveTo(bx, by + clen); ctx.lineTo(bx, by); ctx.lineTo(bx + clen, by); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(bx + bw - clen, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + clen); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(bx, by + bh - clen); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + clen, by + bh); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(bx + bw - clen, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - clen); ctx.stroke()
+
+      // Target label
+      const objCls = alert.details.objectClass || alert.details.vehicleClass || (alert.type === 'DRONE_SIGHTING' ? 'DRONE' : 'TARGET')
+      const tagText = `${objCls.toUpperCase()} #${alert.trackId ?? 1} ${Math.round(alert.confidence * 100)}%`
+      ctx.font = `700 ${fs}px "JetBrains Mono", monospace`
+      const tw = ctx.measureText(tagText).width + 8
+      const ly = by - fs - 5 < 0 ? by : by - fs - 5
+      ctx.fillStyle = alertBox ? '#ef4444' : '#38bdf8'
+      ctx.fillRect(bx, ly, tw, fs + 5)
+      ctx.fillStyle = '#04121f'
+      ctx.fillText(tagText, bx + 4, ly + 2)
+    }
+
+    // Top status strip
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'
+    ctx.fillRect(0, 0, W, fs + 12)
+    ctx.font = `600 ${fs * 0.9}px "JetBrains Mono", monospace`
+    ctx.fillStyle = '#38bdf8'
+    ctx.fillText(`● FORENSIC FRAME BUFFER [T: ${t >= 0 ? '+' : ''}${t.toFixed(1)}s]`, 8, 3)
+
+    // Bottom strip
+    ctx.fillStyle = 'rgba(0,0,0,0.75)'
+    ctx.fillRect(0, H - fs - 8, W, fs + 8)
+    ctx.fillStyle = '#e5e7eb'
+    ctx.fillText(`${camName}  ${fmtDateTime(Date.parse(alert.timestamp) + t * 1000)}`, 8, H - fs - 4)
+    return
+  }
+
   const g = ctx.createLinearGradient(0, 0, 0, H)
   const pal = thermal ? ['#0b0420', '#1a0b3a', '#2a0f45', '#13072a'] : night ? ['#04130c', '#0a2416', '#0d2e1b', '#051209'] : ['#101b2e', '#17263d', '#1d2a22', '#121a15']
   g.addColorStop(0, pal[0])
@@ -76,7 +142,6 @@ function drawSim(ctx: CanvasRenderingContext2D, W: number, H: number, alert: Ale
   for (let i = 0; i < 140; i++) ctx.fillRect(rnd() * W, rnd() * H, 1.5, 1.5)
 
   const fig = thermal ? '#ffd27a' : night ? '#c8ffd9' : '#0b0f16'
-  const fs = Math.max(10, W / 48)
   ctx.font = `600 ${fs}px "JetBrains Mono", monospace`
   for (const o of objs) {
     const x = (o.x + o.vx * t) * W
@@ -145,6 +210,23 @@ export function ClipPlayer({ alert, compact = false, autoPlay = false, loop = fa
   const real = !!clip?.url
   const night = camera?.isNightMode ?? false
   const objsRef = useRef<SimObject[]>([])
+  const imgRef = useRef<HTMLImageElement | null>(null)
+
+  useEffect(() => {
+    if (!alert.snapshotUrl) return
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.src = alert.snapshotUrl
+    img.onload = () => {
+      imgRef.current = img
+      const c = canvasRef.current
+      const ctx = c?.getContext('2d')
+      if (c && ctx) {
+        drawSim(ctx, c.clientWidth || 640, c.clientHeight || 360, alert, objsRef.current, posRef.current + start, night, camera?.name ?? alert.cameraId, camera?.cameraType === 'thermal', img)
+      }
+    }
+  }, [alert.snapshotUrl])
+
   useEffect(() => {
     objsRef.current = simObjects(alert)
     // Start just before the alert moment so the operator sees the trigger quickly.
@@ -188,7 +270,7 @@ export function ClipPlayer({ alert, compact = false, autoPlay = false, loop = fa
       c.height = Math.round(H * dpr)
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    drawSim(ctx, W, H, alert, objsRef.current, pos + start, night, camera?.name ?? alert.cameraId, camera?.cameraType === 'thermal')
+    drawSim(ctx, W, H, alert, objsRef.current, pos + start, night, camera?.name ?? alert.cameraId, camera?.cameraType === 'thermal', imgRef.current)
   }, [real, pos, start, alert, night, camera?.name, camera?.cameraType])
 
   // Real video: mirror its state.
@@ -255,10 +337,19 @@ export function ClipPlayer({ alert, compact = false, autoPlay = false, loop = fa
           <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" onClick={toggle} />
         )}
         {clip.simulated && (
-          <span className="pointer-events-none absolute top-1.5 left-1.5 rounded bg-black/70 px-1.5 font-mono text-[9px] font-bold tracking-wider text-med">{t('clip.simulated')}</span>
+          <span className="pointer-events-none absolute top-2 left-2 rounded bg-black/85 px-2 py-0.5 font-mono text-[9px] font-bold tracking-wider text-accent border border-accent/40 shadow">
+            {t('clip.simulated')}
+          </span>
         )}
+        <Link
+          to={`/cameras?cam=${alert.cameraId}`}
+          className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded bg-emerald-700/90 hover:bg-emerald-600 px-2.5 py-1 font-mono text-[10px] font-bold text-white shadow-md transition-colors"
+          title="Open Live Camera Stream"
+        >
+          <Video size={11} /> Live Camera Feed →
+        </Link>
         {Math.abs(rel) < 1.5 && (
-          <span className="pointer-events-none absolute top-1.5 right-1.5 rounded bg-crit px-1.5 font-mono text-[9px] font-bold text-white">{t('clip.alertMoment')}</span>
+          <span className="pointer-events-none absolute top-9 right-2 rounded bg-crit px-1.5 font-mono text-[9px] font-bold text-white shadow">{t('clip.alertMoment')}</span>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-2 border-t border-base-700 bg-base-900 px-2 py-1">

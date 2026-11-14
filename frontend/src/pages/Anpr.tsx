@@ -223,11 +223,17 @@ function ReadsTab() {
                   <td className="px-2">
                     <div className="flex items-center gap-1.5">
                       {r.blacklisted ? (
-                        <Chip className="border-crit/50 bg-crit/15 text-crit">
+                        <Chip className="border-crit/50 bg-crit/15 text-crit font-medium">
                           <ShieldAlert size={10} className="mr-1" /> Blacklisted
                         </Chip>
+                      ) : r.readMode === 'REAL_OCR' ? (
+                        <Chip className="border-low/40 bg-low/10 text-low font-medium">
+                          <Check size={10} className="mr-1 text-low" /> Real OCR
+                        </Chip>
                       ) : (
-                        <Chip className="border-low/40 bg-low/10 text-low">Clear</Chip>
+                        <Chip className="border-sky-500/40 bg-sky-500/10 text-sky-400 font-medium">
+                          Track Re-ID
+                        </Chip>
                       )}
                       {r.needsVerification && (
                         <>

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowUpCircle, Check, RefreshCw, Siren, Video, X } from 'lucide-react'
+import { Activity, ArrowUpCircle, Check, RefreshCw, Siren, Video, X } from 'lucide-react'
 import { useData, type Toast } from '@/store/data'
 import { DEGRADED_REASON, SEV, fmtDateTime, isLowVisibility, keyDetail } from '@/lib/format'
 import { useT } from '@/i18n'
@@ -32,7 +32,7 @@ function ToastItem({ toast }: { toast: Toast }) {
     )
   }
   if (!alert) return null
-  const Icon = TYPE_ICON[alert.type]
+  const Icon = TYPE_ICON[alert.type] || Activity
   return (
     <div
       role="alert"
@@ -98,7 +98,7 @@ export function CriticalModal() {
   }, [queue, alert, dismissModal])
 
   if (!alert || alert.status !== 'NEW') return null
-  const Icon = TYPE_ICON[alert.type]
+  const Icon = TYPE_ICON[alert.type] || Activity
   return (
     <div className="no-print crit-backdrop fixed inset-0 z-[2000] flex items-center justify-center p-6 backdrop-blur-sm">
       <div className="w-full max-w-3xl overflow-hidden rounded-lg border-2 border-crit bg-base-900 shadow-2xl shadow-black">

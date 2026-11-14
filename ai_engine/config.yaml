@@ -1,0 +1,66 @@
+# IBVAP AI Engine Configuration
+mode: "standalone" # "standalone" | "backend"
+backend_url: "http://localhost:8000"
+
+# Multi-Camera Border Surveillance Grid
+cameras:
+  - id: "cam-bop-01"
+    name: "BOP Sundar - Main Perimeter Fence"
+    source: "demo_videos/people_detection.mp4"
+    lat: 27.0238
+    lng: 71.2154
+    is_active: true
+  - id: "cam-bop-02"
+    name: "Border Outpost - Checkpost ANPR Gate"
+    source: "demo_videos/indian_checkpost_anpr.mp4"
+    lat: 27.0280
+    lng: 71.2180
+    is_active: true
+  - id: "cam-bop-03"
+    name: "Sector 4 Night Patrol Camera"
+    source: "demo_videos/night_surveillance.mp4"
+    lat: 27.0310
+    lng: 71.2210
+    is_active: true
+  - id: "cam-bop-04"
+    name: "Thermal Imager FLIR - Border Wire"
+    source: "demo_videos/thermal_perimeter.mp4"
+    lat: 27.0350
+    lng: 71.2260
+    is_active: true
+
+detection:
+  model: "yolov8s.pt"
+  imgsz: 640
+  process_every_nth_frame: 2
+  confidence_day: 0.45
+  confidence_night: 0.30
+  target_classes:
+    - "person"
+    - "car"
+    - "truck"
+    - "bus"
+    - "motorcycle"
+    - "bicycle"
+  animal_classes:
+    - "dog"
+    - "cat"
+    - "horse"
+    - "sheep"
+    - "cow"
+    - "bird"
+
+rules:
+  min_consecutive_frames: 6
+  cooldown_seconds: 60
+  loitering_seconds: 30
+  night_brightness_threshold: 45
+
+anpr:
+  enabled: true
+  min_confidence: 0.40
+  cooldown_seconds: 120
+
+face:
+  enabled: true
+  threshold: 0.55

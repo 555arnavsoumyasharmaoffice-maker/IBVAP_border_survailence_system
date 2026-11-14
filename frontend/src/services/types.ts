@@ -64,7 +64,7 @@ export interface DemoControls {
 export interface DataService {
   readonly mode: 'mock' | 'api'
 
-  login(username: string, role: Role): Promise<User>
+  login(username: string, role?: Role, password?: string): Promise<User>
 
   getCameras(): Promise<Camera[]>
   /** Shift handovers, newest first. */
@@ -140,17 +140,30 @@ export interface DataService {
   removeWatchlistPerson(id: string): Promise<void>
   getFaceMatches(): Promise<FaceMatch[]>
   reviewFaceMatch(id: string, review: ReviewState, by: string): Promise<FaceMatch>
+  simulateFaceMatch(params?: { personId?: string; cameraId?: string; similarity?: number }): Promise<FaceMatch>
 
   /** Health of the edge AI nodes at each outpost. */
   getEdgeNodes(): Promise<EdgeNode[]>
 
   getUsers(): Promise<User[]>
+  getRoster(): Promise<any[]>
+  registerOfficer(officer: { name: string; role: Role; rank: string; unit?: string; password?: string }): Promise<any>
+  retireOfficer(userId: string): Promise<any>
+  updateOfficerRole(userId: string, role: Role, rank?: string): Promise<any>
+  updateOfficerStatus(userId: string, status: 'ACTIVE' | 'RETIRED'): Promise<any>
+  verifyPassword(username: string, password: string): Promise<boolean>
   /** System-wide audit log, newest first. */
   getAuditLog(): Promise<AuditEntry[]>
   logAudit(entry: Omit<AuditEntry, 'id' | 'at'>): Promise<void>
   getSettings(): Promise<AppSettings>
   saveSettings(settings: AppSettings): Promise<AppSettings>
   sendTestWebhook(url: string): Promise<{ ok: boolean; message: string }>
+
+  getSitrep(): Promise<any>
+  setThermalPalette(cameraId: string, palette: string): Promise<any>
+  triggerDroneJam(cameraId: string, active: boolean): Promise<any>
+  getTripwire(cameraId: string): Promise<any>
+  saveTripwire(cameraId: string, points: [number, number][]): Promise<any>
 
   /** Fires for every new alert AND every update to an existing alert (upsert by id). */
   subscribeAlerts(cb: (alert: Alert) => void): Unsubscribe

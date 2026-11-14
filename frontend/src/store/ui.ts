@@ -13,6 +13,7 @@ interface DemoState {
 
 interface UiState {
   lang: 'en' | 'hi'
+  theme: 'dark' | 'light'
   muted: boolean
   soundEnabled: boolean
   cameraLayout: CameraLayout
@@ -25,6 +26,7 @@ interface UiState {
   set: (patch: Partial<UiState>) => void
   toggleMute: () => void
   toggleLang: () => void
+  toggleTheme: () => void
   toggleDemo: () => void
 }
 
@@ -32,6 +34,7 @@ export const useUi = create<UiState>()(
   persist(
     (set) => ({
       lang: 'en',
+      theme: 'dark',
       muted: false,
       soundEnabled: true,
       cameraLayout: 2,
@@ -42,6 +45,14 @@ export const useUi = create<UiState>()(
       set: (patch) => set(patch),
       toggleMute: () => set((s) => ({ muted: !s.muted })),
       toggleLang: () => set((s) => ({ lang: s.lang === 'en' ? 'hi' : 'en' })),
+      toggleTheme: () =>
+        set((s) => {
+          const next = s.theme === 'dark' ? 'light' : 'dark'
+          if (typeof document !== 'undefined') {
+            document.documentElement.classList.toggle('light', next === 'light')
+          }
+          return { theme: next }
+        }),
       toggleDemo: () => set((s) => ({ demoRequest: s.demoRequest + 1 })),
     }),
     {
@@ -53,7 +64,7 @@ export const useUi = create<UiState>()(
         return { ...o, cameraLayout: o.cameraLayout && o.cameraLayout <= 3 ? o.cameraLayout : 2 } as never
       },
       partialize: (s) => ({
-        lang: s.lang, muted: s.muted, soundEnabled: s.soundEnabled,
+        lang: s.lang, theme: s.theme, muted: s.muted, soundEnabled: s.soundEnabled,
         cameraLayout: s.cameraLayout,
       }),
     },

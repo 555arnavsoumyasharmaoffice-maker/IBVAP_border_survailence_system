@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Circle, CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import L, { type LatLngTuple, type Marker as LeafletMarker } from 'leaflet'
-import { Drone, Flame, Maximize2, ScanLine, WifiOff, X } from 'lucide-react'
+import { Drone, Flame, Maximize2, Navigation, Radio, ScanLine, ShieldAlert, WifiOff, X } from 'lucide-react'
 import type { Alert, AlertType, Camera, DroneWatch } from '@/types'
 import { service } from '@/services'
 import { useAuth } from '@/store/auth'
 import { audit } from '@/lib/audit'
-import { distanceKm } from '@/lib/geo'
+import { bearingDeg, distanceKm } from '@/lib/geo'
 import { fmtLeft, nearbyNakas, useActiveWatches } from '@/components/DroneWatch'
 import { HierarchyTree } from '@/components/HierarchyTree'
 import { useData } from '@/store/data'
@@ -27,6 +27,45 @@ const WINDOWS = [
 type WindowId = (typeof WINDOWS)[number]['id']
 /** How long a marker keeps pulsing after an alert arrives. */
 const PULSE_MS = 45_000
+
+// Tactical UAV Patrol Circuit Waypoints
+const UAV_WAYPOINTS: [number, number][] = [
+  [28.78, 72.10],
+  [28.65, 72.32],
+  [28.48, 72.48],
+  [28.52, 72.22],
+  [28.78, 72.10],
+]
+
+function getUavPos(nowMs: number): { lat: number; lng: number; heading: number } {
+  const period = 60_000 // 60s loop
+  const progress = (nowMs % period) / period
+  const totalSegments = UAV_WAYPOINTS.length - 1
+  const segProgress = progress * totalSegments
+  const idx = Math.floor(segProgress)
+  const t = segProgress - idx
+  const p1 = UAV_WAYPOINTS[idx]
+  const p2 = UAV_WAYPOINTS[idx + 1] || UAV_WAYPOINTS[0]
+  const lat = p1[0] + (p2[0] - p1[0]) * t
+  const lng = p1[1] + (p2[1] - p1[1]) * t
+  const heading = bearingDeg(p1[0], p1[1], p2[0], p2[1])
+  return { lat, lng, heading }
+}
+
+function uavIcon(heading: number) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="transform: rotate(${heading}deg); width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:#082f49; border:2px solid #38bdf8; border-radius:50%; box-shadow:0 0 10px rgba(56,189,248,0.8);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m12 2 4 8-4-2-4 2Z"/>
+        <path d="M12 10v12"/>
+        <path d="m4 14 8-4 8 4"/>
+      </svg>
+    </div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  })
+}
 
 // Icons are cached so Leaflet does not rebuild the marker element on every render.
 const iconCache = new Map<string, L.DivIcon>()
@@ -278,7 +317,7 @@ function CameraPopup({ camera, stats, now }: { camera: Camera; stats: CamStats; 
 
 export default function MapView() {
   const t = useT()
-  const now = useNow(2000)
+  const now = useNow(1000)
   const [params, setParams] = useSearchParams()
   const { cameras, alerts, loading } = useData()
   const nakas = useData((s) => s.nakas)
@@ -289,6 +328,14 @@ export default function MapView() {
   const [draft, setDraft] = useState<{ lat: number; lng: number } | null>(null)
   const [flyPoint, setFlyPoint] = useState<{ lat: number; lng: number; key: string }>()
   const focusWatch = activeWatches.find((w) => w.id === watchParam) ?? activeWatches[0]
+
+  // Tactical War Room Layer Controls
+  const [showUav, setShowUav] = useState(true)
+  const [showEwJammer, setShowEwJammer] = useState(true)
+  const [showVectors, setShowVectors] = useState(true)
+
+  const uavPos = useMemo(() => getUavPos(now), [now])
+
   useEffect(() => {
     const w = activeWatches.find((x) => x.id === watchParam)
     if (w) setFlyPoint({ lat: w.lat, lng: w.lng, key: w.id })
@@ -365,6 +412,7 @@ export default function MapView() {
           <FlyToPoint point={flyPoint} />
           {marking && <MapClick onClick={(lat, lng) => setDraft({ lat, lng })} />}
 
+          {/* Active Drone Watches */}
           {activeWatches.map((w) => (
             <Circle key={w.id} center={[w.lat, w.lng]} radius={w.radiusKm * 1000} pathOptions={{ color: '#06b6d4', weight: 2, dashArray: '6 4', fillColor: '#06b6d4', fillOpacity: 0.12 }}>
               <Tooltip sticky>
@@ -373,6 +421,8 @@ export default function MapView() {
             </Circle>
           ))}
           {draft && <Circle center={[draft.lat, draft.lng]} radius={2000} interactive={false} pathOptions={{ color: '#06b6d4', weight: 1.5, fillOpacity: 0.06 }} />}
+
+          {/* Police Nakas */}
           {nakas.map((n) => (
             <Marker key={n.id} position={[n.lat, n.lng]} icon={nakaIcon(inWatch(n.lat, n.lng))}>
               <Tooltip direction="top" offset={[0, -6]}>
@@ -381,9 +431,109 @@ export default function MapView() {
             </Marker>
           ))}
 
+          {/* Border Line */}
           <Polyline positions={BORDER_LINE} pathOptions={{ color: '#f5b40b', weight: 2.5, dashArray: '10 8', opacity: 0.9 }}>
             <Tooltip sticky>{t('map.border')}</Tooltip>
           </Polyline>
+
+          {/* Tactical Autonomous UAV Patrol Track & Radar Sweep */}
+          {showUav && (
+            <>
+              <Polyline
+                positions={UAV_WAYPOINTS}
+                pathOptions={{ color: '#38bdf8', weight: 1.8, dashArray: '5 6', opacity: 0.65 }}
+              >
+                <Tooltip sticky>HERON-MK2 Autonomous Patrol Circuit</Tooltip>
+              </Polyline>
+              <Circle
+                center={[uavPos.lat, uavPos.lng]}
+                radius={2400}
+                pathOptions={{
+                  color: '#38bdf8',
+                  weight: 1.5,
+                  dashArray: '3 4',
+                  fillColor: '#38bdf8',
+                  fillOpacity: 0.08,
+                }}
+              >
+                <Tooltip permanent direction="bottom" offset={[0, 10]} className="cam-label">
+                  UAV-01 · ALT 2,100m · 145 KT · EO/MWIR
+                </Tooltip>
+              </Circle>
+              <Marker position={[uavPos.lat, uavPos.lng]} icon={uavIcon(uavPos.heading)}>
+                <Tooltip direction="top" offset={[0, -14]}>
+                  HERON-MK2 UAV · PATROL CIRCUIT ALPHA
+                </Tooltip>
+              </Marker>
+            </>
+          )}
+
+          {/* Anti-Drone Electronic Warfare (EW) Jammer Bubble */}
+          {showEwJammer && (
+            <>
+              <Circle
+                center={[28.60, 72.30]}
+                radius={3600}
+                pathOptions={{
+                  color: '#f59e0b',
+                  weight: 1.5,
+                  dashArray: '8 6',
+                  fillColor: '#f59e0b',
+                  fillOpacity: 0.06,
+                }}
+              >
+                <Tooltip sticky>C-UAS EW SHIELD: 3.6km Soft-Kill Jammer (433M/2.4G/5.8G Active)</Tooltip>
+              </Circle>
+              <Circle
+                center={[28.60, 72.30]}
+                radius={1500}
+                pathOptions={{
+                  color: '#ef4444',
+                  weight: 2,
+                  dashArray: '4 4',
+                  fillColor: '#ef4444',
+                  fillOpacity: 0.12,
+                }}
+              >
+                <Tooltip sticky>C-UAS HARD KILL ZONE: GNSS Denial & Rogue Drone Intercept</Tooltip>
+              </Circle>
+            </>
+          )}
+
+          {/* Predictive Intercept Trajectory Vectors */}
+          {showVectors &&
+            cameras.map((c) => {
+              const s = stats[c.id]
+              if (!s || !s.count) return null
+              const targetNaka = nakas.reduce(
+                (closest, n) => {
+                  const d = distanceKm(c.lat, c.lng, n.lat, n.lng)
+                  return !closest || d < closest.d ? { n, d } : closest
+                },
+                null as { n: (typeof nakas)[0]; d: number } | null,
+              )
+              if (!targetNaka) return null
+
+              return (
+                <Polyline
+                  key={`vec-${c.id}`}
+                  positions={[
+                    [c.lat, c.lng],
+                    [targetNaka.n.lat, targetNaka.n.lng],
+                  ]}
+                  pathOptions={{
+                    color: '#ef4444',
+                    weight: 2,
+                    dashArray: '5 5',
+                    opacity: 0.85,
+                  }}
+                >
+                  <Tooltip sticky>
+                    PREDICTIVE INTERCEPT VECTOR: Ingress toward {targetNaka.n.name} (Est. Intercept: {(targetNaka.d * 3.2).toFixed(0)} min)
+                  </Tooltip>
+                </Polyline>
+              )
+            })}
 
           {heat &&
             cameras.map((c) => {
@@ -401,6 +551,7 @@ export default function MapView() {
               )
             })}
 
+          {/* Cameras */}
           {cameras.map((c) => (
             <Marker
               key={c.id}
@@ -430,6 +581,18 @@ export default function MapView() {
           </div>
         )}
 
+        {/* Top Tactical Status Badge */}
+        <div className="absolute top-2 right-2 z-[500] flex items-center gap-2 rounded border border-base-700/80 bg-base-950/90 px-2.5 py-1 text-[11px] font-mono text-ink-dim backdrop-blur-sm shadow-md">
+          <span className="flex items-center gap-1 text-accent">
+            <Radio size={12} className="animate-pulse" />
+            <span>MGRS 43R XQ</span>
+          </span>
+          <span className="text-base-700">|</span>
+          <span className="text-emerald-400">SEC-DATALINK [OK]</span>
+          <span className="text-base-700">|</span>
+          <span className="text-amber-400">DEFCON 3</span>
+        </div>
+
         <div className="panel absolute bottom-2 left-2 z-[500] flex flex-wrap gap-x-3 gap-y-1 px-2 py-1 text-[10px] text-ink-dim">
           {Object.entries(STATUS_COLOR).map(([k, color]) => (
             <span key={k} className="flex items-center gap-1 capitalize">
@@ -441,6 +604,12 @@ export default function MapView() {
           </span>
           <span className="flex items-center gap-1">
             <span className="h-2 w-2 rotate-45 bg-blue-900 ring-1 ring-blue-300" /> Police naka
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-sky-400" /> UAV Track
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-amber-500" /> C-UAS EW Bubble
           </span>
           <span className="flex items-center gap-1">
             Pulse = new alert:
@@ -475,6 +644,32 @@ export default function MapView() {
               <Flame size={12} /> {t('map.heat')}
             </button>
           </div>
+
+          {/* Tactical War Room Layers Row */}
+          <div className="flex items-center gap-1 border-t border-base-800 pt-1.5">
+            <button
+              onClick={() => setShowUav((v) => !v)}
+              className={`btn btn-sm flex-1 font-mono text-[10px] ${showUav ? 'border-sky-500/60 bg-sky-950/60 text-sky-300' : 'text-ink-mute'}`}
+              title="Toggle Heron MK-II UAV Autonomous Patrol Track"
+            >
+              <Drone size={11} /> UAV
+            </button>
+            <button
+              onClick={() => setShowEwJammer((v) => !v)}
+              className={`btn btn-sm flex-1 font-mono text-[10px] ${showEwJammer ? 'border-amber-500/60 bg-amber-950/60 text-amber-300' : 'text-ink-mute'}`}
+              title="Toggle C-UAS Anti-Drone Electronic Warfare (EW) Jammer Bubble"
+            >
+              <ShieldAlert size={11} /> EW Shield
+            </button>
+            <button
+              onClick={() => setShowVectors((v) => !v)}
+              className={`btn btn-sm flex-1 font-mono text-[10px] ${showVectors ? 'border-rose-500/60 bg-rose-950/60 text-rose-300' : 'text-ink-mute'}`}
+              title="Toggle Predictive Cross-Camera Intercept Trajectory Vectors"
+            >
+              <Navigation size={11} /> Vectors
+            </button>
+          </div>
+
           <div className="flex gap-2">
             <select className="field min-w-0 flex-1" value={type} onChange={(e) => setType(e.target.value as AlertType | '')} aria-label="Alert type">
               <option value="">All alert types</option>

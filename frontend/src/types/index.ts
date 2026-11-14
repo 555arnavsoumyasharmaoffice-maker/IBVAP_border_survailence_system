@@ -85,7 +85,7 @@ export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
 export type SuspiciousSubtype = 'WALL_SCALING' | 'FAKE_PLATE' | 'UNATTENDED_OBJECT' | 'CROWD_GATHERING' | 'CRAWLING' | 'LOITERING'
 
 /** Vehicle classification from the detector. */
-export type VehicleClass = 'car' | 'truck' | 'bus' | 'motorcycle' | 'tractor' | 'jeep'
+export type VehicleClass = 'car' | 'truck' | 'bus' | 'motorcycle' | 'tractor' | 'jeep' | 'tank' | 'tempo' | 'auto_rickshaw'
 
 /** ON_HOLD: parked by the owner (waiting for information / a patrol), still open. */
 export type AlertStatus = 'NEW' | 'ACKNOWLEDGED' | 'ESCALATED' | 'ON_HOLD' | 'RESOLVED' | 'FALSE_ALARM'
@@ -104,6 +104,8 @@ export interface AlertDetails {
   matchedPersonName?: string
   similarity?: number
   faceCropUrl?: string
+  plateCropUrl?: string
+  cropUrl?: string
   zoneId?: string
   zoneName?: string
   dwellTimeSec?: number
@@ -196,13 +198,14 @@ export interface Incident {
   status: AlertStatus
 }
 
-export type DetectionClass = 'person' | 'car' | 'truck' | 'motorcycle' | 'bus' | 'tractor' | 'jeep' | 'animal'
+export type DetectionClass = 'person' | 'car' | 'truck' | 'motorcycle' | 'bus' | 'tractor' | 'jeep' | 'animal' | 'drone' | 'auto_rickshaw' | 'tempo' | 'bicycle' | 'tank'
 
 export interface Detection {
   trackId: number
   class: DetectionClass
   confidence: number
   bbox: BBox
+  label?: string
 }
 
 export type Heading = 'N' | 'S' | 'E' | 'W'
@@ -326,6 +329,7 @@ export interface PlateRead {
   droneWatchId?: string
   /** When this read was shared with a police naka. */
   sharedAt?: string
+  readMode?: 'REAL_OCR' | 'TRACK_MATCH'
 }
 
 /**

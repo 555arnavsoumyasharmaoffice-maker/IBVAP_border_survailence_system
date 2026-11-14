@@ -101,7 +101,19 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
   return {
     mode: 'api',
 
-    login: (username, role) => send('POST', '/auth/login', { username, role }) as never,
+    login: async (username, role, password) => {
+      const res: any = await send('POST', '/auth/login', { username, role, password })
+      return (res?.user || res) as never
+    },
+    getRoster: () => request('/auth/roster'),
+    registerOfficer: (officer) => send('POST', '/auth/register-officer', officer),
+    retireOfficer: (userId) => send('PATCH', `/auth/users/${userId}/status`, { status: 'RETIRED' }),
+    updateOfficerRole: (userId, role, rank) => send('PATCH', `/auth/users/${userId}/role`, { role, rank }),
+    updateOfficerStatus: (userId, status) => send('PATCH', `/auth/users/${userId}/status`, { status }),
+    verifyPassword: async (username, password) => {
+      const res: any = await send('POST', '/auth/verify-password', { username, password })
+      return !!res?.ok
+    },
 
     getCameras: () => request('/cameras'),
     getHierarchy: () => request('/hierarchy'),
@@ -110,7 +122,27 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
     acceptHandover: (id, by) => send('POST', `/shifts/handovers/${id}/accept`, { by }) as never,
     saveCamera: (c) => (c.id ? send('PUT', `/cameras/${c.id}`, c) : send('POST', '/cameras', c)) as never,
     testCameraConnection: (streamUrl) => send('POST', '/cameras/test', { streamUrl }) as never,
-    getStreamUrl: (camera) => `${apiUrl}/cameras/${camera.id}/stream.mjpg`,
+    getStreamUrl: (camera) => {
+      // Shard loopback requests across localhost, 127.0.0.1, 127.0.0.2, 127.0.0.3
+      // to bypass Chromium/Brave/Edge 6 concurrent HTTP/1.1 socket limit per host.
+      try {
+        const url = new URL(apiUrl)
+        const host = url.hostname
+        if (host === 'localhost' || host.startsWith('127.0.0.')) {
+          const shardedHosts = ['localhost', '127.0.0.1', '127.0.0.2', '127.0.0.3']
+          let hash = 0
+          for (let i = 0; i < camera.id.length; i++) {
+            hash = (hash * 31 + camera.id.charCodeAt(i)) >>> 0
+          }
+          const targetHost = shardedHosts[hash % shardedHosts.length]
+          const port = url.port ? `:${url.port}` : ''
+          return `${url.protocol}//${targetHost}${port}${url.pathname.replace(/\/+$/, '')}/cameras/${camera.id}/stream.mjpg`
+        }
+      } catch {
+        // Fallback to base apiUrl
+      }
+      return `${apiUrl.replace(/\/+$/, '')}/cameras/${camera.id}/stream.mjpg`
+    },
 
     getAlerts: (q = {}) => request(`/alerts${qs(q)}`),
     getAlert: (id) => request(`/alerts/${id}`),
@@ -152,6 +184,7 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
     removeWatchlistPerson: (id) => send('DELETE', `/faces/watchlist/${id}`) as never,
     getFaceMatches: () => request('/faces/matches'),
     reviewFaceMatch: (id, review, by) => send('PATCH', `/faces/matches/${id}`, { review, by }) as never,
+    simulateFaceMatch: (params) => send('POST', '/faces/matches/simulate', params ?? {}) as never,
 
     getEdgeNodes: () => request('/health/nodes'),
     getUsers: () => request('/users'),
@@ -160,6 +193,12 @@ export function createApiService(apiUrl: string, wsUrl: string): DataService {
     getSettings: () => request('/settings'),
     saveSettings: (s) => send('PUT', '/settings', s) as never,
     sendTestWebhook: (url) => send('POST', '/integration/webhook/test', { url }) as never,
+
+    getSitrep: () => request('/reports/sitrep'),
+    setThermalPalette: (cameraId, palette) => send('POST', `/cameras/${cameraId}/thermal-palette?palette=${palette}`),
+    triggerDroneJam: (cameraId, active) => send('POST', '/countermeasures/drone-jam', { cameraId, active }),
+    getTripwire: (cameraId) => request(`/cameras/${cameraId}/tripwire`),
+    saveTripwire: (cameraId, points) => send('POST', `/cameras/${cameraId}/tripwire`, { points }),
 
     subscribeAlerts(cb) {
       alertSubs.add(cb)
