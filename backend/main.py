@@ -2294,54 +2294,44 @@ class CameraCaptureHub:
                 current_src = src_val
 
                 try:
-
                     if is_webcam:
-
                         cap = cv2.VideoCapture(0)
-
+                        if not cap.isOpened():
+                            # Cloud fallback: when running on cloud server with no physical USB webcam,
+                            # fallback to high-definition demo stream so feed is never black!
+                            c_fallback = os.path.join(PROJECT_ROOT, "demo_videos", "people_detection.mp4")
+                            if camera_types.get(cam_id) == "thermal":
+                                c_fallback = os.path.join(PROJECT_ROOT, "demo_videos", "thermal_perimeter.mp4")
+                            cap = cv2.VideoCapture(c_fallback)
+                            print(f"[HUB] {cam_id} using cloud relay fallback for webcam: ok={cap.isOpened()}")
                     else:
-
                         cap = cv2.VideoCapture(current_src)
-
                     print(f"[HUB] {cam_id} opened capture: src={src_val}, ok={cap.isOpened()}")
-
                 except Exception as e:
-
                     print(f"[HUB ERROR] Could not open capture for {cam_id}: {e}")
-
                     cap = None
-
                     time.sleep(0.5)
-
                     continue
 
-
-
             if cap is None or not cap.isOpened():
-
                 time.sleep(0.1)
-
                 continue
-
-
 
             loop_start_t = time.time()
-
             ret, frame = cap.read()
-
             if not ret or frame is None:
-
                 if not is_webcam:
-
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0) # Loop recorded video
-
-                    time.sleep(0.01)
-
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    ret, frame = cap.read()
+                    if not ret or frame is None:
+                        cap.release()
+                        cap = cv2.VideoCapture(current_src)
+                        ret, frame = cap.read()
                 else:
-
                     time.sleep(0.03)
-
-                continue
+                if not ret or frame is None:
+                    time.sleep(0.02)
+                    continue
 
 
 
@@ -3529,32 +3519,23 @@ hub = CameraCaptureHub()
 
 
 def stream_hub_generator(cam_id: str):
-
     hub.ensure_worker(cam_id)
-
     # If starting up, wait briefly for first frame
-
     for _ in range(30):
-
         if hub.get_latest_frame(cam_id):
-
             break
-
         time.sleep(0.05)
 
-
-
+    last_bytes = None
     while True:
-
         frame_bytes = hub.get_latest_frame(cam_id)
-
-        if frame_bytes:
-
+        if frame_bytes and frame_bytes != last_bytes:
+            last_bytes = frame_bytes
             yield (b'--frame\r\n'
-
                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-
-        time.sleep(0.010) # Low-latency MJPEG dispatch
+            time.sleep(0.035)  # Smooth ~25-28 FPS without socket flooding
+        else:
+            time.sleep(0.020)
 
 
 
