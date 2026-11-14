@@ -198,7 +198,7 @@ export default function Login() {
       setBootStatus('failed')
       setBootError(msg)
       setBootLogs((prev) => [
-        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR CLOUD TELEMETRY] Connection Refused to ${API_URL}`, status: 'OFFLINE', ok: false } : item)
+        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR CLOUD TELEMETRY] ${msg.toLowerCase().includes('401') || msg.toLowerCase().includes('password') ? 'Authentication Failed: Invalid Officer Password' : `Connection Refused to ${API_URL}`}`, status: 'OFFLINE', ok: false } : item)
       ])
     }
   }
@@ -240,10 +240,10 @@ export default function Login() {
     setError('')
     setUsername(m.serviceId)
     // Auto-fill standard known pass for testing convenience
-    if (m.serviceId === 'IBVAP-ADM-9102') setPassword('admin@123')
-    else if (m.serviceId === 'IBVAP-CMD-4819') setPassword('commander@123')
-    else if (m.serviceId === 'IBVAP-OP-3312') setPassword('operator@123')
-    else setPassword('user@123')
+    if (m.serviceId.includes('ADM') || m.role === 'ADMIN') setPassword('admin@123')
+    else if (m.serviceId.includes('CMD') || m.role === 'COMMANDER') setPassword('commander@123')
+    else if (m.serviceId.includes('OP') || m.role === 'OPERATOR') setPassword('operator@123')
+    else setPassword('admin@123')
   }
 
   const submit = async (e: FormEvent) => {
