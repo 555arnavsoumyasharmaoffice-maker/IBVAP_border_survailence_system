@@ -42,6 +42,11 @@ from pg_database import get_db, init_pg_db
 
 app = FastAPI(title="IBVAP Backend API", version="1.0.0")
 
+@app.get("/")
+@app.head("/")
+def root_health():
+    return {"status": "ok", "service": "IBVAP Backend API", "version": "1.0.0"}
+
 
 
 # =========================================================================
@@ -3479,9 +3484,9 @@ class CameraCaptureHub:
 
 
 
-            # Dynamic brisk pacing: target ~32-35 FPS without stacking artificial sleep on CPU processing
+            # Dynamic pacing: target smooth ~22-25 FPS with adequate CPU breathing room for cloud environments
             proc_time = time.time() - loop_start_t
-            time.sleep(max(0.002, 0.020 - proc_time))
+            time.sleep(max(0.035, 0.050 - proc_time))
 
 
 
@@ -3582,10 +3587,6 @@ def startup_event():
         main_loop = asyncio.get_event_loop()
 
     load_video_sources_from_db()
-
-    for cid in ("cam-01", "cam-02", "cam-03", "cam-04"):
-
-        hub.ensure_worker(cid)
 
 
 
