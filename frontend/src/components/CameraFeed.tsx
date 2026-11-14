@@ -421,7 +421,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
           transformOrigin: 'center center',
         }}
       >
-        {active && streamUrl && !streamFailed ? (
+        {active && streamUrl && !streamFailed && !camera.outOfService ? (
           <img
             ref={imgRef}
             src={streamUrl}
@@ -442,7 +442,22 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
             <div className="feed-noise absolute inset-0" />
             <div className="feed-lines absolute inset-0" />
             <div className="feed-scan absolute inset-x-0 top-0" />
-            {!active && (
+            {camera.outOfService ? (
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/85 p-3 select-none text-center">
+                <div className="flex flex-col items-center gap-1.5 px-4 py-3 rounded-lg border border-amber-500/40 bg-amber-950/40 text-amber-300 font-mono text-[11px] shadow-[0_0_15px_rgba(245,158,11,0.25)]">
+                  <div className="flex items-center gap-1.5 text-amber-400 font-bold tracking-wider">
+                    <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-ping" />
+                    <span>UNDER MAINTENANCE</span>
+                  </div>
+                  <span className="text-[9.5px] text-amber-300/80 font-sans tracking-wide">
+                    {camera.outOfService.reason}
+                  </span>
+                  <span className="text-[8px] text-ink-mute font-mono tracking-wider">
+                    AUTHORIZED: {camera.outOfService.by}
+                  </span>
+                </div>
+              </div>
+            ) : !active ? (
               <div
                 onClick={(e) => { e.stopPropagation(); onEngage?.() }}
                 className="absolute inset-0 z-20 flex flex-col items-center justify-center cursor-pointer bg-black/60 hover:bg-black/40 transition-all p-2 select-none group"
@@ -453,7 +468,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
                   <span className="text-[9px] text-cyan-400/70 font-sans">Power-Save Standby</span>
                 </div>
               </div>
-            )}
+            ) : null}
             {active && streamUrl && streamFailed && (
               <div className="absolute inset-x-0 top-1/2 text-center font-mono text-[11px] text-high">
                 STREAM UNAVAILABLE - retrying

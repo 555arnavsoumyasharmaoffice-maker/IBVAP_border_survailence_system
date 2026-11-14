@@ -1200,6 +1200,15 @@ def resolve_source_path(val):
 
         return "default"
 
+    # Normalize Windows backslashes for cross-platform (Render Linux & Windows)
+    norm_val = s_val.replace("\\", "/")
+    if "demo_videos" in norm_val:
+        idx = norm_val.find("demo_videos")
+        sub_rel = norm_val[idx:]
+        resolved_cand = os.path.abspath(os.path.join(PROJECT_ROOT, *sub_rel.split("/")))
+        if os.path.exists(resolved_cand):
+            return resolved_cand
+
     if os.path.isabs(s_val) and os.path.exists(s_val):
 
         return s_val
@@ -1913,7 +1922,7 @@ def categorize_detected_object(cls_id: int, conf: float, raw_box: tuple, frame_6
 
 
 
-    if is_monkey_feed and cls_id in (15, 16, 21):
+    if is_monkey_feed and cls_id in (14, 15, 16, 21):
 
         return {
 
@@ -3205,15 +3214,22 @@ class CameraCaptureHub:
                 current_src = src_val
                 try:
                     if is_webcam:
-                        cap = cv2.VideoCapture(0)
-                        if not cap.isOpened():
-                            # Cloud fallback: when running on cloud server with no physical USB webcam,
-                            # fallback to high-definition demo stream so feed is never black!
+                        if IS_CLOUD:
                             c_fallback = os.path.join(PROJECT_ROOT, "demo_videos", "people_detection.mp4")
                             if camera_types.get(cam_id) == "thermal":
                                 c_fallback = os.path.join(PROJECT_ROOT, "demo_videos", "thermal_perimeter.mp4")
                             cap = cv2.VideoCapture(c_fallback)
                             print(f"[HUB] {cam_id} using cloud relay fallback for webcam: ok={cap.isOpened()}")
+                        else:
+                            cap = cv2.VideoCapture(0)
+                            if not cap.isOpened():
+                                # Cloud fallback: when running on cloud server with no physical USB webcam,
+                                # fallback to high-definition demo stream so feed is never black!
+                                c_fallback = os.path.join(PROJECT_ROOT, "demo_videos", "people_detection.mp4")
+                                if camera_types.get(cam_id) == "thermal":
+                                    c_fallback = os.path.join(PROJECT_ROOT, "demo_videos", "thermal_perimeter.mp4")
+                                cap = cv2.VideoCapture(c_fallback)
+                                print(f"[HUB] {cam_id} using cloud relay fallback for webcam: ok={cap.isOpened()}")
                     else:
                         resolved_path = resolve_source_path(current_src)
                         cap = cv2.VideoCapture(resolved_path)
@@ -3479,7 +3495,13 @@ class CameraCaptureHub:
 
                 "cam-03": "CAM-03 | AIR DEFENSE - TACTICAL UAV & RECON DRONE",
 
-                "cam-04": "CAM-04 | FORWARD LOC - ARMORED CORPS [DRDO ZORAWAR TANK]"
+                "cam-04": "CAM-04 | FORWARD LOC - ARMORED CORPS [DRDO ZORAWAR TANK]",
+
+                "cam-1792337115301": "CAM-09 | AMRITSAR SECTOR - DRONE & CONVOY RECON",
+
+                "cam-1792337115304": "CAM-JUNGLE | BORDER CANOPY - WILDLIFE & RECON",
+
+                "cam-1792337115302": "CAM-PART3 | BOP BORDER WIRE - INTRUSION MONITOR"
 
             }
 

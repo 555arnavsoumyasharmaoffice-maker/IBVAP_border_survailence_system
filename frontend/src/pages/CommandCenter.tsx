@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Activity, BellRing, ChevronLeft, ChevronRight, Clock, Siren, Timer, Video, type LucideIcon } from 'lucide-react'
 import type { Alert, Severity } from '@/types'
-import { useData, useIncidents } from '@/store/data'
+import { useData, useIncidents, CLOUD_ACTIVE_CAM_IDS } from '@/store/data'
 import { SEV, SEVERITIES, fmtDuration, fmtTime, isShelved, keyDetail } from '@/lib/format'
 import { useT } from '@/i18n'
 import { CameraFeed } from '@/components/CameraFeed'
@@ -321,7 +321,7 @@ export default function CommandCenter() {
                     window.location.hostname === 'localhost' ||
                     window.location.hostname === '127.0.0.1'
                   )
-                  const isCurrentActive = isLocal || (activeCamId === c.id) || (!activeCamId && c.id === visibleCameras[0]?.id)
+                  const isCurrentActive = isLocal || CLOUD_ACTIVE_CAM_IDS.has(c.id) || (activeCamId === c.id)
                   return (
                     <div
                       key={c.id}

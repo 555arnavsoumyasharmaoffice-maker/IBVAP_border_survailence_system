@@ -32,6 +32,45 @@ const AUTO_ESCALATE_MS = 180_000
 const HISTORY_DAYS = 14
 const MAX_STORE_ALERTS = 1000
 
+/** 4 Dedicated Active Cameras for Cloud / Vercel deployment to prevent Render 512MB RAM OOM */
+export const CLOUD_ACTIVE_CAM_IDS = new Set([
+  'cam-1792337115301', // cam_09_amritsar (Drone, Intruder, Tank, Armed Patrols)
+  'cam-03',            // Border Air Defense - Drone & UAV Reconnaissance
+  'cam-04',            // Forward Line of Control - Armored Tank Division
+  'cam-1792337115304', // jungle_edition (Primate / Wildlife)
+])
+
+export function processCamerasForEnvironment(rawCameras: Camera[]): Camera[] {
+  const isLocal = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+  )
+  // On Localhost: Keep 100% UNTOUCHED (all 19 cameras online and full functionality)
+  if (isLocal) {
+    return rawCameras
+  }
+
+  // On Cloud (Vercel): Only 4 dedicated cameras active, remaining 15 in maintenance mode
+  return rawCameras.map((c) => {
+    if (CLOUD_ACTIVE_CAM_IDS.has(c.id)) {
+      return { ...c, status: 'online' as const, outOfService: null }
+    }
+    return {
+      ...c,
+      status: 'offline' as const,
+      outOfService: {
+        reason: 'SCHEDULED SENSOR CALIBRATION // STANDBY MODE (CLOUD DEFENSE NODE)',
+        since: '2026-11-14T00:00:00Z',
+        by: 'COMMAND HQ'
+      }
+    }
+  }).sort((a, b) => {
+    const aAct = CLOUD_ACTIVE_CAM_IDS.has(a.id) ? 1 : 0
+    const bAct = CLOUD_ACTIVE_CAM_IDS.has(b.id) ? 1 : 0
+    return bAct - aAct
+  })
+}
+
 interface DataState {
   cameras: Camera[]
   zones: Zone[]
@@ -158,7 +197,7 @@ export const useData = create<DataState>((set, get) => {
         const ids = new Set(alerts.map((a) => a.id))
         const merged = [...get().alerts.filter((a) => !ids.has(a.id)), ...alerts]
         merged.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-        set({ cameras, zones, alerts: merged, settings, droneWatches, nakas, sectors, bops, loading: false })
+        set({ cameras: processCamerasForEnvironment(cameras), zones, alerts: merged, settings, droneWatches, nakas, sectors, bops, loading: false })
       } catch (e) {
         set({ loading: false, error: e instanceof Error ? e.message : 'Failed to load data' })
       }
@@ -213,7 +252,7 @@ export const useData = create<DataState>((set, get) => {
       }
     },
 
-    refreshCameras: async () => set({ cameras: await service.getCameras() }),
+    refreshCameras: async () => set({ cameras: processCamerasForEnvironment(await service.getCameras()) }),
     refreshZones: async () => set({ zones: await service.getZones() }),
     refreshWatches: async () => set({ droneWatches: await service.getDroneWatches() }),
     refreshSettings: async () => set({ settings: await service.getSettings() }),
