@@ -2232,6 +2232,9 @@ def is_aerial_feed(cam_id: str) -> bool:
 
 
 
+_GLOBAL_CLAHE_THERMAL = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+_GLOBAL_CLAHE_IR = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+
 class CameraCaptureHub:
 
     def __init__(self):
@@ -3220,9 +3223,11 @@ class CameraCaptureHub:
 
 
 
-            # Brisk real-time playback: advance extra frame on video files to eliminate sluggish slow-motion drag
+            # Fast brisk video playback: advance 3 extra frames (4x step) to provide lively, energetic surveillance motion
             is_file_stream = (not is_webcam) or (cap is not None and cap.get(cv2.CAP_PROP_FRAME_COUNT) > 0)
             if is_file_stream:
+                cap.grab()
+                cap.grab()
                 cap.grab()
 
             frame = cv2.resize(frame, (640, 360))
@@ -3241,9 +3246,7 @@ class CameraCaptureHub:
 
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-                clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
-
-                gray_eq = clahe.apply(gray)
+                gray_eq = _GLOBAL_CLAHE_THERMAL.apply(gray)
 
                 pal = THERMAL_PALETTES.get(cam_id, "ironbow")
 
@@ -3281,9 +3284,7 @@ class CameraCaptureHub:
 
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-                clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-
-                gray_eq = clahe.apply(gray)
+                gray_eq = _GLOBAL_CLAHE_IR.apply(gray)
 
                 green_night = np.zeros_like(frame)
 
@@ -3333,23 +3334,23 @@ class CameraCaptureHub:
 
                 tracker = self.aerial_trackers[cam_id]
 
-                hud_items, detections, total_veh, flow_status = tracker.process_frame(frame)
+                if frame_counter % 2 == 0:
+                    hud_items, detections, total_veh, flow_status = tracker.process_frame(frame)
+                    self.last_hud[cam_id] = hud_items
 
-                self.last_hud[cam_id] = hud_items
+                    if main_loop is not None and not main_loop.is_closed():
 
-                if main_loop is not None and not main_loop.is_closed():
+                        det_payload = {
 
-                    det_payload = {
+                            "cameraId": cam_id,
 
-                        "cameraId": cam_id,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
 
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "detections": detections
 
-                        "detections": detections
+                        }
 
-                    }
-
-                    asyncio.run_coroutine_threadsafe(manager.broadcast_detections(cam_id, det_payload), main_loop)
+                        asyncio.run_coroutine_threadsafe(manager.broadcast_detections(cam_id, det_payload), main_loop)
 
             elif yolo_model is not None and frame_counter % 12 == 0 and not self.is_inferring.get(cam_id, False):
                 self.is_inferring[cam_id] = True
@@ -3496,7 +3497,7 @@ class CameraCaptureHub:
 
 
 
-            ret, jpeg = cv2.imencode('.jpg', frame_out, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            ret, jpeg = cv2.imencode('.jpg', frame_out, [cv2.IMWRITE_JPEG_QUALITY, 65])
 
             if ret:
 
@@ -3506,9 +3507,13 @@ class CameraCaptureHub:
 
 
 
-            # Dynamic brisk pacing: target crisp ~28-30 FPS real-time motion
+            # Dynamic brisk pacing: target crisp ~40-45 FPS fast, responsive playback
             proc_time = time.time() - loop_start_t
-            time.sleep(max(0.010, 0.033 - proc_time))
+            sleep_needed = 0.020 - proc_time
+            if sleep_needed > 0.004:
+                time.sleep(sleep_needed)
+            else:
+                time.sleep(0.001)
 
 
 
@@ -3572,9 +3577,9 @@ def stream_hub_generator(cam_id: str):
                     b'Content-Length: ' + str(len(frame_bytes)).encode('ascii') + b'\r\n\r\n' +
                     frame_bytes + b'\r\n'
                 )
-                time.sleep(0.024)  # Brisk ~30-35 FPS responsive delivery
+                time.sleep(0.008)  # Fast responsive delivery
             else:
-                time.sleep(0.010)
+                time.sleep(0.004)
     finally:
         pass
 
