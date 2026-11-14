@@ -9,6 +9,9 @@ import type { Role } from '@/types'
 import { service } from '@/services'
 import { useAuth } from '@/store/auth'
 import { useT } from '@/i18n'
+import { MapContainer, TileLayer, CircleMarker, Polyline } from 'react-leaflet'
+import { TILE_URL } from '@/components/MiniMap'
+import { BORDER_LINE } from '@/lib/border'
 
 interface RosterMember {
   id: string
@@ -315,69 +318,42 @@ export default function Login() {
                 </span>
               </div>
 
-              {/* Tactical Holographic Map Display */}
-              <div className="relative h-48 w-full rounded-lg bg-[#040d1a] border border-cyan-800/40 overflow-hidden flex items-center justify-center">
-                {/* Sonar / Radar Sweep Effect */}
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.12)_0%,transparent_70%)] pointer-events-none" />
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(6,182,212,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(6,182,212,0.06)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
-
-                {/* Concentric Radar Rings */}
-                <div className="absolute w-36 h-36 rounded-full border border-cyan-500/20 pointer-events-none" />
-                <div className="absolute w-24 h-24 rounded-full border border-cyan-500/30 pointer-events-none" />
-                <div className="absolute w-12 h-12 rounded-full border border-cyan-500/40 pointer-events-none" />
-
-                {/* Indicative Border Trace SVG */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-80" viewBox="0 0 300 200">
+              {/* Real Satellite Tactical Map Display */}
+              <div className="relative h-52 w-full rounded-lg bg-[#040d1a] border border-cyan-800/40 overflow-hidden">
+                <MapContainer
+                  center={[28.6, 73.0]}
+                  zoom={5}
+                  className="h-full w-full"
+                  attributionControl={false}
+                  zoomControl={false}
+                  scrollWheelZoom={false}
+                  dragging={false}
+                  doubleClickZoom={false}
+                >
+                  <TileLayer url={TILE_URL} />
                   {/* Western Border Indicative Trace */}
-                  <path
-                    d="M 40,20 Q 70,70 85,110 T 120,180"
-                    fill="none"
-                    stroke="#eab308"
-                    strokeWidth="2"
-                    strokeDasharray="4 3"
-                  />
-                  {/* Drone UAV Vector Flight Route */}
-                  <path
-                    d="M 85,110 L 150,75 L 240,110"
-                    fill="none"
-                    stroke="#06b6d4"
-                    strokeWidth="1.5"
-                    strokeDasharray="3 3"
-                    className="opacity-70"
-                  />
-                </svg>
+                  <Polyline positions={BORDER_LINE} pathOptions={{ color: '#eab308', weight: 2, dashArray: '4 4' }} />
+                  {/* BOP Sundar Node (Jaisalmer) */}
+                  <CircleMarker center={[27.02, 71.2]} radius={7} pathOptions={{ color: '#fff', weight: 2, fillColor: '#ef4444', fillOpacity: 1 }} />
+                  {/* BOP Attari Node (Amritsar) */}
+                  <CircleMarker center={[31.60, 74.57]} radius={6} pathOptions={{ color: '#fff', weight: 2, fillColor: '#f59e0b', fillOpacity: 1 }} />
+                  {/* UAV Flight Vector Line */}
+                  <Polyline positions={[[27.02, 71.2], [28.6, 73.0], [31.60, 74.57]]} pathOptions={{ color: '#06b6d4', weight: 1.5, dashArray: '4 4' }} />
+                  {/* UAV Blip Marker */}
+                  <CircleMarker center={[28.6, 73.0]} radius={5} pathOptions={{ color: '#38bdf8', weight: 2, fillColor: '#0284c7', fillOpacity: 1 }} />
+                </MapContainer>
 
-                {/* Node: BOP Sundar (Jaisalmer) - Pulsing Alert Ping */}
-                <div className="absolute top-[55%] left-[28%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 z-10">
-                  <span className="relative flex h-3.5 w-3.5 items-center justify-center">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-[0_0_8px_#ef4444]" />
-                  </span>
-                  <span className="text-[9px] font-bold text-red-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                    BOP Sundar
-                  </span>
-                </div>
-
-                {/* Node: Amritsar Attari Checkpost - Pulsing Amber Ping */}
-                <div className="absolute top-[22%] left-[30%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 z-10">
-                  <span className="relative flex h-3 w-3 items-center justify-center">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400 shadow-[0_0_6px_#f59e0b]" />
-                  </span>
-                  <span className="text-[9px] font-bold text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                    Attari Sector
-                  </span>
-                </div>
-
-                {/* Tactical UAV Telemetry Pill (Matches Real Map View!) */}
-                <div className="absolute bottom-2 left-2 right-2 bg-slate-900/90 border border-cyan-500/40 rounded px-2 py-1 flex items-center justify-between text-[9px] font-mono shadow-md backdrop-blur-sm z-20">
-                  <div className="flex items-center gap-1.5 text-cyan-300">
-                    <Navigation size={10} className="text-cyan-400 animate-pulse" />
-                    <span className="font-bold">UAV-01</span>
-                    <span className="text-slate-400">ALT 2,100m</span>
-                    <span className="text-slate-400">145 KT</span>
+                {/* Overlaid Tactical UAV Telemetry Pill (Matches Real Map View!) */}
+                <div className="absolute bottom-2 left-2 right-2 bg-slate-900/95 border border-cyan-500/50 rounded px-2.5 py-1.5 flex items-center justify-between text-[9px] font-mono shadow-md backdrop-blur-sm z-[1000]">
+                  <div className="flex items-center gap-2 text-cyan-300">
+                    <Navigation size={11} className="text-cyan-400 animate-pulse" />
+                    <span className="font-bold text-white">UAV-01</span>
+                    <span className="text-slate-300">ALT 2,100m</span>
+                    <span className="text-slate-300">145 KT</span>
                   </div>
-                  <span className="text-emerald-400 font-bold">EO/MWIR</span>
+                  <span className="text-emerald-400 font-bold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                    EO/MWIR
+                  </span>
                 </div>
               </div>
 
