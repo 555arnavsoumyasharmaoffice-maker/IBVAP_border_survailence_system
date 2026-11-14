@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import {
   Shield, Lock, User, UserPlus, AlertTriangle, CheckCircle2,
   Eye, EyeOff, Terminal, Zap, Activity, Radio, KeyRound, ShieldAlert,
-  Cpu, Database, Server, Crosshair, ArrowRight, Sparkles, Radar
+  Cpu, Database, Server, Crosshair, ArrowRight, Sparkles, Radar, MapPin, Navigation, Globe
 } from 'lucide-react'
 import type { Role } from '@/types'
 import { service } from '@/services'
@@ -203,26 +203,26 @@ export default function Login() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(6,182,212,0.15)_0%,rgba(2,6,23,0.95)_70%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(6,182,212,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(6,182,212,0.05)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
 
-        {/* Central Tactical Workstation Terminal */}
-        <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-cyan-500/50 bg-[#071322]/90 backdrop-blur-xl p-8 shadow-[0_0_80px_rgba(6,182,212,0.3)]">
+        {/* Central Tactical Workstation Terminal (Dual-Panel Layout) */}
+        <div className="relative z-10 w-full max-w-5xl rounded-2xl border border-cyan-500/50 bg-[#071322]/95 backdrop-blur-xl p-6 lg:p-8 shadow-[0_0_80px_rgba(6,182,212,0.3)]">
           {/* Tactical Corner Reticles */}
           <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-400" />
           <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-400" />
           <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-400" />
           <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-400" />
 
-          {/* Header */}
+          {/* Master Header */}
           <div className="flex items-center justify-between border-b border-cyan-500/30 pb-4 mb-6">
             <div className="flex items-center gap-3">
-              <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-400/60 bg-cyan-950/60 shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-                <Radar className="text-cyan-400 animate-spin" size={24} style={{ animationDuration: '4s' }} />
+              <div className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/60 bg-cyan-950/60 shadow-[0_0_20px_rgba(6,182,212,0.4)]">
+                <Radar className="text-cyan-400 animate-spin" size={22} style={{ animationDuration: '4s' }} />
                 <span className="absolute inset-0 rounded-xl border border-cyan-300 animate-ping opacity-30" />
               </div>
               <div>
                 <div className="text-[10px] tracking-widest text-cyan-400/80 uppercase">
                   CLASSIFIED DEFENSE GATEWAY // PS-26187
                 </div>
-                <div className="text-lg font-black tracking-wider text-white">
+                <div className="text-base lg:text-lg font-black tracking-wider text-white">
                   ESTABLISHING SECURE TACTICAL WORKSTATION
                 </div>
               </div>
@@ -233,73 +233,161 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Central Animated Progress */}
-          <div className="mb-6 space-y-2">
-            <div className="flex justify-between items-baseline text-xs">
-              <span className="text-cyan-300 flex items-center gap-2">
-                <Activity size={14} className="animate-pulse text-cyan-400" />
-                NEURAL CORE BOOTSTRAP IN PROGRESS...
-              </span>
-              <span className="text-2xl font-black tracking-wider text-cyan-300 font-mono">
-                {bootProgress}%
-              </span>
-            </div>
-
-            {/* Glowing Tactical Progress Bar */}
-            <div className="h-3.5 w-full rounded-full bg-slate-950 border border-cyan-500/40 p-0.5 overflow-hidden shadow-inner">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 shadow-[0_0_15px_rgba(6,182,212,0.8)] transition-all duration-150 ease-out"
-                style={{ width: `${bootProgress}%` }}
-              />
-            </div>
-
-            <div className="flex justify-between text-[11px] text-slate-400 pt-1">
-              <span>Waking up cloud AI analytics & video pipelines</span>
-              <span>Estimated: <span className="text-white font-bold">{remainingSeconds}s</span> remaining</span>
-            </div>
-          </div>
-
-          {/* Live Telemetry Boot Logs */}
-          <div className="rounded-lg border border-cyan-900/60 bg-black/60 p-4 font-mono text-[11px] space-y-2 mb-6 min-h-[185px] shadow-inner">
-            <div className="text-[10px] text-cyan-500/70 uppercase tracking-widest border-b border-cyan-900/40 pb-1 mb-2 flex items-center justify-between">
-              <span>C4ISR BORDER DEFENSE PROTOCOL & SUBSYSTEM CHECKS</span>
-              <span className="text-emerald-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE TELEMETRY
-              </span>
-            </div>
-            {bootLogs.map((log, i) => {
-              const lastBracket = log.lastIndexOf('[')
-              const mainText = lastBracket > 15 ? log.slice(0, lastBracket).trim() : log
-              const statusTag = lastBracket > 15 ? log.slice(lastBracket) : ''
-              return (
-                <div key={i} className="flex items-center justify-between gap-2 text-xs text-cyan-200 py-0.5 animate-fadeIn">
-                  <div className="flex items-center gap-2 truncate">
-                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-                    <span className="font-mono">{mainText}</span>
-                  </div>
-                  {statusTag && (
-                    <span className="text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 shrink-0">
-                      {statusTag.replace(/[\[\]]/g, '')}
-                    </span>
-                  )}
+          {/* Dual Panel: Left = Telemetry & Protocol Checks | Right = Mini Tactical Radar Map Intro */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            
+            {/* Left Column (7 Cols): Progress & Protocol Checks */}
+            <div className="lg:col-span-7 flex flex-col justify-between space-y-4">
+              
+              {/* Animated Progress Bar */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-baseline text-xs">
+                  <span className="text-cyan-300 flex items-center gap-2">
+                    <Activity size={14} className="animate-pulse text-cyan-400" />
+                    C4ISR NEURAL CORE BOOTSTRAP IN PROGRESS...
+                  </span>
+                  <span className="text-2xl font-black tracking-wider text-cyan-300 font-mono">
+                    {bootProgress}%
+                  </span>
                 </div>
-              )
-            })}
-          </div>
 
-          {/* Quick Direct Bypass / Skip Action */}
-          <div className="flex items-center justify-between pt-2 border-t border-cyan-500/20 text-xs">
-            <span className="text-slate-400 text-[11px]">
-              Ready to enter early?
-            </span>
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 hover:text-white transition-all text-xs font-bold shadow-[0_0_15px_rgba(6,182,212,0.2)]"
-            >
-              <span>ENTER COMMAND CENTER NOW</span>
-              <ArrowRight size={14} />
-            </button>
+                <div className="h-3 w-full rounded-full bg-slate-950 border border-cyan-500/40 p-0.5 overflow-hidden shadow-inner">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 shadow-[0_0_15px_rgba(6,182,212,0.8)] transition-all duration-150 ease-out"
+                    style={{ width: `${bootProgress}%` }}
+                  />
+                </div>
+
+                <div className="flex justify-between text-[11px] text-slate-400 pt-0.5">
+                  <span>Waking up cloud AI analytics & video pipelines</span>
+                  <span>Estimated: <span className="text-white font-bold">{remainingSeconds}s</span> remaining</span>
+                </div>
+              </div>
+
+              {/* Live Telemetry Boot Logs */}
+              <div className="rounded-lg border border-cyan-900/60 bg-black/60 p-3.5 font-mono text-[11px] space-y-2 min-h-[195px] shadow-inner">
+                <div className="text-[10px] text-cyan-500/70 uppercase tracking-widest border-b border-cyan-900/40 pb-1 mb-2 flex items-center justify-between">
+                  <span>C4ISR BORDER DEFENSE PROTOCOL & SUBSYSTEM CHECKS</span>
+                  <span className="text-emerald-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE TELEMETRY
+                  </span>
+                </div>
+                {bootLogs.map((log, i) => {
+                  const lastBracket = log.lastIndexOf('[')
+                  const mainText = lastBracket > 15 ? log.slice(0, lastBracket).trim() : log
+                  const statusTag = lastBracket > 15 ? log.slice(lastBracket) : ''
+                  return (
+                    <div key={i} className="flex items-center justify-between gap-2 text-[11px] text-cyan-200 py-0.5 animate-fadeIn">
+                      <div className="flex items-center gap-2 truncate">
+                        <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                        <span className="font-mono truncate">{mainText}</span>
+                      </div>
+                      {statusTag && (
+                        <span className="text-[9px] font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 shrink-0">
+                          {statusTag.replace(/[\[\]]/g, '')}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Status Ticker Line */}
+              <div className="flex items-center justify-between text-[11px] text-cyan-500/80 border-t border-cyan-500/20 pt-2">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  AUTHENTICATED HIGH-SECURITY LINK // DISCIPLINE ACTIVE
+                </span>
+                <span className="text-slate-400 font-mono">DEFCON-3 ARMED</span>
+              </div>
+            </div>
+
+            {/* Right Column (5 Cols): Mini Tactical Border Radar Map Preview */}
+            <div className="lg:col-span-5 flex flex-col justify-between rounded-xl border border-cyan-500/30 bg-slate-950/90 p-4 relative overflow-hidden shadow-inner">
+              {/* Map Header */}
+              <div className="flex items-center justify-between border-b border-cyan-900/50 pb-2 mb-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+                  <Globe size={14} className="text-cyan-400 animate-spin" style={{ animationDuration: '20s' }} />
+                  <span>SECTOR GEOSPATIAL RADAR</span>
+                </div>
+                <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                  27°02'N 71°12'E
+                </span>
+              </div>
+
+              {/* Tactical Holographic Map Display */}
+              <div className="relative h-48 w-full rounded-lg bg-[#040d1a] border border-cyan-800/40 overflow-hidden flex items-center justify-center">
+                {/* Sonar / Radar Sweep Effect */}
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.12)_0%,transparent_70%)] pointer-events-none" />
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(6,182,212,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(6,182,212,0.06)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
+
+                {/* Concentric Radar Rings */}
+                <div className="absolute w-36 h-36 rounded-full border border-cyan-500/20 pointer-events-none" />
+                <div className="absolute w-24 h-24 rounded-full border border-cyan-500/30 pointer-events-none" />
+                <div className="absolute w-12 h-12 rounded-full border border-cyan-500/40 pointer-events-none" />
+
+                {/* Indicative Border Trace SVG */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-80" viewBox="0 0 300 200">
+                  {/* Western Border Indicative Trace */}
+                  <path
+                    d="M 40,20 Q 70,70 85,110 T 120,180"
+                    fill="none"
+                    stroke="#eab308"
+                    strokeWidth="2"
+                    strokeDasharray="4 3"
+                  />
+                  {/* Drone UAV Vector Flight Route */}
+                  <path
+                    d="M 85,110 L 150,75 L 240,110"
+                    fill="none"
+                    stroke="#06b6d4"
+                    strokeWidth="1.5"
+                    strokeDasharray="3 3"
+                    className="opacity-70"
+                  />
+                </svg>
+
+                {/* Node: BOP Sundar (Jaisalmer) - Pulsing Alert Ping */}
+                <div className="absolute top-[55%] left-[28%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 z-10">
+                  <span className="relative flex h-3.5 w-3.5 items-center justify-center">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-[0_0_8px_#ef4444]" />
+                  </span>
+                  <span className="text-[9px] font-bold text-red-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                    BOP Sundar
+                  </span>
+                </div>
+
+                {/* Node: Amritsar Attari Checkpost - Pulsing Amber Ping */}
+                <div className="absolute top-[22%] left-[30%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 z-10">
+                  <span className="relative flex h-3 w-3 items-center justify-center">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400 shadow-[0_0_6px_#f59e0b]" />
+                  </span>
+                  <span className="text-[9px] font-bold text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                    Attari Sector
+                  </span>
+                </div>
+
+                {/* Tactical UAV Telemetry Pill (Matches Real Map View!) */}
+                <div className="absolute bottom-2 left-2 right-2 bg-slate-900/90 border border-cyan-500/40 rounded px-2 py-1 flex items-center justify-between text-[9px] font-mono shadow-md backdrop-blur-sm z-20">
+                  <div className="flex items-center gap-1.5 text-cyan-300">
+                    <Navigation size={10} className="text-cyan-400 animate-pulse" />
+                    <span className="font-bold">UAV-01</span>
+                    <span className="text-slate-400">ALT 2,100m</span>
+                    <span className="text-slate-400">145 KT</span>
+                  </div>
+                  <span className="text-emerald-400 font-bold">EO/MWIR</span>
+                </div>
+              </div>
+
+              {/* Map Footer Info */}
+              <div className="pt-2 text-[10px] text-slate-400 flex items-center justify-between">
+                <span>19 Nodes Georeferenced</span>
+                <span className="text-cyan-400 font-bold">Interactive Map in HUD</span>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
