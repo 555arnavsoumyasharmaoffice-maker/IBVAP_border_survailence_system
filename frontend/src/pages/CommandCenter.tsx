@@ -129,6 +129,7 @@ export default function CommandCenter() {
   const incidents = useIncidents()
 
   const [bottomTab, setBottomTab] = useState<'timeline' | 'seismic'>('timeline')
+  const [activeCamId, setActiveCamId] = useState<string | null>(null)
 
   const kpis = useMemo(() => {
     const ts = now
@@ -315,23 +316,34 @@ export default function CommandCenter() {
           >
             {loading && !cameras.length
               ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-full" />)
-              : visibleCameras.map((c) => (
-                  <div
-                    key={c.id}
-                    role="button"
-                    tabIndex={0}
-                    className="group relative min-h-0 overflow-hidden rounded border border-base-700 bg-black text-left cursor-pointer hover:border-accent/80 transition-colors focus:outline-none focus:ring-1 focus:ring-accent"
-                    onClick={() => navigate(`/cameras?cam=${c.id}`)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        navigate(`/cameras?cam=${c.id}`)
-                      }
-                    }}
-                    title={`Click to open full view for ${c.name}`}
-                  >
-                    <CameraFeed camera={c} className="h-full w-full" />
-                  </div>
-                ))}
+              : visibleCameras.map((c) => {
+                  const isCurrentActive = (activeCamId === c.id) || (!activeCamId && c.id === visibleCameras[0]?.id)
+                  return (
+                    <div
+                      key={c.id}
+                      role="button"
+                      tabIndex={0}
+                      className={`group relative min-h-0 overflow-hidden rounded border text-left cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-accent ${
+                        isCurrentActive ? 'border-accent shadow-[0_0_12px_rgba(56,189,248,0.3)] ring-1 ring-accent' : 'border-base-700 bg-black hover:border-accent/60'
+                      }`}
+                      onClick={() => setActiveCamId(c.id)}
+                      onDoubleClick={() => navigate(`/cameras?cam=${c.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          setActiveCamId(c.id)
+                        }
+                      }}
+                      title={`Click to actively monitor ${c.name} (Double-click for full screen)`}
+                    >
+                      <CameraFeed
+                        camera={c}
+                        active={isCurrentActive}
+                        onEngage={() => setActiveCamId(c.id)}
+                        className="h-full w-full"
+                      />
+                    </div>
+                  )
+                })}
             {!loading && !visibleCameras.length && (
               <div className="panel col-span-full row-span-full flex items-center justify-center p-8">
                 <EmptyState

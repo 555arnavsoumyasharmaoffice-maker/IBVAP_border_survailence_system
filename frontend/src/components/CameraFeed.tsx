@@ -30,6 +30,10 @@ interface Props {
   className?: string
   /** Initial vision mode (defaults to flir if cameraType is thermal, else normal) */
   initialVisionMode?: VisionMode
+  /** When true, actively loads and renders the heavy live stream. When false, stays in low-memory standby mode. */
+  active?: boolean
+  /** Callback fired when user clicks to engage live monitoring */
+  onEngage?: () => void
 }
 
 const CLASS_COLOR: Record<string, string> = {
@@ -199,6 +203,8 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
     hideZoneId,
     className = '',
     initialVisionMode,
+    active = true,
+    onEngage,
   },
   ref,
 ) {
@@ -393,7 +399,7 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
           transformOrigin: 'center center',
         }}
       >
-        {streamUrl && !streamFailed ? (
+        {active && streamUrl && !streamFailed ? (
           <img
             ref={imgRef}
             src={streamUrl}
@@ -415,7 +421,19 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
             <div className="feed-noise absolute inset-0" />
             <div className="feed-lines absolute inset-0" />
             <div className="feed-scan absolute inset-x-0 top-0" />
-            {streamUrl && streamFailed && (
+            {!active && (
+              <div
+                onClick={(e) => { e.stopPropagation(); onEngage?.() }}
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center cursor-pointer bg-black/60 hover:bg-black/40 transition-all p-2 select-none group"
+              >
+                <div className="flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg bg-black/90 border border-cyan-500/50 text-cyan-300 font-mono text-[11px] shadow-[0_0_15px_rgba(6,182,212,0.3)] group-hover:border-cyan-400 group-hover:scale-105 group-hover:text-white transition-all">
+                  <Radio size={14} className="text-cyan-400 animate-pulse" />
+                  <span className="font-bold tracking-wider">CLICK TO MONITOR</span>
+                  <span className="text-[9px] text-cyan-400/70 font-sans">Power-Save Standby</span>
+                </div>
+              </div>
+            )}
+            {active && streamUrl && streamFailed && (
               <div className="absolute inset-x-0 top-1/2 text-center font-mono text-[11px] text-high">
                 STREAM UNAVAILABLE - retrying
               </div>

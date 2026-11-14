@@ -2241,6 +2241,8 @@ class CameraCaptureHub:
 
         self.aerial_trackers: Dict[str, AerialReconTracker] = {}
 
+        self.active_cams: Dict[str, float] = {}
+
         self.running = True
 
 
@@ -2255,6 +2257,34 @@ class CameraCaptureHub:
 
 
 
+    def touch_camera(self, cam_id: str):
+
+        # Keep only the actively viewed camera in memory so RAM stays under 220 MB
+
+        for old_cam in list(self.active_cams.keys()):
+
+            if old_cam != cam_id:
+
+                self.active_cams.pop(old_cam, None)
+
+                with self.get_lock(old_cam):
+
+                    self.latest_jpeg.pop(old_cam, None)
+
+        self.active_cams[cam_id] = time.time()
+
+
+
+    def stop_camera(self, cam_id: str):
+
+        self.active_cams.pop(cam_id, None)
+
+        with self.get_lock(cam_id):
+
+            self.latest_jpeg.pop(cam_id, None)
+
+
+
     def _worker_loop(self, cam_id: str):
 
         current_src = None
@@ -2266,6 +2296,16 @@ class CameraCaptureHub:
 
 
         while self.running:
+
+            now_t = time.time()
+
+            if cam_id not in self.active_cams or (now_t - self.active_cams[cam_id] > 4.0):
+
+                print(f"[HUB] Releasing worker and capture for idle camera: {cam_id}")
+
+                break
+
+
 
             target_src = get_camera_source(cam_id)
 
@@ -3481,14 +3521,14 @@ class CameraCaptureHub:
 
 
         if cap is not None:
-
             try:
-
                 cap.release()
-
             except Exception:
-
                 pass
+        with self.get_lock(cam_id):
+            self.latest_jpeg.pop(cam_id, None)
+            self.workers.pop(cam_id, None)
+        print(f"[HUB] Released worker and memory for {cam_id}")
 
 
 
@@ -3519,6 +3559,7 @@ hub = CameraCaptureHub()
 
 
 def stream_hub_generator(cam_id: str):
+    hub.touch_camera(cam_id)
     hub.ensure_worker(cam_id)
     # If starting up, wait briefly for first frame
     for _ in range(30):
@@ -3527,15 +3568,19 @@ def stream_hub_generator(cam_id: str):
         time.sleep(0.05)
 
     last_bytes = None
-    while True:
-        frame_bytes = hub.get_latest_frame(cam_id)
-        if frame_bytes and frame_bytes != last_bytes:
-            last_bytes = frame_bytes
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(0.035)  # Smooth ~25-28 FPS without socket flooding
-        else:
-            time.sleep(0.020)
+    try:
+        while True:
+            hub.touch_camera(cam_id)
+            frame_bytes = hub.get_latest_frame(cam_id)
+            if frame_bytes and frame_bytes != last_bytes:
+                last_bytes = frame_bytes
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                time.sleep(0.035)  # Smooth ~25-28 FPS without socket flooding
+            else:
+                time.sleep(0.020)
+    finally:
+        hub.stop_camera(cam_id)
 
 
 

@@ -55,13 +55,16 @@ function StatusChip({ camera }: { camera: Camera }) {
   return <Chip className="border-low/50 bg-low/15 text-low">{t('feed.live')}</Chip>
 }
 
-function Tile({ camera, onFocus }: { camera: Camera; onFocus: () => void }) {
+function Tile({ camera, onFocus, active, onEngage }: { camera: Camera; onFocus: () => void; active?: boolean; onEngage?: () => void }) {
   const [overlay, setOverlay] = useState(DEFAULT_OVERLAY)
   return (
-    <div className="panel flex min-h-0 flex-col overflow-hidden">
+    <div className={`panel flex min-h-0 flex-col overflow-hidden transition-all ${active ? 'ring-1 ring-accent border-accent shadow-[0_0_12px_rgba(56,189,248,0.25)]' : ''}`}>
       <div className="flex shrink-0 items-center gap-2 px-2 py-1">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-xs font-semibold">{camera.name}</div>
+        <div className="min-w-0 flex-1 cursor-pointer" onClick={onEngage}>
+          <div className="truncate text-xs font-semibold flex items-center gap-1.5">
+            {camera.name}
+            {active && <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />}
+          </div>
           <div className="flex items-center gap-1 truncate text-[10px] text-ink-mute">
             <MapPin size={9} className="shrink-0" />
             <span className="truncate">{camera.locationName}</span>
@@ -77,8 +80,8 @@ function Tile({ camera, onFocus }: { camera: Camera; onFocus: () => void }) {
           <Maximize2 size={13} />
         </button>
       </div>
-      <div className="min-h-0 flex-1 cursor-pointer" onClick={onFocus}>
-        <CameraFeed camera={camera} showBoxes={overlay.boxes} showZones={overlay.zones} showTrackIds={overlay.ids} hideTopBar className="h-full w-full" />
+      <div className="min-h-0 flex-1 cursor-pointer" onClick={onEngage}>
+        <CameraFeed camera={camera} active={active} onEngage={onEngage} showBoxes={overlay.boxes} showZones={overlay.zones} showTrackIds={overlay.ids} hideTopBar className="h-full w-full" />
       </div>
     </div>
   )
@@ -159,6 +162,7 @@ export default function LiveCameras() {
   const cameras = !bopFilter ? allCameras : bopFilter.startsWith('sec:') ? allCameras.filter((c) => bops.find((b) => b.id === c.bopId)?.sectorId === bopFilter.slice(4)) : allCameras.filter((c) => c.bopId === bopFilter)
   const layout = useUi((s) => s.cameraLayout)
   const [page, setPage] = useState(0)
+  const [activeCamId, setActiveCamId] = useState<string | null>(null)
   const focusId = params.get('cam')
   const focused = allCameras.find((c) => c.id === focusId)
 
@@ -236,9 +240,18 @@ export default function LiveCameras() {
           className="grid min-h-0 flex-1 gap-2"
           style={{ gridTemplateColumns: `repeat(${layout}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${layout}, minmax(0, 1fr))` }}
         >
-          {visible.map((c) => (
-            <Tile key={c.id} camera={c} onFocus={() => setParams({ cam: c.id })} />
-          ))}
+          {visible.map((c) => {
+            const isCurrentActive = (activeCamId === c.id) || (!activeCamId && c.id === visible[0]?.id)
+            return (
+              <Tile
+                key={c.id}
+                camera={c}
+                active={isCurrentActive}
+                onEngage={() => setActiveCamId(c.id)}
+                onFocus={() => setParams({ cam: c.id })}
+              />
+            )
+          })}
         </div>
       )}
     </div>
