@@ -96,56 +96,101 @@ export default function Login() {
     setBooting(true)
     setBootStatus('booting')
     setBootError(null)
-    setBootProgress(15)
+    setBootProgress(12)
     setBootLogs([
-      { id: 'comsec', text: '[COMSEC / TRANSEC] Verifying Military Cryptographic Keys & Command Clearance', status: 'VERIFIED', ok: true },
-      { id: 'telemetry', text: `[C4ISR TELEMETRY] Probing Defense AI Surveillance Engine at ${API_URL}`, status: 'CONNECTING...', ok: true }
+      { id: 'comsec', text: '[COMSEC / TRANSEC] Verifying Military Cryptographic Keys & Command Clearance', status: 'VERIFIED', ok: true }
     ])
 
+    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms))
+
+    // Background wake-up pinger: ping Render immediately and repeatedly so it starts warming up during the 15s sequence
+    let backendReady = false
+    let backendData: any = null
+    const warmUpPromise = (async () => {
+      const deadline = Date.now() + 25000
+      while (Date.now() < deadline && !backendReady) {
+        try {
+          const r = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(6000) })
+          if (r.ok) {
+            backendData = await r.json()
+            backendReady = true
+            break
+          }
+        } catch {
+          // keep warming up
+        }
+        await sleep(1500)
+      }
+    })()
+
+    // 15-Second Authentic Subsystem Boot Sequence
+    // 0s -> 2.5s: Neural Defense Core
+    await sleep(2500)
+    setBootProgress(30)
+    setBootLogs((prev) => [
+      ...prev,
+      { id: 'neural', text: '[NEURAL DEFENSE] Arming Multi-Spectral YOLOv8s Intrusion & Crawling Detection Core', status: 'ARMED', ok: true }
+    ])
+
+    // 2.5s -> 5.5s: Geo-Perimeter Sensors
+    await sleep(3000)
+    setBootProgress(50)
+    setBootLogs((prev) => [
+      ...prev,
+      { id: 'geo', text: '[GEO-PERIMETER] Calibrating Virtual Fence Tripwires & Underground Seismic Sensor Grid', status: 'CALIBRATED', ok: true }
+    ])
+
+    // 5.5s -> 9.0s: UAV Satellite Squadrons
+    await sleep(3500)
+    setBootProgress(70)
+    setBootLogs((prev) => [
+      ...prev,
+      { id: 'sat', text: '[SAT-UAV LINK] Establishing Encrypted Telemetry Uplink with Drone Squadrons & Outposts', status: 'SYNCHRONIZED', ok: true }
+    ])
+
+    // 9.0s -> 12.5s: C4ISR Cloud AI Handshake
+    await sleep(3500)
+    setBootProgress(85)
+    setBootLogs((prev) => [
+      ...prev,
+      { id: 'telemetry', text: `[C4ISR CLOUD TELEMETRY] Final Handshake with Defense AI Surveillance Engine`, status: 'CONNECTING...', ok: true }
+    ])
+
+    // 12.5s -> 15.0s: Final Real Verification Gate
+    await sleep(2500)
+
     try {
-      // 1. Real probe to backend cameras endpoint (with 7s timeout)
-      const res = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(25000) })
-      if (!res.ok) throw new Error(`HTTP ${res.status}: Backend AI service returned status ${res.status}`)
-      const cameras = await res.json()
+      // Ensure backend is ready (if not yet, wait for warmUpPromise or final probe)
+      await warmUpPromise
+
+      let cameras = backendData
+      if (!cameras) {
+        const res = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(10000) })
+        if (!res.ok) throw new Error(`HTTP ${res.status}: Backend AI service returned status ${res.status}`)
+        cameras = await res.json()
+      }
+
       const count = Array.isArray(cameras) ? cameras.length : 19
 
-      // 2. Perform authentic personnel authorization
+      // Perform authentic personnel authorization
       await login(uName.trim(), undefined, uPass)
 
-      // Telemetry verified!
-      setBootProgress(45)
+      // Verified!
+      setBootProgress(95)
       setBootLogs((prev) => [
-        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR TELEMETRY] Connected to AI Engine (${count} Outposts Synchronized)`, status: `${count}/${count} ONLINE`, ok: true } : item)
+        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR CLOUD TELEMETRY] Connected to AI Engine (${count}/${count} Outposts Synchronized)`, status: `${count}/${count} ONLINE`, ok: true } : item)
       ])
 
-      // Timed progression through military defense subsystems
+      await sleep(1000)
+      setBootProgress(100)
+      setBootLogs((prev) => [
+        ...prev,
+        { id: 'sitrep', text: '[SITREP READY] Tactical Workstation Established. Security Clearance: LEVEL-IV TOP SECRET', status: 'ENGAGED', ok: true }
+      ])
+      setBootStatus('verified')
       setTimeout(() => {
-        setBootProgress(70)
-        setBootLogs((prev) => [
-          ...prev,
-          { id: 'neural', text: '[NEURAL DEFENSE] Arming Multi-Spectral YOLOv8s Intrusion & Crawling Detection Core', status: 'ARMED', ok: true }
-        ])
-      }, 1600)
-
-      setTimeout(() => {
-        setBootProgress(88)
-        setBootLogs((prev) => [
-          ...prev,
-          { id: 'geo', text: '[GEO-PERIMETER] Calibrating Virtual Fence Tripwires & Underground Seismic Sensor Grid', status: 'CALIBRATED', ok: true }
-        ])
-      }, 3400)
-
-      setTimeout(() => {
-        setBootProgress(100)
-        setBootLogs((prev) => [
-          ...prev,
-          { id: 'sitrep', text: '[SITREP READY] Tactical Workstation Established. Security Clearance: LEVEL-IV TOP SECRET', status: 'ENGAGED', ok: true }
-        ])
-        setBootStatus('verified')
-        setTimeout(() => {
-          navigate('/')
-        }, 500)
-      }, 5200)
+        navigate('/')
+      }, 600)
 
     } catch (err: any) {
       console.error('Workstation establish error:', err)
@@ -153,7 +198,7 @@ export default function Login() {
       setBootStatus('failed')
       setBootError(msg)
       setBootLogs((prev) => [
-        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR TELEMETRY] Connection Refused to ${API_URL}`, status: 'OFFLINE', ok: false } : item)
+        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR CLOUD TELEMETRY] Connection Refused to ${API_URL}`, status: 'OFFLINE', ok: false } : item)
       ])
     }
   }
@@ -239,9 +284,9 @@ export default function Login() {
     }
   }
 
-  // Tactical Workstation Booting Screen Overlay (10s Cold-start Wake-up & Bootstrap)
+  // Tactical Workstation Booting Screen Overlay (15s Cold-start Wake-up & Bootstrap)
   if (booting) {
-    const remainingSeconds = Math.max(0, Math.ceil((10000 - (bootProgress / 100) * 10000) / 1000))
+    const remainingSeconds = Math.max(0, Math.ceil((15000 - (bootProgress / 100) * 15000) / 1000))
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 font-mono text-cyan-400 select-none p-4 overflow-hidden">
         {/* Background Grid Pattern & Radial glow */}
