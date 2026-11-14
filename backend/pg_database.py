@@ -318,5 +318,16 @@ def seed_pg(cursor):
         ]
         cursor.executemany("INSERT INTO shift_handovers VALUES (%s, %s, %s, %s, %s, %s, %s);", handovers)
 
+    cursor.execute("SELECT COUNT(*) FROM system_users;")
+    if cursor.fetchone()[0] == 0:
+        sys_users = [
+            ("usr-1792571688660", "IBVAP-ADM-3663", "ANSH KUMAR", "ADMIN", "d94dcba87edc5a6a8c2c55086019f0625c917fa9ac164f7cf1e300c024e39fd5", "INSPECTOR", "BOP Sector-4 Bravo", "ACTIVE", now, now),
+            ("usr-01", "IBVAP-ADM-9102", "SI R. Sharma", "ADMIN", "d94dcba87edc5a6a8c2c55086019f0625c917fa9ac164f7cf1e300c024e39fd5", "SUB-INSPECTOR", "Jaisalmer HQ Intelligence", "ACTIVE", now, now),
+            ("usr-02", "IBVAP-CMD-4819", "Insp. A. Rathore", "COMMANDER", "afb43745368b7323fd490a6556613131acd549125468438b2b37dab27f5bcdf2", "INSPECTOR", "Forward Sector Command", "ACTIVE", now, now),
+            ("usr-03", "IBVAP-OP-3312", "Ct. S. Meena", "OPERATOR", "bbc3fecb1d89344071ed4a1e3987649e95dacbb7eb3d7d5b8da962a4e22fe714", "CONSTABLE", "Watchtower Alpha", "ACTIVE", now, now),
+            ("usr-04", "IBVAP-OP-1084", "Ct. V. Gurjar", "OPERATOR", "bbc3fecb1d89344071ed4a1e3987649e95dacbb7eb3d7d5b8da962a4e22fe714", "CONSTABLE", "Patrol Delta", "RETIRED", now, now)
+        ]
+        cursor.executemany("INSERT INTO system_users VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);", sys_users)
+
 if __name__ == "__main__":
     init_pg_db()

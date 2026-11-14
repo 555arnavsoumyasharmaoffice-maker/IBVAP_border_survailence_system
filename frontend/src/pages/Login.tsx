@@ -203,8 +203,14 @@ export default function Login() {
       const msg = err?.message || 'Connection refused'
       setBootStatus('failed')
       setBootError(msg)
+      let detailText = `Connection Refused to ${API_URL}`
+      if (msg.toLowerCase().includes('403') || msg.toLowerCase().includes('retired') || msg.toLowerCase().includes('suspended')) {
+        detailText = 'Officer Access Suspended / Account Retired'
+      } else if (msg.toLowerCase().includes('401') || msg.toLowerCase().includes('password')) {
+        detailText = 'Authentication Failed: Invalid Officer Password'
+      }
       setBootLogs((prev) => [
-        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR CLOUD TELEMETRY] ${msg.toLowerCase().includes('401') || msg.toLowerCase().includes('password') ? 'Authentication Failed: Invalid Officer Password' : `Connection Refused to ${API_URL}`}`, status: 'OFFLINE', ok: false } : item)
+        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR ${isLocal ? 'LOCAL' : 'CLOUD'} TELEMETRY] ${detailText}`, status: 'OFFLINE', ok: false } : item)
       ])
     }
   }
