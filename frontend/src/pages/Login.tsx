@@ -1,12 +1,12 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import {
-  Shield, Lock, User, UserPlus, AlertTriangle, CheckCircle2,
+  Shield, Lock, User, UserPlus, AlertTriangle, CheckCircle2, XCircle, RefreshCw,
   Eye, EyeOff, Terminal, Zap, Activity, Radio, KeyRound, ShieldAlert,
   Cpu, Database, Server, Crosshair, ArrowRight, Sparkles, Radar, MapPin, Navigation, Globe
 } from 'lucide-react'
 import type { Role } from '@/types'
-import { service } from '@/services'
+import { service, API_URL, USE_MOCK } from '@/services'
 import { useAuth } from '@/store/auth'
 import { useT } from '@/i18n'
 import { MapContainer, TileLayer, CircleMarker, Polyline } from 'react-leaflet'
@@ -52,10 +52,20 @@ export default function Login() {
 
   const [timedOut] = useState(() => sessionStorage.getItem('ibvap.timedOut'))
 
-  // Tactical Workstation Booting Sequence (10s Cold-start Wake-up & Bootstrap)
+  // Tactical Workstation Booting Sequence (Real Cold-start Wake-up & Telemetry Verification)
+  interface BootLogItem {
+    id: string
+    text: string
+    status: string
+    ok: boolean
+  }
+
   const [booting, setBooting] = useState(false)
   const [bootProgress, setBootProgress] = useState(0)
-  const [bootLogs, setBootLogs] = useState<string[]>([])
+  const [bootLogs, setBootLogs] = useState<BootLogItem[]>([])
+  const [bootStatus, setBootStatus] = useState<'booting' | 'verified' | 'failed'>('booting')
+  const [bootError, setBootError] = useState<string | null>(null)
+  const [reChecking, setReChecking] = useState(false)
 
   // Load live personnel roster from backend
   const loadRoster = async () => {
@@ -82,49 +92,100 @@ export default function Login() {
     void loadRoster()
   }, [])
 
-  // 10-Second Workstation Establishing & Server Wake-up Timer
-  useEffect(() => {
-    if (!booting) return
+  const runBootSequence = async (uName: string, uPass: string) => {
+    setBooting(true)
+    setBootStatus('booting')
+    setBootError(null)
+    setBootProgress(15)
+    setBootLogs([
+      { id: 'comsec', text: '[COMSEC / TRANSEC] Verifying Military Cryptographic Keys & Command Clearance', status: 'VERIFIED', ok: true },
+      { id: 'telemetry', text: `[C4ISR TELEMETRY] Probing Defense AI Surveillance Engine at ${API_URL}`, status: 'CONNECTING...', ok: true }
+    ])
 
-    // Wake up backend and camera feeds in background
-    void service.getCameras().catch(() => {})
+    try {
+      // 1. Real probe to backend cameras endpoint (with 7s timeout)
+      const res = await fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(7000) })
+      if (!res.ok) throw new Error(`HTTP ${res.status}: Backend AI service returned status ${res.status}`)
+      const cameras = await res.json()
+      const count = Array.isArray(cameras) ? cameras.length : 19
 
-    const totalMs = 10000 // 10 seconds total duration
-    const intervalMs = 100
-    let elapsed = 0
+      // 2. Perform authentic personnel authorization
+      await login(uName.trim(), undefined, uPass)
 
-    const stages = [
-      { at: 300, text: '[COMSEC / TRANSEC] Verifying Military Cryptographic Keys & Command Clearance... [VERIFIED]' },
-      { at: 1800, text: '[C4ISR TELEMETRY] Polling 19 Border Outposts (Jaisalmer Sundar & Amritsar Attari Sector)... [19/19 ONLINE]' },
-      { at: 3800, text: '[NEURAL DEFENSE] Arming Multi-Spectral YOLOv8s Intrusion & Crawling Detection Core... [ARMED]' },
-      { at: 5800, text: '[GEO-PERIMETER] Calibrating Virtual Fence Tripwires & Underground Seismic Sensor Grid... [CALIBRATED]' },
-      { at: 7800, text: '[AIR DEFENSE / ANPR] Synchronizing UAV Anti-Drone Radar & Vehicle Intercept Database... [ACTIVE]' },
-      { at: 9400, text: '[SITREP READY] Tactical Workstation Established. Security Clearance: LEVEL-IV TOP SECRET... [ENGAGED]' },
-    ]
+      // Telemetry verified!
+      setBootProgress(45)
+      setBootLogs((prev) => [
+        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR TELEMETRY] Connected to AI Engine (${count} Outposts Synchronized)`, status: `${count}/${count} ONLINE`, ok: true } : item)
+      ])
 
-    const interval = setInterval(() => {
-      elapsed += intervalMs
-      const pct = Math.min(Math.round((elapsed / totalMs) * 100), 100)
-      setBootProgress(pct)
+      // Timed progression through military defense subsystems
+      setTimeout(() => {
+        setBootProgress(70)
+        setBootLogs((prev) => [
+          ...prev,
+          { id: 'neural', text: '[NEURAL DEFENSE] Arming Multi-Spectral YOLOv8s Intrusion & Crawling Detection Core', status: 'ARMED', ok: true }
+        ])
+      }, 1600)
 
-      stages.forEach((st) => {
-        if (elapsed >= st.at) {
-          setBootLogs((prev) => (prev.includes(st.text) ? prev : [...prev, st.text]))
-        }
-      })
+      setTimeout(() => {
+        setBootProgress(88)
+        setBootLogs((prev) => [
+          ...prev,
+          { id: 'geo', text: '[GEO-PERIMETER] Calibrating Virtual Fence Tripwires & Underground Seismic Sensor Grid', status: 'CALIBRATED', ok: true }
+        ])
+      }, 3400)
 
-      if (elapsed >= totalMs) {
-        clearInterval(interval)
+      setTimeout(() => {
+        setBootProgress(100)
+        setBootLogs((prev) => [
+          ...prev,
+          { id: 'sitrep', text: '[SITREP READY] Tactical Workstation Established. Security Clearance: LEVEL-IV TOP SECRET', status: 'ENGAGED', ok: true }
+        ])
+        setBootStatus('verified')
         setTimeout(() => {
           navigate('/')
-        }, 300)
-      }
-    }, intervalMs)
+        }, 500)
+      }, 5200)
 
-    return () => clearInterval(interval)
-  }, [booting, navigate])
+    } catch (err: any) {
+      console.error('Workstation establish error:', err)
+      const msg = err?.message || 'Connection refused'
+      setBootStatus('failed')
+      setBootError(msg)
+      setBootLogs((prev) => [
+        ...prev.map(item => item.id === 'telemetry' ? { ...item, text: `[C4ISR TELEMETRY] Connection Refused to ${API_URL}`, status: 'OFFLINE', ok: false } : item)
+      ])
+    }
+  }
 
-  if (user && !booting) return <Navigate to="/" replace />
+  const abortBoot = () => {
+    setBooting(false)
+    setBootStatus('booting')
+    setBootError(null)
+    setBusy(false)
+    useAuth.getState().logout()
+  }
+
+  const retryBoot = async () => {
+    setReChecking(true)
+    await runBootSequence(username, password)
+    setReChecking(false)
+  }
+
+  // When Login page is mounted, verify backend connectivity if an old session exists
+  useEffect(() => {
+    if (user && bootStatus !== 'verified') {
+      fetch(`${API_URL}/cameras`, { method: 'GET', signal: AbortSignal.timeout(3000) })
+        .then((res) => {
+          if (!res.ok) useAuth.getState().logout()
+        })
+        .catch(() => {
+          useAuth.getState().logout()
+        })
+    }
+  }, [user, bootStatus])
+
+  if (user && !booting && bootStatus === 'verified') return <Navigate to="/" replace />
 
   const selectRosterMember = (m: RosterMember) => {
     if (m.status === 'RETIRED') {
@@ -149,26 +210,7 @@ export default function Login() {
     setBusy(true)
     setError('')
     sessionStorage.removeItem('ibvap.timedOut')
-
-    // Start booting sequence immediately so user is not redirected early by Zustand state
-    setBooting(true)
-
-    try {
-      await login(username.trim(), undefined, password)
-      // Login succeeded! The 10-second timer will now play the full tactical boot sequence and navigate('/')
-    } catch (err: any) {
-      setBooting(false)
-      setBusy(false)
-      console.error('Login error:', err)
-      const msg = err?.message || 'Access Denied: Invalid Service ID or Password.'
-      if (msg.includes('403') || msg.toLowerCase().includes('retired')) {
-        setError('CRITICAL: Personnel is designated RETIRED/DEACTIVATED. Operational access refused by Defense Security Protocol.')
-      } else if (msg.includes('401') || msg.toLowerCase().includes('password')) {
-        setError('AUTHENTICATION FAILED: Invalid Service ID or Password.')
-      } else {
-        setError(msg)
-      }
-    }
+    await runBootSequence(username, password)
   }
 
   const handleOnboard = async (e: FormEvent) => {
@@ -217,22 +259,28 @@ export default function Login() {
           {/* Master Header */}
           <div className="flex items-center justify-between border-b border-cyan-500/30 pb-4 mb-6">
             <div className="flex items-center gap-3">
-              <div className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/60 bg-cyan-950/60 shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-                <Radar className="text-cyan-400 animate-spin" size={22} style={{ animationDuration: '4s' }} />
-                <span className="absolute inset-0 rounded-xl border border-cyan-300 animate-ping opacity-30" />
+              <div className={`relative flex h-11 w-11 items-center justify-center rounded-xl border ${bootStatus === 'failed' ? 'border-rose-500/70 bg-rose-950/60 shadow-[0_0_20px_rgba(244,63,94,0.4)]' : 'border-cyan-400/60 bg-cyan-950/60 shadow-[0_0_20px_rgba(6,182,212,0.4)]'}`}>
+                {bootStatus === 'failed' ? (
+                  <AlertTriangle className="text-rose-400 animate-pulse" size={22} />
+                ) : (
+                  <>
+                    <Radar className="text-cyan-400 animate-spin" size={22} style={{ animationDuration: '4s' }} />
+                    <span className="absolute inset-0 rounded-xl border border-cyan-300 animate-ping opacity-30" />
+                  </>
+                )}
               </div>
               <div>
-                <div className="text-[10px] tracking-widest text-cyan-400/80 uppercase">
-                  CLASSIFIED DEFENSE GATEWAY // PS-26187
+                <div className={`text-[10px] tracking-widest uppercase ${bootStatus === 'failed' ? 'text-rose-400' : 'text-cyan-400/80'}`}>
+                  {bootStatus === 'failed' ? 'CRITICAL DEFENSE TELEMETRY ALERT // PS-26187' : 'CLASSIFIED DEFENSE GATEWAY // PS-26187'}
                 </div>
                 <div className="text-base lg:text-lg font-black tracking-wider text-white">
-                  ESTABLISHING SECURE TACTICAL WORKSTATION
+                  {bootStatus === 'failed' ? 'TACTICAL WORKSTATION BOOTSTRAP ABORTED' : 'ESTABLISHING SECURE TACTICAL WORKSTATION'}
                 </div>
               </div>
             </div>
             <div className="text-right">
               <div className="text-[10px] text-slate-400">SESSION AUTHENTICATED</div>
-              <div className="text-xs font-bold text-emerald-400">{username}</div>
+              <div className={`text-xs font-bold ${bootStatus === 'failed' ? 'text-rose-400' : 'text-emerald-400'}`}>{username}</div>
             </div>
           </div>
 
@@ -245,25 +293,25 @@ export default function Login() {
               {/* Animated Progress Bar */}
               <div className="space-y-2">
                 <div className="flex justify-between items-baseline text-xs">
-                  <span className="text-cyan-300 flex items-center gap-2">
-                    <Activity size={14} className="animate-pulse text-cyan-400" />
-                    C4ISR NEURAL CORE BOOTSTRAP IN PROGRESS...
+                  <span className={`flex items-center gap-2 ${bootStatus === 'failed' ? 'text-rose-300' : 'text-cyan-300'}`}>
+                    <Activity size={14} className={`animate-pulse ${bootStatus === 'failed' ? 'text-rose-400' : 'text-cyan-400'}`} />
+                    {bootStatus === 'failed' ? 'C4ISR TELEMETRY LINK OFFLINE // ACCESS HALTED' : 'C4ISR NEURAL CORE BOOTSTRAP IN PROGRESS...'}
                   </span>
-                  <span className="text-2xl font-black tracking-wider text-cyan-300 font-mono">
-                    {bootProgress}%
+                  <span className={`text-2xl font-black tracking-wider font-mono ${bootStatus === 'failed' ? 'text-rose-400' : 'text-cyan-300'}`}>
+                    {bootStatus === 'failed' ? 'FAILED' : `${bootProgress}%`}
                   </span>
                 </div>
 
-                <div className="h-3 w-full rounded-full bg-slate-950 border border-cyan-500/40 p-0.5 overflow-hidden shadow-inner">
+                <div className={`h-3 w-full rounded-full bg-slate-950 border p-0.5 overflow-hidden shadow-inner ${bootStatus === 'failed' ? 'border-rose-500/50' : 'border-cyan-500/40'}`}>
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 shadow-[0_0_15px_rgba(6,182,212,0.8)] transition-all duration-150 ease-out"
+                    className={`h-full rounded-full transition-all duration-300 ease-out ${bootStatus === 'failed' ? 'bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 shadow-[0_0_15px_rgba(244,63,94,0.8)]' : 'bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 shadow-[0_0_15px_rgba(6,182,212,0.8)]'}`}
                     style={{ width: `${bootProgress}%` }}
                   />
                 </div>
 
                 <div className="flex justify-between text-[11px] text-slate-400 pt-0.5">
-                  <span>Waking up cloud AI analytics & video pipelines</span>
-                  <span>Estimated: <span className="text-white font-bold">{remainingSeconds}s</span> remaining</span>
+                  <span>{bootStatus === 'failed' ? 'Mock mode disabled: Real AI engine required' : 'Waking up cloud AI analytics & video pipelines'}</span>
+                  <span>{bootStatus === 'failed' ? <span className="text-rose-400 font-bold">TELEMETRY OFFLINE</span> : <>Estimated: <span className="text-white font-bold">{remainingSeconds}s</span> remaining</>}</span>
                 </div>
               </div>
 
@@ -271,37 +319,41 @@ export default function Login() {
               <div className="rounded-lg border border-cyan-900/60 bg-black/60 p-3.5 font-mono text-[11px] space-y-2 min-h-[195px] shadow-inner">
                 <div className="text-[10px] text-cyan-500/70 uppercase tracking-widest border-b border-cyan-900/40 pb-1 mb-2 flex items-center justify-between">
                   <span>C4ISR BORDER DEFENSE PROTOCOL & SUBSYSTEM CHECKS</span>
-                  <span className="text-emerald-400 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE TELEMETRY
+                  <span className={`flex items-center gap-1 ${bootStatus === 'failed' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${bootStatus === 'failed' ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+                    {bootStatus === 'failed' ? 'LINK REFUSED' : 'LIVE TELEMETRY'}
                   </span>
                 </div>
-                {bootLogs.map((log, i) => {
-                  const lastBracket = log.lastIndexOf('[')
-                  const mainText = lastBracket > 15 ? log.slice(0, lastBracket).trim() : log
-                  const statusTag = lastBracket > 15 ? log.slice(lastBracket) : ''
-                  return (
-                    <div key={i} className="flex items-center justify-between gap-2 text-[11px] text-cyan-200 py-0.5 animate-fadeIn">
-                      <div className="flex items-center gap-2 truncate">
+                {bootLogs.map((log) => (
+                  <div key={log.id} className="flex items-center justify-between gap-2 text-[11px] py-0.5 animate-fadeIn">
+                    <div className="flex items-center gap-2 truncate">
+                      {log.ok ? (
                         <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
-                        <span className="font-mono truncate">{mainText}</span>
-                      </div>
-                      {statusTag && (
-                        <span className="text-[9px] font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 shrink-0">
-                          {statusTag.replace(/[\[\]]/g, '')}
-                        </span>
+                      ) : (
+                        <XCircle size={13} className="text-rose-400 shrink-0 animate-pulse" />
                       )}
+                      <span className={`font-mono truncate ${log.ok ? 'text-cyan-200' : 'text-rose-200'}`}>{log.text}</span>
                     </div>
-                  )
-                })}
+                    <span className={`text-[9px] font-bold tracking-wider px-2 py-0.5 rounded shrink-0 border ${
+                      log.ok
+                        ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                        : 'bg-rose-950/70 border-rose-500/50 text-rose-300 animate-pulse'
+                    }`}>
+                      {log.status}
+                    </span>
+                  </div>
+                ))}
               </div>
 
               {/* Status Ticker Line */}
               <div className="flex items-center justify-between text-[11px] text-cyan-500/80 border-t border-cyan-500/20 pt-2">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  AUTHENTICATED HIGH-SECURITY LINK // DISCIPLINE ACTIVE
+                  <span className={`w-2 h-2 rounded-full animate-pulse ${bootStatus === 'failed' ? 'bg-rose-500' : 'bg-emerald-400'}`} />
+                  {bootStatus === 'failed' ? 'COMMUNICATION INTERRUPT // SECURE LOCKDOWN' : 'AUTHENTICATED HIGH-SECURITY LINK // DISCIPLINE ACTIVE'}
                 </span>
-                <span className="text-slate-400 font-mono">DEFCON-3 ARMED</span>
+                <span className={`font-mono ${bootStatus === 'failed' ? 'text-rose-400 font-bold' : 'text-slate-400'}`}>
+                  {bootStatus === 'failed' ? 'DEFCON-1 ALERT' : 'DEFCON-3 ARMED'}
+                </span>
               </div>
             </div>
 
@@ -365,6 +417,48 @@ export default function Login() {
             </div>
 
           </div>
+
+          {/* Critical Failure Diagnostic Card (Shown if Backend Offline / Telemetry Fails) */}
+          {bootStatus === 'failed' && (
+            <div className="mt-5 rounded-xl border border-rose-500/70 bg-rose-950/50 p-4 shadow-[0_0_35px_rgba(244,63,94,0.3)] animate-fadeIn font-mono">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="text-rose-400 shrink-0 mt-0.5" size={22} />
+                <div className="flex-1 space-y-1.5">
+                  <div className="text-xs font-black tracking-wider text-rose-300 uppercase flex items-center gap-2">
+                    <span>CRITICAL TELEMETRY FAILURE // ACCESS REFUSED</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-900/80 border border-rose-500/50 text-rose-200">
+                      MOCK MODE DISABLED
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-200 leading-relaxed font-sans">
+                    The C4ISR Command Center refused entry because the Python AI Surveillance Engine at <code className="text-cyan-300 font-mono px-1.5 py-0.5 bg-black/70 rounded border border-cyan-800/60">{API_URL}</code> did not respond. Synthetic mock mode is disabled to protect operational integrity — live camera streams and YOLOv8 models require an active backend service.
+                  </div>
+                  <div className="text-[10px] text-amber-300/90 pt-0.5">
+                    DIAGNOSTIC: Ensure the backend web service is running locally or deployed on Render/Cloud, then re-ping.
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3.5 flex items-center justify-end gap-3 pt-2.5 border-t border-rose-900/60">
+                <button
+                  type="button"
+                  onClick={abortBoot}
+                  className="px-3.5 py-1.5 rounded-lg border border-slate-700 bg-slate-900/90 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-all font-mono"
+                >
+                  ← RETURN TO CREDENTIALS
+                </button>
+                <button
+                  type="button"
+                  onClick={retryBoot}
+                  disabled={reChecking}
+                  className="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-cyan-500/70 bg-cyan-950/90 text-xs font-bold text-cyan-200 hover:bg-cyan-900 hover:text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all font-mono"
+                >
+                  <RefreshCw size={13} className={reChecking ? 'animate-spin text-cyan-300' : 'text-cyan-400'} />
+                  {reChecking ? 'RE-PINGING TELEMETRY...' : 'RE-PING DEFENSE BACKEND'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     )

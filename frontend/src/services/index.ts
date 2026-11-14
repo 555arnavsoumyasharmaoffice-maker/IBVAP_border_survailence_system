@@ -2,7 +2,7 @@ import type { DataService } from './types'
 import { createMockService } from './mock/mockService'
 import { createApiService } from './api/apiService'
 
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 export const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'
 export const WS_URL: string = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8000/ws'
 
