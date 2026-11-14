@@ -269,6 +269,18 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
   const streamUrl = service.getStreamUrl(camera)
   const hasLiveStream = !!streamUrl && !streamFailed
 
+  useEffect(() => {
+    setStreamFailed(false)
+  }, [camera.id, active, streamUrl])
+
+  useEffect(() => {
+    if (!streamFailed) return
+    const timer = setTimeout(() => {
+      setStreamFailed(false)
+    }, 2500)
+    return () => clearTimeout(timer)
+  }, [streamFailed])
+
   optsRef.current = {
     boxes: showBoxes && !hasLiveStream,
     zones: showZones,
@@ -340,8 +352,18 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
         out.height = overlay.height
         const ctx = out.getContext('2d')!
         const img = imgRef.current
-        if (img && img.naturalWidth) ctx.drawImage(img, 0, 0, out.width, out.height)
-        else {
+        if (img && img.naturalWidth) {
+          try {
+            ctx.drawImage(img, 0, 0, out.width, out.height)
+          } catch {
+            // cross-origin tainted canvas fallback: draw background gradient
+            const g = ctx.createLinearGradient(0, 0, 0, out.height)
+            g.addColorStop(0, camera.isNightMode ? '#04130c' : '#101b2e')
+            g.addColorStop(1, camera.isNightMode ? '#051209' : '#121a15')
+            ctx.fillStyle = g
+            ctx.fillRect(0, 0, out.width, out.height)
+          }
+        } else {
           const g = ctx.createLinearGradient(0, 0, 0, out.height)
           g.addColorStop(0, camera.isNightMode ? '#04130c' : '#101b2e')
           g.addColorStop(0.47, camera.isNightMode ? '#0a2416' : '#17263d')
@@ -404,7 +426,6 @@ export const CameraFeed = forwardRef<CameraFeedHandle, Props>(function CameraFee
             ref={imgRef}
             src={streamUrl}
             alt={camera.name}
-            crossOrigin="anonymous"
             onError={() => setStreamFailed(true)}
             className={`h-full w-full object-fill ${visionClass}`}
           />
