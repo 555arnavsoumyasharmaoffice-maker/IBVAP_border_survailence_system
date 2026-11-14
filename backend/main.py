@@ -2283,6 +2283,7 @@ def is_aerial_feed(cam_id: str) -> bool:
 
 _GLOBAL_CLAHE_THERMAL = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
 _GLOBAL_CLAHE_IR = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+_GLOBAL_INFERENCE_LOCK = threading.Lock()
 
 class CameraCaptureHub:
 
@@ -2334,6 +2335,9 @@ class CameraCaptureHub:
         pass
 
     def _run_inference_bg(self, cam_id: str, frame: np.ndarray):
+        if not _GLOBAL_INFERENCE_LOCK.acquire(blocking=False):
+            self.is_inferring[cam_id] = False
+            return
         try:
             if yolo_model is None:
                 return
@@ -3192,6 +3196,10 @@ class CameraCaptureHub:
         except Exception as e:
             pass
         finally:
+            try:
+                _GLOBAL_INFERENCE_LOCK.release()
+            except Exception:
+                pass
             self.is_inferring[cam_id] = False
 
     def _worker_loop(self, cam_id: str):
@@ -3561,7 +3569,8 @@ class CameraCaptureHub:
 
 
 
-            ret, jpeg = cv2.imencode('.jpg', frame_out, [cv2.IMWRITE_JPEG_QUALITY, 65])
+            jpeg_quality = 50 if IS_CLOUD else 65
+            ret, jpeg = cv2.imencode('.jpg', frame_out, [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality])
 
             if ret:
 
@@ -3572,13 +3581,14 @@ class CameraCaptureHub:
 
 
 
-            # Dynamic balanced pacing: target smooth ~30-33 FPS natural playback
+            # Dynamic balanced pacing: target smooth ~28-33 FPS natural playback
             proc_time = time.time() - loop_start_t
-            sleep_needed = 0.030 - proc_time
+            target_period = 0.036 if IS_CLOUD else 0.030
+            sleep_needed = target_period - proc_time
             if sleep_needed > 0.003:
                 time.sleep(sleep_needed)
             else:
-                time.sleep(0.001)
+                time.sleep(0.002)
 
 
 
@@ -3635,9 +3645,16 @@ def stream_hub_generator(cam_id: str):
         time.sleep(0.05)
 
     last_seq = -1
+    last_touch = time.time()
+    sleep_frame = 0.035 if IS_CLOUD else 0.020 # ~28-30 FPS on Cloud to prevent buffer bloat
+    sleep_idle = 0.020 if IS_CLOUD else 0.005
     try:
         while True:
-            hub.touch_camera(cam_id)
+            now_t = time.time()
+            if now_t - last_touch > 4.0:
+                hub.touch_camera(cam_id)
+                last_touch = now_t
+
             seq, frame_bytes = hub.get_latest_frame_with_seq(cam_id)
             if frame_bytes and seq != last_seq:
                 last_seq = seq
@@ -3647,9 +3664,9 @@ def stream_hub_generator(cam_id: str):
                     b'Content-Length: ' + str(len(frame_bytes)).encode('ascii') + b'\r\n\r\n' +
                     frame_bytes + b'\r\n'
                 )
-                time.sleep(0.008)
+                time.sleep(sleep_frame)
             else:
-                time.sleep(0.003)
+                time.sleep(sleep_idle)
     finally:
         pass
 
