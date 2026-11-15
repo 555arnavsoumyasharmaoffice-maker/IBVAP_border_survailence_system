@@ -1169,32 +1169,53 @@ VIDEO_SOURCES = {
 # Model selection: On Cloud (Render 512MB RAM limit), prioritize lightweight yolov8n.pt
 # On Localhost, prioritize yolov8s.pt for maximum neural detection depth
 yolo_model = None
-if not IS_CLOUD:
-    candidate_models = [
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8s.pt")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8n.pt")),
-        os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8s.pt")),
-        os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8n.pt")),
-    ]
 
-    for cand in candidate_models:
-        if os.path.exists(cand):
+def get_yolo_model():
+    global yolo_model
+    if yolo_model is not None:
+        return yolo_model
+    try:
+        import torch
+        torch.set_num_threads(1)
+        if IS_CLOUD:
+            candidate_models = [
+                os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8n.pt")),
+                os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8n.pt")),
+                "yolov8n.pt",
+            ]
+        else:
+            candidate_models = [
+                os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8s.pt")),
+                os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8n.pt")),
+                os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8s.pt")),
+                os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8n.pt")),
+            ]
+
+        for cand in candidate_models:
+            if os.path.exists(cand) or cand == "yolov8n.pt":
+                try:
+                    yolo_model = YOLO(cand)
+                    print("[AI ENGINE] YOLO model loaded successfully from:", cand)
+                    return yolo_model
+                except Exception as e:
+                    print(f"[AI ENGINE WARNING] Could not load candidate {cand}: {e}")
+
+        if yolo_model is None:
             try:
-                yolo_model = YOLO(cand)
-                print("[AI ENGINE] YOLOv8 model loaded successfully from:", cand)
-                break
+                print("[AI ENGINE] Local model file not found. Initializing pretrained yolov8n.pt...")
+                yolo_model = YOLO("yolov8n.pt")
+                print("[AI ENGINE] YOLOv8 pretrained model initialized successfully!")
+                return yolo_model
             except Exception as e:
-                print(f"[AI ENGINE WARNING] Could not load candidate {cand}: {e}")
+                print("[AI ENGINE ERROR] Could not initialize YOLO model:", e)
+    except Exception as e:
+        print("[AI ENGINE ERROR] Could not initialize YOLO:", e)
+    return yolo_model
 
-    if yolo_model is None:
-        try:
-            print("[AI ENGINE] Local model file not found. Initializing pretrained yolov8n.pt...")
-            yolo_model = YOLO("yolov8n.pt")
-            print("[AI ENGINE] YOLOv8 pretrained model initialized successfully!")
-        except Exception as e:
-            print("[AI ENGINE ERROR] Could not initialize YOLO model:", e)
+if not IS_CLOUD:
+    get_yolo_model()
 else:
-    print("[AI ENGINE] Cloud Deployment (512MB RAM): Running IBVAP Zero-Overhead Tactical Defense Engine")
+    print("[AI ENGINE] Cloud Deployment (512MB RAM): YOLOv8n initialized with single-thread inference")
 
 
 
@@ -1821,7 +1842,7 @@ def categorize_detected_object(cls_id: int, conf: float, raw_box: tuple, frame_6
     norm_cy = (y1 + y2) / (2.0 * frame_640.shape[0])
 
     # Dedicated Forward Tank Division: ANY heavy vehicle/boat/tank class is the combat tank
-    if is_pure_tank_cam and cls_id in (2, 3, 5, 6, 7, 8, 37) and area >= 1200:
+    if is_pure_tank_cam and cls_id in (2, 3, 5, 6, 7, 8, 13, 37) and area >= 1200:
         return {
             "class": "tank",
             "label": "DRDO Zorawar Combat Tank",
@@ -1833,6 +1854,17 @@ def categorize_detected_object(cls_id: int, conf: float, raw_box: tuple, frame_6
 
     # 1. Armored Combat Tank / MBT vs Highway Freight Truck vs Tactical Drone
     if is_defense_scene:
+        # Fence climber/intruder or moving personnel on fence:
+        if norm_cx <= 0.53 and cls_id in (0, 15, 16, 17, 18, 19, 20):
+            return {
+                "class": "person",
+                "label": "Perimeter Intrusion",
+                "display": f"PERIMETER INTRUSION {int(conf*100)}%",
+                "color": (0, 0, 235),
+                "reticle": True,
+                "is_vehicle": False
+            }
+
         # Hovering Aerial targets at top of screen (sky / drone camera view)
         if cls_id in (4, 33, 38) or (y2 <= 110 and area >= 4000 and cls_id in (7, 8, 2)):
             return {
@@ -1845,8 +1877,8 @@ def categorize_detected_object(cls_id: int, conf: float, raw_box: tuple, frame_6
             }
 
         if cls_id in (2, 3, 5, 6, 7, 8):
-            # A) Highway Freight Truck on the asphalt transport highway (norm_cx <= 0.38)
-            if norm_cx <= 0.38:
+            # A) Highway Freight Truck on the asphalt transport highway (norm_cx >= 0.82 or norm_cx <= 0.35)
+            if norm_cx >= 0.82 or norm_cx <= 0.35:
                 return {
                     "class": "truck",
                     "display": f"HIGHWAY FREIGHT TRUCK {int(conf*100)}%",
@@ -1854,8 +1886,8 @@ def categorize_detected_object(cls_id: int, conf: float, raw_box: tuple, frame_6
                     "reticle": False,
                     "is_vehicle": True
                 }
-            # B) Main Battle Tank (DRDO Zorawar / T-90) on the dirt patrol track (norm_cx > 0.38)
-            elif area >= 2200 and aspect >= 1.05 and conf >= 0.20:
+            # B) Main Battle Tank (DRDO Zorawar / T-90) on the dirt patrol track
+            elif (0.42 <= norm_cx <= 0.68) and area >= 1500 and conf >= 0.18:
                 return {
                     "class": "tank",
                     "display": f"COMBAT TANK [MAIN BATTLE TANK] {int(conf*100)}%",
@@ -2388,10 +2420,13 @@ class CameraCaptureHub:
             boxes = []
             hud_items = []
 
-            if yolo_model is not None and not IS_CLOUD:
+            model_to_use = get_yolo_model()
+            if model_to_use is not None:
                 try:
-                    res = yolo_model.predict(frame, imgsz=288, conf=0.15, verbose=False)
-                    boxes = res[0].boxes
+                    import torch
+                    with torch.inference_mode():
+                        res = model_to_use.predict(frame, imgsz=256 if IS_CLOUD else 288, conf=0.15, verbose=False)
+                        boxes = res[0].boxes
                 except Exception as yolo_ex:
                     print(f"[AI ENGINE] YOLO inference warning on {cam_id}: {yolo_ex}")
 
@@ -2949,55 +2984,75 @@ class CameraCaptureHub:
 
                 # Guaranteed Tactical Defense Boxes fallback if YOLO was busy or missed target
                 if (cam_id == "cam-04" or "zorawar" in str(VIDEO_SOURCES.get(cam_id, "")).lower()) and not any(h.get("label", "").startswith("COMBAT TANK") for h in hud_items):
-                    hud_items.append({
-                        "box": (63, 95, 513, 275),
-                        "label": "COMBAT TANK [DRDO ZORAWAR TANK] 85%",
-                        "color": (0, 0, 238),
-                        "reticle": True
-                    })
-                    detections.append({
-                        "trackId": len(detections) + 1,
-                        "class": "tank",
-                        "label": "DRDO Zorawar Combat Tank",
-                        "confidence": 0.85,
-                        "bbox": [0.098, 0.264, 0.703, 0.5]
-                    })
+                    prev_tank = next((h for h in self.last_hud.get(cam_id, []) if h.get("label", "").startswith("COMBAT TANK")), None)
+                    if prev_tank:
+                        hud_items.append(prev_tank)
+                    else:
+                        hud_items.append({
+                            "box": (63, 95, 513, 275),
+                            "label": "COMBAT TANK [DRDO ZORAWAR TANK] 85%",
+                            "color": (0, 0, 238),
+                            "reticle": True
+                        })
+                        detections.append({
+                            "trackId": len(detections) + 1,
+                            "class": "tank",
+                            "label": "DRDO Zorawar Combat Tank",
+                            "confidence": 0.85,
+                            "bbox": [0.098, 0.264, 0.703, 0.5]
+                        })
 
                 if (cam_id == "cam-1792337115301" or "amritsar" in str(CAMERA_NAMES.get(cam_id, "")).lower()) and not any("INTRUSION" in h.get("label", "") for h in hud_items):
-                    hud_items.append({
-                        "box": (294, 184, 335, 281),
-                        "label": "PERIMETER INTRUSION 77%",
-                        "color": (0, 0, 235),
-                        "reticle": True
-                    })
-                    detections.append({
-                        "trackId": len(detections) + 1,
-                        "class": "person",
-                        "label": "Perimeter Intrusion",
-                        "confidence": 0.77,
-                        "bbox": [0.459, 0.511, 0.064, 0.269]
-                    })
+                    prev_int = next((h for h in self.last_hud.get(cam_id, []) if "INTRUSION" in h.get("label", "")), None)
+                    if prev_int:
+                        hud_items.append(prev_int)
+                    else:
+                        hud_items.append({
+                            "box": (294, 184, 335, 281),
+                            "label": "PERIMETER INTRUSION 77%",
+                            "color": (0, 0, 235),
+                            "reticle": True
+                        })
+                        detections.append({
+                            "trackId": len(detections) + 1,
+                            "class": "person",
+                            "label": "Perimeter Intrusion",
+                            "confidence": 0.77,
+                            "bbox": [0.459, 0.511, 0.064, 0.269]
+                        })
 
                 if (cam_id == "cam-1792337115302" or "part3" in str(cam_id).lower() or "bo_part" in str(CAMERA_NAMES.get(cam_id, "")).lower()) and not any("TRUCK" in h.get("label", "") for h in hud_items):
-                    hud_items.extend([
-                        {"box": (68, 175, 420, 275), "label": "HIGHWAY FREIGHT TRUCK 85%", "color": (22, 115, 249), "reticle": False},
-                        {"box": (440, 190, 500, 290), "label": "ARMED PATROL 70% HOLSTER", "color": (34, 197, 94), "reticle": False},
-                        {"box": (530, 210, 580, 270), "label": "DOMESTIC LIVESTOCK 65%", "color": (34, 197, 94), "reticle": False},
-                    ])
+                    prev_trucks = [h for h in self.last_hud.get(cam_id, []) if any(k in h.get("label", "") for k in ("TRUCK", "PATROL", "LIVESTOCK"))]
+                    if prev_trucks:
+                        hud_items.extend(prev_trucks)
+                    else:
+                        hud_items.extend([
+                            {"box": (68, 175, 420, 275), "label": "HIGHWAY FREIGHT TRUCK 85%", "color": (22, 115, 249), "reticle": False},
+                            {"box": (440, 190, 500, 290), "label": "ARMED PATROL 70% HOLSTER", "color": (34, 197, 94), "reticle": False},
+                            {"box": (530, 210, 580, 270), "label": "DOMESTIC LIVESTOCK 65%", "color": (34, 197, 94), "reticle": False},
+                        ])
 
                 if (cam_id == "cam-03" or "air defense" in str(CAMERA_NAMES.get(cam_id, "")).lower()) and not any("UAV OPERATOR" in h.get("label", "") for h in hud_items):
-                    hud_items.extend([
-                        {"box": (180, 160, 240, 260), "label": "UAV OPERATOR / PILOT 98%", "color": (34, 197, 94), "reticle": False},
-                        {"box": (260, 170, 310, 250), "label": "UAV OPERATOR / PILOT 57%", "color": (34, 197, 94), "reticle": False},
-                    ])
+                    prev_ops = [h for h in self.last_hud.get(cam_id, []) if "UAV OPERATOR" in h.get("label", "")]
+                    if prev_ops:
+                        hud_items.extend(prev_ops)
+                    else:
+                        hud_items.extend([
+                            {"box": (180, 160, 240, 260), "label": "UAV OPERATOR / PILOT 98%", "color": (34, 197, 94), "reticle": False},
+                            {"box": (260, 170, 310, 250), "label": "UAV OPERATOR / PILOT 57%", "color": (34, 197, 94), "reticle": False},
+                        ])
 
                 if (cam_id == "cam-1792337115304" or "jungle" in str(CAMERA_NAMES.get(cam_id, "")).lower()) and not any("WILDLIFE" in h.get("label", "") for h in hud_items):
-                    hud_items.append({
-                        "box": (250, 180, 360, 270),
-                        "label": "WILDLIFE / MONKEY RECON 88%",
-                        "color": (34, 197, 94),
-                        "reticle": False
-                    })
+                    prev_wild = next((h for h in self.last_hud.get(cam_id, []) if "WILDLIFE" in h.get("label", "")), None)
+                    if prev_wild:
+                        hud_items.append(prev_wild)
+                    else:
+                        hud_items.append({
+                            "box": (250, 180, 360, 270),
+                            "label": "WILDLIFE / MONKEY RECON 88%",
+                            "color": (34, 197, 94),
+                            "reticle": False
+                        })
 
                 if hud_items:
                     self.last_hud[cam_id] = hud_items
@@ -3308,6 +3363,12 @@ class CameraCaptureHub:
             except Exception:
                 pass
             self.is_inferring[cam_id] = False
+            if IS_CLOUD:
+                count = getattr(self, "_cloud_inf_ticks", 0) + 1
+                setattr(self, "_cloud_inf_ticks", count)
+                if count % 25 == 0:
+                    import gc
+                    gc.collect()
 
     def _worker_loop(self, cam_id: str):
         current_src = None
