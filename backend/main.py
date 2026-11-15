@@ -1169,9 +1169,10 @@ VIDEO_SOURCES = {
 # Model selection: On Cloud (Render 512MB RAM limit), prioritize lightweight yolov8n.pt
 # On Localhost, prioritize yolov8s.pt for maximum neural detection depth
 yolo_model = None
+_YOLO_LOAD_STATUS = "unloaded"
 
 def get_yolo_model():
-    global yolo_model
+    global yolo_model, _YOLO_LOAD_STATUS
     if yolo_model is not None:
         return yolo_model
     try:
@@ -1195,20 +1196,25 @@ def get_yolo_model():
             if os.path.exists(cand) or cand == "yolov8n.pt":
                 try:
                     yolo_model = YOLO(cand)
+                    _YOLO_LOAD_STATUS = f"Loaded {cand}"
                     print("[AI ENGINE] YOLO model loaded successfully from:", cand)
                     return yolo_model
                 except Exception as e:
+                    _YOLO_LOAD_STATUS = f"Err loading {cand}: {e}"
                     print(f"[AI ENGINE WARNING] Could not load candidate {cand}: {e}")
 
         if yolo_model is None:
             try:
                 print("[AI ENGINE] Local model file not found. Initializing pretrained yolov8n.pt...")
                 yolo_model = YOLO("yolov8n.pt")
+                _YOLO_LOAD_STATUS = "Loaded fallback yolov8n.pt"
                 print("[AI ENGINE] YOLOv8 pretrained model initialized successfully!")
                 return yolo_model
             except Exception as e:
+                _YOLO_LOAD_STATUS = f"Err pretrained: {e}"
                 print("[AI ENGINE ERROR] Could not initialize YOLO model:", e)
     except Exception as e:
+        _YOLO_LOAD_STATUS = f"Fatal load error: {e}"
         print("[AI ENGINE ERROR] Could not initialize YOLO:", e)
     return yolo_model
 
@@ -3865,14 +3871,18 @@ def camera_stream_endpoint(cam_id: str):
 
 @app.get("/api/system/ai-status")
 def get_system_ai_status():
-    global yolo_model, hub
+    global yolo_model, hub, _YOLO_LOAD_STATUS
     return {
         "engine": "YOLOv8s Neural Local" if not IS_CLOUD else "IBVAP High-Performance Cloud Defense Engine",
+        "version": "v1.2.0-dynamic-yolo",
         "is_cloud": IS_CLOUD,
         "ram_safe": True,
+        "yolo_loaded": yolo_model is not None,
+        "yolo_status": globals().get("_YOLO_LOAD_STATUS", "not_attempted"),
         "active_cams": list(hub.active_cams.keys()),
         "is_inferring": getattr(hub, "is_inferring", {}),
         "last_hud": {k: [item.get("label") for item in v] for k, v in getattr(hub, "last_hud", {}).items()},
+        "last_hud_boxes": {k: [item.get("box") for item in v] for k, v in getattr(hub, "last_hud", {}).items()},
     }
 
 
@@ -3892,6 +3902,9 @@ def startup_event():
         main_loop = asyncio.get_event_loop()
 
     load_video_sources_from_db()
+    # On Cloud, preload YOLOv8n in a daemon thread so it is warm for the first stream
+    if IS_CLOUD:
+        threading.Thread(target=get_yolo_model, daemon=True).start()
 
 
 
