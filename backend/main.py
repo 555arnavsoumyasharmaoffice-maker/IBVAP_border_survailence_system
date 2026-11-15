@@ -1169,14 +1169,7 @@ VIDEO_SOURCES = {
 # Model selection: On Cloud (Render 512MB RAM limit), prioritize lightweight yolov8n.pt
 # On Localhost, prioritize yolov8s.pt for maximum neural detection depth
 yolo_model = None
-if IS_CLOUD:
-    candidate_models = [
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8n.pt")),
-        os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8n.pt")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8s.pt")),
-        os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8s.pt")),
-    ]
-else:
+if not IS_CLOUD:
     candidate_models = [
         os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8s.pt")),
         os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8n.pt")),
@@ -1184,22 +1177,24 @@ else:
         os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8n.pt")),
     ]
 
-for cand in candidate_models:
-    if os.path.exists(cand):
+    for cand in candidate_models:
+        if os.path.exists(cand):
+            try:
+                yolo_model = YOLO(cand)
+                print("[AI ENGINE] YOLOv8 model loaded successfully from:", cand)
+                break
+            except Exception as e:
+                print(f"[AI ENGINE WARNING] Could not load candidate {cand}: {e}")
+
+    if yolo_model is None:
         try:
-            yolo_model = YOLO(cand)
-            print("[AI ENGINE] YOLOv8 model loaded successfully from:", cand)
-            break
+            print("[AI ENGINE] Local model file not found. Initializing pretrained yolov8n.pt...")
+            yolo_model = YOLO("yolov8n.pt")
+            print("[AI ENGINE] YOLOv8 pretrained model initialized successfully!")
         except Exception as e:
-            print(f"[AI ENGINE WARNING] Could not load candidate {cand}: {e}")
-
-if yolo_model is None:
-    try:
-        print("[AI ENGINE] Local model file not found. Initializing pretrained yolov8n.pt...")
-        yolo_model = YOLO("yolov8n.pt")
-        print("[AI ENGINE] YOLOv8 pretrained model initialized successfully!")
-    except Exception as e:
-        print("[AI ENGINE ERROR] Could not initialize YOLO model:", e)
+            print("[AI ENGINE ERROR] Could not initialize YOLO model:", e)
+else:
+    print("[AI ENGINE] Cloud Deployment (512MB RAM): Running IBVAP Zero-Overhead Tactical Defense Engine")
 
 
 
@@ -2389,20 +2384,6 @@ class CameraCaptureHub:
             self.is_inferring[cam_id] = False
             return
         try:
-            global yolo_model
-            if yolo_model is None:
-                try:
-                    for cand_m in [
-                        os.path.abspath(os.path.join(os.path.dirname(__file__), "yolov8n.pt")),
-                        os.path.abspath(os.path.join(PROJECT_ROOT, "yolov8n.pt")),
-                        "yolov8n.pt",
-                    ]:
-                        if os.path.exists(cand_m) or cand_m == "yolov8n.pt":
-                            yolo_model = YOLO(cand_m)
-                            break
-                except Exception:
-                    pass
-
             detections = []
             boxes = []
             hud_items = []
