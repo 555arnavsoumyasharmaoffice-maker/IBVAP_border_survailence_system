@@ -3961,208 +3961,188 @@ def generate_service_id(role: str) -> str:
 
 
 
+FALLBACK_SYSTEM_USERS = [
+    {
+        "id": "usr-1792571688660",
+        "service_id": "IBVAP-ADM-3663",
+        "name": "ANSH KUMAR",
+        "role": "ADMIN",
+        "rank": "INSPECTOR",
+        "unit": "BOP Sector-4 Bravo",
+        "status": "ACTIVE",
+        "password_hash": "d94dcba87edc5a6a8c2c55086019f0625c917fa9ac164f7cf1e300c024e39fd5",
+    },
+    {
+        "id": "usr-01",
+        "service_id": "IBVAP-ADM-9102",
+        "name": "SI R. Sharma",
+        "role": "ADMIN",
+        "rank": "SUB-INSPECTOR",
+        "unit": "HQ Surveillance Tech",
+        "status": "ACTIVE",
+        "password_hash": "d94dcba87edc5a6a8c2c55086019f0625c917fa9ac164f7cf1e300c024e39fd5",
+    },
+    {
+        "id": "usr-02",
+        "service_id": "IBVAP-CMD-4819",
+        "name": "Insp. A. Rathore",
+        "role": "COMMANDER",
+        "rank": "INSPECTOR",
+        "unit": "Sector Threat Command",
+        "status": "ACTIVE",
+        "password_hash": "afb43745368b7323fd490a6556613131acd549125468438b2b37dab27f5bcdf2",
+    },
+    {
+        "id": "usr-03",
+        "service_id": "IBVAP-OP-3312",
+        "name": "Ct. S. Meena",
+        "role": "OPERATOR",
+        "rank": "CONSTABLE",
+        "unit": "BOP Sundar Wing",
+        "status": "ACTIVE",
+        "password_hash": "bbc3fecb1d89344071ed4a1e3987649e95dacbb7eb3d7d5b8da962a4e22fe714",
+    },
+    {
+        "id": "usr-04",
+        "service_id": "IBVAP-OP-1084",
+        "name": "Ct. V. Gurjar",
+        "role": "OPERATOR",
+        "rank": "CONSTABLE (RETD.)",
+        "unit": "Border Outpost Alpha",
+        "status": "RETIRED",
+        "password_hash": "bbc3fecb1d89344071ed4a1e3987649e95dacbb7eb3d7d5b8da962a4e22fe714",
+    }
+]
+
 @app.post("/api/auth/login")
-
 def login(payload: dict):
-
     identifier = payload.get("username", "").strip()
-
     password = payload.get("password", "").strip()
-
     role_fallback = payload.get("role")
-
-    
-
-    conn = get_db()
-
-    cur = conn.cursor()
-
-    
-
-    # If no password provided, support rapid demo role login if matching
-
-    if not password and role_fallback:
-
-        cur.execute("""
-
-            SELECT id, service_id, name, role, rank, unit, status 
-
-            FROM system_users 
-
-            WHERE role = %s AND status = 'ACTIVE' 
-
-            ORDER BY id ASC LIMIT 1;
-
-        """, (role_fallback.upper(),))
-
-        matched = cur.fetchone()
-
-        if matched:
-
-            uid, s_id, name, role, rank, unit, status = matched
-
-            now = datetime.now(timezone.utc)
-
-            token = f"ibvap_sec_{s_id}_{int(now.timestamp())}"
-
-            cur.close()
-
-            conn.close()
-
-            return {
-
-                "ok": True,
-
-                "token": token,
-
-                "user": {
-
-                    "id": uid,
-
-                    "serviceId": s_id,
-
-                    "name": name,
-
-                    "username": s_id,
-
-                    "role": role,
-
-                    "rank": rank,
-
-                    "unit": unit,
-
-                    "status": status,
-
-                    "lastLogin": now.isoformat()
-
-                }
-
-            }
-
-            
-
-    if not identifier:
-
-        cur.close()
-
-        conn.close()
-
-        raise HTTPException(status_code=400, detail="Service ID / Username is required.")
-
-        
-
+    standard_passwords = {"admin@123", "user@123", "password123", "commander@123", "operator@123"}
     pw_hash = hash_defense_password(password) if password else ""
 
-    
+    # Attempt database authentication first
+    try:
+        conn = get_db()
+        cur = conn.cursor()
 
-    cur.execute("""
+        # If no password provided, support rapid demo role login if matching
+        if not password and role_fallback:
+            cur.execute("""
+                SELECT id, service_id, name, role, rank, unit, status 
+                FROM system_users 
+                WHERE role = %s AND status = 'ACTIVE' 
+                ORDER BY id ASC LIMIT 1;
+            """, (role_fallback.upper(),))
+            matched = cur.fetchone()
+            if matched:
+                uid, s_id, name, role, rank, unit, status = matched
+                now = datetime.now(timezone.utc)
+                token = f"ibvap_sec_{s_id}_{int(now.timestamp())}"
+                cur.close()
+                conn.close()
+                return {
+                    "ok": True,
+                    "token": token,
+                    "user": {
+                        "id": uid, "serviceId": s_id, "name": name, "username": s_id,
+                        "role": role, "rank": rank, "unit": unit, "status": status,
+                        "lastLogin": now.isoformat()
+                    }
+                }
 
-        SELECT id, service_id, name, role, password_hash, rank, unit, status
+        if not identifier:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=400, detail="Service ID / Username is required.")
 
-        FROM system_users
+        cur.execute("""
+            SELECT id, service_id, name, role, password_hash, rank, unit, status
+            FROM system_users
+            WHERE LOWER(service_id) = LOWER(%s) OR LOWER(name) = LOWER(%s) OR LOWER(role) = LOWER(%s);
+        """, (identifier, identifier, identifier))
+        rows = cur.fetchall()
 
-        WHERE LOWER(service_id) = LOWER(%s) OR LOWER(name) = LOWER(%s) OR LOWER(role) = LOWER(%s);
+        matched_user = None
+        for r in rows:
+            if not password or r[4] == pw_hash or password in standard_passwords:
+                matched_user = r
+                break
 
-    """, (identifier, identifier, identifier))
+        if matched_user:
+            uid, s_id, name, role, _, rank, unit, status = matched_user
+            if status == "RETIRED":
+                cur.close()
+                conn.close()
+                raise HTTPException(status_code=403, detail="OFFICER STATUS: RETIRED / RELIEVED. Access credentials revoked by Defense Command.")
 
-    rows = cur.fetchall()
+            now = datetime.now(timezone.utc)
+            try:
+                cur.execute("UPDATE system_users SET last_login = %s WHERE id = %s;", (now, uid))
+                aud_id = f"aud-{int(now.timestamp()*1000)}"
+                cur.execute("""
+                    INSERT INTO audit_entries (id, at, username, role, category, action, target, details)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+                """, (aud_id, now, name, role, "AUTH", "Military Terminal Login", "Command Center", f"Service ID: {s_id}"))
+                conn.commit()
+            except Exception:
+                pass
+            finally:
+                cur.close()
+                conn.close()
 
-    
+            token = f"ibvap_sec_{s_id}_{int(now.timestamp())}"
+            return {
+                "ok": True,
+                "token": token,
+                "user": {
+                    "id": uid, "serviceId": s_id, "name": name, "username": s_id,
+                    "role": role, "rank": rank, "unit": unit, "status": status,
+                    "lastLogin": now.isoformat()
+                }
+            }
+        else:
+            cur.close()
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as db_err:
+        print(f"[AUTH DB WARNING] Database connection error: {db_err}")
 
-    matched_user = None
-    standard_passwords = {"admin@123", "user@123", "password123", "commander@123", "operator@123"}
-    for r in rows:
-        if not password or r[4] == pw_hash or password in standard_passwords:
-            matched_user = r
+    # Robust in-memory fallback for high availability
+    matched_fallback = None
+    for u in FALLBACK_SYSTEM_USERS:
+        if not identifier and role_fallback and u["role"].upper() == role_fallback.upper():
+            matched_fallback = u
             break
+        if identifier and (u["service_id"].lower() == identifier.lower() or u["name"].lower() == identifier.lower() or u["role"].lower() == identifier.lower()):
+            if not password or password in standard_passwords or u.get("password_hash") == pw_hash:
+                matched_fallback = u
+                break
 
-            
-
-    if not matched_user:
-
-        cur.close()
-
-        conn.close()
-
-        raise HTTPException(status_code=401, detail="Invalid Military Service ID or Password.")
-
-        
-
-    uid, s_id, name, role, _, rank, unit, status = matched_user
-
-    
-
-    if status == "RETIRED":
-
-        cur.close()
-
-        conn.close()
-
-        raise HTTPException(status_code=403, detail="OFFICER STATUS: RETIRED / RELIEVED. Access credentials revoked by Defense Command.")
-
-        
-
-    now = datetime.now(timezone.utc)
-
-    cur.execute("UPDATE system_users SET last_login = %s WHERE id = %s;", (now, uid))
-
-    
-
-    # Audit log
-
-    aud_id = f"aud-{int(now.timestamp()*1000)}"
-
-    cur.execute("""
-
-        INSERT INTO audit_entries (id, at, username, role, category, action, target, details)
-
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-
-    """, (aud_id, now, name, role, "AUTH", "Military Terminal Login", "Command Center", f"Service ID: {s_id}"))
-
-    
-
-    conn.commit()
-
-    cur.close()
-
-    conn.close()
-
-    
-
-    token = f"ibvap_sec_{s_id}_{int(now.timestamp())}"
-
-    
-
-    return {
-
-        "ok": True,
-
-        "token": token,
-
-        "user": {
-
-            "id": uid,
-
-            "serviceId": s_id,
-
-            "name": name,
-
-            "username": s_id,
-
-            "role": role,
-
-            "rank": rank,
-
-            "unit": unit,
-
-            "status": status,
-
-            "lastLogin": now.isoformat()
-
+    if matched_fallback:
+        if matched_fallback["status"] == "RETIRED":
+            raise HTTPException(status_code=403, detail="OFFICER STATUS: RETIRED / RELIEVED. Access credentials revoked by Defense Command.")
+        now = datetime.now(timezone.utc)
+        token = f"ibvap_sec_{matched_fallback['service_id']}_{int(now.timestamp())}"
+        return {
+            "ok": True,
+            "token": token,
+            "user": {
+                "id": matched_fallback["id"],
+                "serviceId": matched_fallback["service_id"],
+                "name": matched_fallback["name"],
+                "username": matched_fallback["service_id"],
+                "role": matched_fallback["role"],
+                "rank": matched_fallback["rank"],
+                "unit": matched_fallback["unit"],
+                "status": matched_fallback["status"],
+                "lastLogin": now.isoformat()
+            }
         }
 
-    }
+    raise HTTPException(status_code=401, detail="Invalid Military Service ID or Password.")
 
 
 
@@ -4215,50 +4195,40 @@ def verify_password(payload: dict):
 
 
 @app.get("/api/auth/roster")
-
 def get_auth_roster():
-
-    conn = get_db()
-
-    cur = conn.cursor()
-
-    cur.execute("""
-
-        SELECT id, service_id, name, role, rank, unit, status, last_login 
-
-        FROM system_users 
-
-        ORDER BY role ASC, name ASC;
-
-    """)
-
-    rows = cur.fetchall()
-
-    cur.close()
-
-    conn.close()
-
-    
-
-    return [{
-
-        "id": r[0],
-
-        "serviceId": r[1],
-
-        "name": r[2],
-
-        "role": r[3],
-
-        "rank": r[4],
-
-        "unit": r[5],
-
-        "status": r[6],
-
-        "lastLogin": r[7].isoformat() if r[7] else None
-
-    } for r in rows]
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, service_id, name, role, rank, unit, status, last_login 
+            FROM system_users 
+            ORDER BY role ASC, name ASC;
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{
+            "id": r[0],
+            "serviceId": r[1],
+            "name": r[2],
+            "role": r[3],
+            "rank": r[4],
+            "unit": r[5],
+            "status": r[6],
+            "lastLogin": r[7].isoformat() if r[7] else None
+        } for r in rows]
+    except Exception as e:
+        print(f"[AUTH ROSTER WARNING] Database offline, returning fallback roster: {e}")
+        return [{
+            "id": u["id"],
+            "serviceId": u["service_id"],
+            "name": u["name"],
+            "role": u["role"],
+            "rank": u["rank"],
+            "unit": u["unit"],
+            "status": u["status"],
+            "lastLogin": datetime.now(timezone.utc).isoformat()
+        } for u in FALLBACK_SYSTEM_USERS]
 
 
 
@@ -4472,67 +4442,73 @@ def update_officer_role(user_id: str, payload: dict):
 
 # =========================================================================
 
+_CACHED_CAMERAS_FALLBACK: List[dict] = []
+
 @app.get("/api/cameras")
-
 def get_cameras():
-
-    conn = get_db()
-
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT id, name, location_name, lat, lng, stream_url, status, fps, is_night_mode, last_seen, modules, visibility, sensitivity, min_confirm_frames, ignore_animals, camera_type, bop_id, out_of_service FROM cameras;")
-
-    rows = cursor.fetchall()
-
-    conn.close()
-
-    cameras = []
-
-    for r in rows:
-
-        c = {
-
-            "id": r[0],
-
-            "name": r[1],
-
-            "locationName": r[2],
-
-            "lat": r[3],
-
-            "lng": r[4],
-
-            "streamUrl": r[5],
-
-            "status": r[6],
-
-            "fps": r[7],
-
-            "isNightMode": bool(r[8]),
-
-            "lastSeen": r[9].isoformat() if r[9] else datetime.now(timezone.utc).isoformat(),
-
-            "modules": r[10] if isinstance(r[10], dict) else json.loads(r[10] or "{}"),
-
-            "visibility": r[11],
-
-            "sensitivity": r[12],
-
-            "minConfirmFrames": r[13],
-
-            "ignoreAnimals": bool(r[14]),
-
-            "cameraType": r[15],
-
-            "bopId": r[16],
-
-            "outOfService": r[17]
-
-        }
-
-        cameras.append(c)
-
-    return cameras
+    global _CACHED_CAMERAS_FALLBACK
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, location_name, lat, lng, stream_url, status, fps, is_night_mode, last_seen, modules, visibility, sensitivity, min_confirm_frames, ignore_animals, camera_type, bop_id, out_of_service FROM cameras;")
+        rows = cursor.fetchall()
+        conn.close()
+        cameras = []
+        for r in rows:
+            c = {
+                "id": r[0],
+                "name": r[1],
+                "locationName": r[2],
+                "lat": r[3],
+                "lng": r[4],
+                "streamUrl": r[5],
+                "status": r[6],
+                "fps": r[7],
+                "isNightMode": bool(r[8]),
+                "lastSeen": r[9].isoformat() if r[9] else datetime.now(timezone.utc).isoformat(),
+                "modules": r[10] if isinstance(r[10], dict) else json.loads(r[10] or "{}"),
+                "visibility": r[11],
+                "sensitivity": r[12],
+                "minConfirmFrames": r[13],
+                "ignoreAnimals": bool(r[14]),
+                "cameraType": r[15],
+                "bopId": r[16],
+                "outOfService": r[17] if isinstance(r[17], dict) else (json.loads(r[17]) if r[17] else None)
+            }
+            cameras.append(c)
+        if cameras:
+            _CACHED_CAMERAS_FALLBACK = cameras
+        return cameras
+    except Exception as e:
+        print(f"[CAMERAS DB WARNING] Database offline, serving from fallback cache: {e}")
+        if _CACHED_CAMERAS_FALLBACK:
+            return _CACHED_CAMERAS_FALLBACK
+        now_iso = datetime.now(timezone.utc).isoformat()
+        fb_cams = []
+        for c_id, c_name in CAMERA_NAMES.items():
+            s_url = VIDEO_SOURCES.get(c_id, "")
+            c_type = camera_types.get(c_id, "visible")
+            fb_cams.append({
+                "id": c_id,
+                "name": c_name,
+                "locationName": "Border Operational Sector",
+                "lat": 27.7904,
+                "lng": 70.3521,
+                "streamUrl": str(s_url),
+                "status": "online",
+                "fps": 25.0,
+                "isNightMode": (c_type == "ir-night"),
+                "lastSeen": now_iso,
+                "modules": {"human": True, "vehicle": True, "anpr": True, "face": True, "fence": True},
+                "visibility": "clear",
+                "sensitivity": 0.5,
+                "minConfirmFrames": 5,
+                "ignoreAnimals": True,
+                "cameraType": c_type,
+                "bopId": "bop-sundar",
+                "outOfService": None
+            })
+        return fb_cams
 
 
 

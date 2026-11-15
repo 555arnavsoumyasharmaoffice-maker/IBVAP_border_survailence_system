@@ -15,8 +15,8 @@ PG_CONFIG = {
 def get_db():
     db_url = os.environ.get("DATABASE_URL")
     if db_url:
-        return psycopg2.connect(db_url)
-    conn = psycopg2.connect(**PG_CONFIG)
+        return psycopg2.connect(db_url, connect_timeout=4)
+    conn = psycopg2.connect(**PG_CONFIG, connect_timeout=4)
     return conn
 
 def init_pg_db():
